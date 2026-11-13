@@ -1,0 +1,44 @@
+"""Dependency-free regression tests for the selective classic-Silverfish importer."""
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from zipfile import ZipFile
+import hashlib
+
+from import_classic import stage
+
+
+def test_synthetic_import() -> None:
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        archive = root / 'sample.zip'
+        prefix = 'release/Routines/DefaultRoutine/Silverfish/'
+        with ZipFile(archive, 'w') as z:
+            z.writestr(prefix + 'ai/Ai.cs', 'using System.Windows;\nusing Triton.Game;\nclass Ai {}')
+            z.writestr(prefix + 'ai/Hrtprozis.cs', 'class Hrtprozis {}')
+            z.writestr(prefix + 'ai/Playfield/Playfield.Ctors.cs', 'class Playfield {}')
+            z.writestr(prefix + 'data/CardDefs.xml', '<cards/>')
+            z.writestr(prefix + 'ai/Zones.cs', 'using Triton.Game;')
+            z.writestr(prefix + 'cards/1858-泰坦诸神/Sim_TTN_092.cs', 'using Triton.Game;')
+            z.writestr(prefix + 'cards/../../bad.cs', 'evil')
+            z.writestr('release/Hearthbuddy.exe', 'not-a-real-exe')
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        out = root / 'output'
+        report = stage(archive, out, expected_sha256=digest)
+        assert report['imported_files'] == 4
+        assert report['imported_cs_files'] == 3
+        assert report['sha256'] == digest
+        assert 'ai/Zones.cs' in report['quarantined']
+        assert (out / 'src/Silverfish.Classic/Imported/ai/Ai.cs').read_text() == '\n\nclass Ai {}'
+        assert not list(out.rglob('Hearthbuddy.exe'))
+        assert not list(out.rglob('bad.cs'))
+        try:
+            stage(archive, root / 'wrong-sha', expected_sha256='0' * 64)
+        except ValueError as err:
+            assert 'SHA-256' in str(err)
+        else:
+            raise AssertionError('Expected digest mismatch to be rejected')
+
+
+if __name__ == '__main__':
+    test_synthetic_import()
+    print('PASS: archive hash, safe source selection, headless patching and quarantine')
