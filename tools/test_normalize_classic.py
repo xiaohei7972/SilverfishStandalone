@@ -34,6 +34,7 @@ def test_normalize() -> None:
         board = (imported / "BoardTester.cs").read_text(encoding="utf-8")
         assert ENEMY_HAND_MARKER in board
         assert 'enemyNumberHand = Convert.ToInt32' in board
+        assert 'enemyDecksize = Convert.ToInt32' in board
         assert 'if (s.StartsWith("水晶： "))' in board
 
         second = normalize(root)
