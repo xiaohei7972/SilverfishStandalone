@@ -24,6 +24,7 @@ EXCLUDE = {
 REMOVE_USING = re.compile(r'^\s*using\s+(?:(?:Triton|IronPython|Microsoft\.Scripting|log4net|System\.Windows)(?:\.[\w.]+)?|Logger\s*=\s*Triton\.[\w.]+)\s*;\s*$', re.M)
 REPLACE = {
     'TritonHs.GameState.GetEntity(': 'DetachedEntityRegistry.GetEntity(',
+    'Silverfish.Instance.updateCThunInfo(': 'Hrtprozis.Instance.updateCThunInfo(',
     'Silverfish.Instance.BehaviorPath': 'ClassicBehaviorPaths.Paths',
     'DefaultRoutineSettings.Instance.MaxWide': 'Settings.Instance.maxwide',
     'Path.Combine(AppContext.BaseDirectory, "Routines", "DefaultRoutine", "Silverfish", "Hsreplay")': 'Path.Combine(AppContext.BaseDirectory, "Hsreplay")',
