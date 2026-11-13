@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """Pack classic Silverfish from an older reference checkout for CI diagnostics.
-The packed reference MUST NOT be mistaken for the owner-provided 2026-11-05 ZIP.
+
+This is NOT the owner's 2026-11-05 source. Only the two known-broken,
+reference-only files are excluded; the canonical source is never modified.
 """
 import argparse
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 
 ALLOWED = {".cs", ".xml", ".json", ".txt"}
-
+# Reference-specific invalid source discovered from GitHub Actions 43493826125.
+BROKEN_REFERENCE_ONLY = {
+    "Test/debugTest.cs": "contains unresolved Git merge markers (CS8300)",
+    "cards/1129-拉斯塔哈的大乱斗/Sim_TRL_326.cs": "invalid source expression (CS1525)",
+}
 
 def package(source_repo: Path, output: Path) -> tuple[int, int]:
     source = (source_repo / "Routines" / "DefaultRoutine" / "Silverfish").resolve()
@@ -26,6 +32,9 @@ def package(source_repo: Path, output: Path) -> tuple[int, int]:
             relative = file.relative_to(source).as_posix()
             if "silverfish_v2" in relative.lower():
                 continue
+            if relative in BROKEN_REFERENCE_ONLY:
+                print(f"Quarantined OLD-REFERENCE-only {relative}: {BROKEN_REFERENCE_ONLY[relative]}")
+                continue
             total += file.stat().st_size
             if total > 256 * 1024 * 1024:
                 raise ValueError("Classic source exceeds expected maximum size")
@@ -36,7 +45,6 @@ def package(source_repo: Path, output: Path) -> tuple[int, int]:
         raise ValueError("Classic reference inventory is unexpectedly small")
     return count, total
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source_repo", type=Path)
@@ -45,7 +53,6 @@ def main() -> None:
     count, total = package(args.source_repo, args.output_archive)
     print(f"Prepared {count} classic files ({total:,} uncompressed bytes)")
     print("SOURCE MODE: older diagnostic reference, NOT authoritative 2026-11-05 release")
-
 
 if __name__ == "__main__":
     main()

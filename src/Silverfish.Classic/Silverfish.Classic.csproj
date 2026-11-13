@@ -6,6 +6,9 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <LangVersion>latest</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- The full classic card-script collection exceeds the C# compiler
+         server's 5 MB request size. Use a direct compiler process. -->
+    <UseSharedCompilation>false</UseSharedCompilation>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ClassicCompatibility.cs" />
