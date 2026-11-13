@@ -47,3 +47,9 @@ This component currently inspects an explicitly selected process (PID, architect
 The legal-action candidates in the demo are fixture data, not reconstructed from a live game. A trustworthy game-specific action generator and versioned snapshot adapter are prerequisites to using live data.
 
 This repository deliberately does not include copyrighted Hearthbuddy/Triton assemblies, original Silverfish source, anti-cheat bypass features, or gameplay automation.
+
+## Classic Silverfish (owner's 2026-11-05 archive)
+
+The selected source archive is pinned by SHA-256 and can be staged without importing the old host. See [latest classic source import](docs/CLASSIC_2026_11_05_IMPORT.md).
+
+Run `python tools/test_import_classic.py`, then `python tools/import_classic.py <archive.zip> --dest .` (pass the pinned `--sha256` from the guide). The new `src/Silverfish.Classic/` project and smoke runner are only buildable after source staging. **The actual classic AI port is not yet build-verified or connected to GameSnapshot.**
