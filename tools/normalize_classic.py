@@ -54,6 +54,11 @@ def normalize(root: Path) -> dict:
                 f"{indent}    enemyNumberHand = Convert.ToInt32(s.Split(' ')[2]);\n"
                 f'{indent}    continue;\n'
                 f'{indent}}}\n'
+                f'{indent}if (s.StartsWith("Enemy deck: "))\n'
+                f'{indent}{{\n'
+                f"{indent}    enemyDecksize = Convert.ToInt32(s.Split(' ')[2]);\n"
+                f'{indent}    continue;\n'
+                f'{indent}}}\n'
                 f'{indent}if (s.StartsWith("水晶： "))'
             )
         after, replacements = re.subn(pattern, inject, before, count=1)
