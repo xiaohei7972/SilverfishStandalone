@@ -10,6 +10,7 @@
 - `dotnet build src/Silverfish.Classic/Silverfish.Classic.csproj -c Release`：**成功**。
 - 旧版源码编译错误从多处语法/合并冲突缩减到旧 `Ai.cs` 的 2 处宿主单例依赖，再改为独立 `Hrtprozis.updateCThunInfo` 后，核心类库通过编译。
 - 原工作流的 `CardDB` smoke 失败并不是 C# 或 CardDB 本身的错误，而是 Actions 启动命令将 `--nologo` 作为应用的文件路径参数传入，导致 `FileNotFoundException`。
+- **已通过**：GitHub Actions [43527562637](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43527562637) 的经典 `Silverfish.Classic` .NET 8 构建和 `CardDB` 离线 smoke 均成功。
 - 已移除这个误传参数，并补充编译成功后的 DLL Artifact 上传步骤。新的 smoke 结果要以新的 Actions 运行记录为准。
 
 ## 为什么这仍不是最终验收
@@ -32,3 +33,7 @@
 4. 最终再实现 `GameSnapshot` 到经典银鱼输入格式的转换和 UI。
 
 没有引入任何 Silverfish V2 代码。
+
+## 新增：实际 AI 离线牌面决策测试
+
+已经提交 `samples/classic-simple-lethal-zh.txt`，包含一个最小测试：我方 4 攻可攻击随从，对手英雄 3 血。专门用 `Silverfish.Classic.Smoke` 调用原版 `Ai.autoTester`，目标是验证它能独立搜索棋盘并输出 `bestmove`。该测试的完成结果单独以 GitHub Actions 的 `Run classic AI autoTester against a fixed offline board` 步骤判定，不能用基础评分器或 CardDB smoke 的通过来代替。
