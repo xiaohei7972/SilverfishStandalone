@@ -28,6 +28,7 @@ on:
     paths:
       - ".github/workflows/classic-compile.yml"
       - "tools/import_classic.py"
+      - "tools/normalize_classic.py"
       - "tools/package_reference_classic.py"
       - "src/Silverfish.Classic/**"
       - "src/Silverfish.Classic.Smoke/**"
@@ -112,6 +113,10 @@ jobs:
         run: |
           python tools/import_classic.py "$env:RUNNER_TEMP/classic-source.zip" --dest .
 
+      - name: Normalize host-free classic AI references for any source mode
+        shell: pwsh
+        run: python tools/normalize_classic.py
+
       - name: Print source provenance and verify classic source exists
         shell: pwsh
         run: |
@@ -154,6 +159,7 @@ jobs:
           name: classic-silverfish-build-logs
           path: |
             classic-import-manifest.json
+            classic-headless-patches.json
             classic-build.log
             classic-console.log
             classic-smoke.log
