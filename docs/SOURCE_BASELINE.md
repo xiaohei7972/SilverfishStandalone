@@ -1,38 +1,38 @@
-# Source baseline / 迁移基准
+# Source baseline / 源码基准
 
-## Owner's selection
+## Confirmed owner-supplied source
 
-The project owner asked to prioritize their **latest Hearthbuddy release**, possibly the final one, while extracting the **classic Silverfish AI** (`Ai`, `Hrtprozis`, `Playfield`, `CardDB` and associated simulation code). Do not use alternative AI rewrites as the migration baseline.
+The authoritative baseline is the ZIP uploaded by the repository owner:
 
-**Status: source not yet received in this chat.** No file/archive or exact commit/tag corresponding to that latest update has been provided in a form that can be inspected. Do not assume it equals either public reference listed below. The initial repository foundation intentionally contains no imported code from either.
+- Archive: `Hearthbuddy1.7.1(1).zip`
+- ZIP root: `炉石兄弟-2026.11.05/`
+- SHA-256: `1879f784ed5b6854d53e148fc444d0f65bd8afbd52ccc1b3d8cf56e23efb5071`
+- AI path: `Routines/DefaultRoutine/Silverfish/`
+- Target: classic Silverfish (`Ai`, `Hrtprozis`, `Playfield`, `Handmanager`, `CardDB`, `Movegenerator`), **not** any replacement/rewrite of the algorithm.
 
-## Baseline acceptance checklist
+Actual ZIP contents were inspected in the working environment. The original archive has 19,405 entries; classic Silverfish has 19,141 C# files. The `cards/` subtree alone has 19,058 C# simulations, and the card definitions XML is ~23 MB. There is no Silverfish_v2 source directory.
 
-When the authoritative archive/repository is supplied:
+## Work completed
 
-1. Record source URL or archive filename, version/date and commit SHA when available.
-2. For an archive, record SHA-256 and file inventory; keep the input read-only.
-3. Identify original license/attribution for each subtree and binary dependency, concentrating on the classic Silverfish strategy implementation.
-4. Find strategy entry points, AI simulator, state collector, action adapter, UI and plugins.
-5. Produce a source-to-target mapping table and dependency graph.
-6. Set a known-good offline regression corpus before modifying the AI.
-7. Import only authorized, independently buildable portions to a dedicated port project.
+`tools/import_classic.py` reproduced the owner-supplied source selection:
 
-## Owner's existing related repositories (candidate references, not yet confirmed baseline)
+- 19,166 source/data files staged locally (19,135 C#).
+- 27 files have relevant import-time API/using/path replacements.
+- Six old client-runtime dependent files are quarantined and listed in `classic-import-manifest.json`.
+- No Hearthbuddy executable, Triton binaries, GreyMagic binaries, or classic Silverfish v2 code are included in the staged source package.
+- An independent `src/Silverfish.Classic/` project, compatibility boundary and smoke entry point have been created.
 
-A search of the owner's connected GitHub account found these additional projects:
+See `docs/CLASSIC_2026_11_05_IMPORT.md` for exact commands and evidence.
 
-- `xiaohei7972/Hearthbuddy_Refactor` — latest observed commit 2026-09-04 (refactor/build work).
-- `xiaohei7972/Hearthbuddy_Origin` — latest observed commit 2026-05-05 (original host refactor).
-- `xiaohei7972/Hearthbuddy_backed` — last observed commit 2025-11-12.
-- `xiaohei7972/Hearthbuddy_SimTemplate` — last observed commit 2025-10-02.
+## Outstanding gates
 
-These dates are repository commit dates, **not proof that any repository is the owner's mentioned newest Hearthbuddy release**. An authoritative exact source choice is still required before code migration.
+1. Build the newly staged source under .NET 8 and resolve real compiler errors.
+2. Run original `Ai.autoTester` against a recorded `BoardTester` fixture; compare generated decisions.
+3. Translate authoritative game snapshots to the full classic Hrtprozis + Handmanager data set.
+4. Return sequence-bound recommendations and integrate the new UI.
 
-## Non-authoritative research references
+The raw `Imported/` tree is ignored by Git by default to avoid accidentally publishing almost 20,000 new files in the public repository before local validation. The current GitHub branch contains the reproducible importer and project scaffolding, but **the original classic AI has not yet passed independent compilation or regression tests**.
 
-- https://github.com/lijhnihaoa/HB — useful inventory of a community-maintained Silverfish code tree.
-- https://github.com/ChuckHearthstone/SilverFish — historical implementation.
-- https://github.com/CardResearchLab/StandaloneGameMod — independent runtime transport and state projection.
+## Other references
 
-The current code is a verified starting **architecture**, not an assertion that the latest upstream Silverfish engine has already been extracted.
+Older GitHub forks and the owner's earlier Hearthbuddy code can be consulted for behavior comparison; they do not supersede the SHA-pinned 2026-11-05 archive.
