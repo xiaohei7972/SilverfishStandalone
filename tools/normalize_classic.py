@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Apply idempotent, narrowly scoped host-detachment fixes to staged classic AI.
+"""Idempotent, scoped headless compatibility fixes for classic Silverfish.
 
-Run after any input mode, including the SHA-pinned source-only work package.
-The original archive stays unmodified.
+Applied to all input paths after import, including the verified owner ZIP.
+The original source archive is never modified.
 """
 from pathlib import Path
 import json
+import re
 import sys
 
 PATCHES = {
@@ -16,6 +17,8 @@ PATCHES = {
         ("ai.botBase", "Ai.Instance.botBase"),
     ],
 }
+
+ENEMY_HAND_MARKER = "// HEADLESS_BOARDTESTER_ENEMY_HAND_COUNT"
 
 def normalize(root: Path) -> dict:
     imported = root / "src" / "Silverfish.Classic" / "Imported"
@@ -31,8 +34,37 @@ def normalize(root: Path) -> dict:
         if after != before:
             path.write_text(after, encoding="utf-8")
             modified[relative] = True
+
+    # Extend only BoardTester's small Chinese fixture parser. The original
+    # default (5 enemy cards) remains unchanged; tests must supply the value.
+    relative = "ai/BoardTester.cs"
+    path = imported / relative
+    if not path.is_file():
+        raise FileNotFoundError(f"Expected classic source file missing: {relative}")
+    before = path.read_text(encoding="utf-8-sig")
+    after = before
+    if ENEMY_HAND_MARKER not in before:
+        pattern = r'(?m)^([ \t]*)if\s*\(s\.StartsWith\("水晶： "\)\)'
+        def inject(match):
+            indent = match.group(1)
+            return (
+                f'{indent}{ENEMY_HAND_MARKER}\n'
+                f'{indent}if (s.StartsWith("Enemy cards: "))\n'
+                f'{indent}{{\n'
+                f"{indent}    enemyNumberHand = Convert.ToInt32(s.Split(' ')[2]);\n"
+                f'{indent}    continue;\n'
+                f'{indent}}}\n'
+                f'{indent}if (s.StartsWith("水晶： "))'
+            )
+        after, replacements = re.subn(pattern, inject, before, count=1)
+        if replacements != 1:
+            raise ValueError("BoardTester Chinese snapshot parser anchor not found")
+    if after != before:
+        path.write_text(after, encoding="utf-8")
+        modified[relative] = True
+
     report = {
-        "purpose": "headless source normalization only; does not modify original ZIP",
+        "purpose": "headless normalization and explicit offline fixture fields",
         "modified": sorted(modified),
     }
     (root / "classic-headless-patches.json").write_text(
