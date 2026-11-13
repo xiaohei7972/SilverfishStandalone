@@ -38,8 +38,12 @@ This component currently inspects an explicitly selected process (PID, architect
 - src/Silverfish.Contracts — versioned input/output snapshots and action identities.
 - src/Silverfish.Core — validation, strategy interface, deterministic baseline evaluator.
 - src/Silverfish.Cli — offline JSON runner (proof of a running pipeline).
+- src/Silverfish.Classic — original classic AI source project (after archive import).
+- src/Silverfish.Classic.Smoke — CardDB loading and BoardTester/Ai.autoTester offline runner.
+- src/Silverfish.ClassicBridge — maps the **original** classic AI's bestmove to one unique, externally validated legal-action ID; rejects ambiguous/unsupported actions.
 - src/Silverfish.Integrations.Libmem — optional Windows x64 process-probe adapter using Libmem.NET 2.5.0.
 - tests/Silverfish.Tests — regression and validation tests.
+- tests/Silverfish.ClassicBridge.Tests — tests for legal action mapping (run after classic source import).
 - docs/ARCHITECTURE.md — strict dependency boundaries and integration steps.
 - docs/SILVERFISH_PORT.md — planned migration of the actual Silverfish engine.
 - docs/THIRD_PARTY.md — attribution and license-review checklist.
@@ -53,3 +57,7 @@ This repository deliberately does not include copyrighted Hearthbuddy/Triton ass
 The selected source archive is pinned by SHA-256 and can be staged without importing the old host. See [latest classic source import](docs/CLASSIC_2026_11_05_IMPORT.md).
 
 Run `python tools/test_import_classic.py`, then `python tools/import_classic.py <archive.zip> --dest .` (pass the pinned `--sha256` from the guide). The new `src/Silverfish.Classic/` project and smoke runner are only buildable after source staging. **The actual classic AI port is not yet build-verified or connected to GameSnapshot.**
+
+## GitHub Actions milestones
+
+The older classic reference source now builds with .NET 8 **without the old Hearthbuddy host**, and CardDB initialization passed [Actions run 43527562637](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43527562637). The older-source build is for dependency diagnostics, **not** a build certificate for the user's 2026-11-05 source. A fixed BoardTester fixture and classic action-mapping tests are the next gates. See [build progress](docs/BUILD_PROGRESS.md) and [Actions source selection](docs/CLASSIC_ACTIONS_BUILD.md).
