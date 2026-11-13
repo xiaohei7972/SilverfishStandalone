@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+.vs/
+.idea/
+.vscode/
+TestResults/
+*.user
+*.suo
+*.nupkg
+*.snupkg
+coverage/
+artifacts/
+
+# Latest owner-provided classic Silverfish sources are staged locally.
+# Avoid accidentally publishing the entire raw archive on the public repo.
+src/Silverfish.Classic/Imported/
+classic-import-manifest.json

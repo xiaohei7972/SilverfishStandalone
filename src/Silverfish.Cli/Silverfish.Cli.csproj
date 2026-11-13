@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Silverfish.Contracts/Silverfish.Contracts.csproj" />
+    <ProjectReference Include="../Silverfish.Core/Silverfish.Core.csproj" />
+  </ItemGroup>
+</Project>

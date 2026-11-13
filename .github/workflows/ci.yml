@@ -1,0 +1,27 @@
+name: Build and offline tests
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+
+jobs:
+  dotnet:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Validate classic import tool
+        run: python tools/test_import_classic.py
+      - name: Validate headless classic source patching
+        run: python tools/test_normalize_classic.py
+      - name: Unit tests
+        run: dotnet test tests/Silverfish.Tests/Silverfish.Tests.csproj -c Release --nologo
+      - name: Offline sample
+        run: dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- samples/lethal.json
+      - name: Libmem.NET integration build (Windows x64)
+        run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo
