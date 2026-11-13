@@ -13,6 +13,9 @@ Console.WriteLine($"Classic CardDB loaded: {unknown is not null}");
 if (args.Length == 1)
 {
     var board = await File.ReadAllTextAsync(args[0]);
+    // In old Hearthbuddy, the host supplied a strategy before invoking Ai.
+    // An independent host must select one explicitly for its offline searches.
+    Ai.Instance.botBase = new Behavior丨通用丨不设惩罚();
     var durations = Ai.Instance.autoTester(printstuff: false, data: board, mode: 2);
     Console.WriteLine($"Classic AI ran {durations.Count} calculation pass(es).");
     Console.WriteLine($"Best move: {Ai.Instance.bestmove?.ToString() ?? "none"}");
