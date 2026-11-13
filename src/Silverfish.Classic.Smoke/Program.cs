@@ -18,9 +18,26 @@ if (args.Length == 1)
     Ai.Instance.botBase = new Behavior丨通用丨不设惩罚();
     var durations = Ai.Instance.autoTester(printstuff: false, data: board, mode: 2);
     Console.WriteLine($"Classic AI ran {durations.Count} calculation pass(es).");
-    Console.WriteLine($"Best move: {Ai.Instance.bestmove?.ToString() ?? "none"}");
-    if (durations.Count == 0)
+    var best = Ai.Instance.bestmove;
+    if (durations.Count == 0 || best is null)
+    {
+        Console.Error.WriteLine("Classic AI did not produce a concrete bestmove.");
         return 1;
+    }
+
+    // Log the original search result, not the default Action.ToString()
+    // class name. This is diagnostic metadata, never an execution request.
+    var cardField = typeof(HREngine.Bots.Action).GetField("hc")
+                    ?? typeof(HREngine.Bots.Action).GetField("card");
+    var handCard = cardField?.GetValue(best) as Handmanager.Handcard;
+    Console.WriteLine("CLASSIC_BESTMOVE_JSON=" + System.Text.Json.JsonSerializer.Serialize(new
+    {
+        actionType = best.actionType.ToString(),
+        sourceEntityId = best.own?.entitiyID ?? handCard?.entity,
+        targetEntityId = best.target?.entitiyID,
+        placement = best.place,
+        choice = best.druidchoice
+    }));
 }
 else if (args.Length != 0)
 {
