@@ -28,6 +28,7 @@ on:
     paths:
       - ".github/workflows/classic-compile.yml"
       - "tools/import_classic.py"
+      - "tools/normalize_classic.py"
       - "tools/package_reference_classic.py"
       - "src/Silverfish.Classic/**"
       - "src/Silverfish.Classic.Smoke/**"
@@ -112,6 +113,10 @@ jobs:
         run: |
           python tools/import_classic.py "$env:RUNNER_TEMP/classic-source.zip" --dest .
 
+      - name: Normalize host-free classic AI references for any source mode
+        shell: pwsh
+        run: python tools/normalize_classic.py
+
       - name: Print source provenance and verify classic source exists
         shell: pwsh
         run: |
@@ -129,9 +134,22 @@ jobs:
       - name: Run classic CardDB smoke if build succeeds
         shell: pwsh
         run: |
-          dotnet run --project src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.csproj -c Release --nologo *> classic-smoke.log
+          dotnet run --project src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.csproj -c Release *> classic-smoke.log
           $code = $LASTEXITCODE
           Get-Content classic-smoke.log -Tail 60
+          exit $code
+
+      - name: Test classic bestmove-to-legal-action bridge
+        shell: pwsh
+        run: |
+          dotnet test tests/Silverfish.ClassicBridge.Tests/Silverfish.ClassicBridge.Tests.csproj -c Release --nologo
+
+      - name: Run classic AI autoTester against a fixed offline board
+        shell: pwsh
+        run: |
+          dotnet run --project src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.csproj -c Release -- samples/classic-simple-lethal-zh.txt *> classic-board-test.log
+          $code = $LASTEXITCODE
+          Get-Content classic-board-test.log -Tail 80
           exit $code
 
       - name: Upload import manifest and compile logs, even on failure
@@ -141,8 +159,21 @@ jobs:
           name: classic-silverfish-build-logs
           path: |
             classic-import-manifest.json
+            classic-headless-patches.json
             classic-build.log
             classic-console.log
             classic-smoke.log
+            classic-board-test.log
           if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload independently compiled classic Silverfish
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classic-silverfish-net8
+          path: |
+            src/Silverfish.Classic/bin/Release/net8.0/**
+            src/Silverfish.Classic.Smoke/bin/Release/net8.0/**
+          if-no-files-found: error
           retention-days: 14
