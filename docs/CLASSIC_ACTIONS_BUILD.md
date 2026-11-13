@@ -8,13 +8,25 @@
 
 注意：这份 GitHub 参考仓库比你上传的 2026-11-05 ZIP 更旧。此模式用于识别早期解耦的编译问题，不能据此宣布最新版银鱼已通过测试，也不能用旧文件覆盖最终版代码。
 
+## 推荐：使用独立源码工作包（不包含旧主程序）
+
+已经从用户提供的最新版 ZIP 生成了 ClassicSilverfish_2026-11-05_独立源码工作包.zip（约 18 MB）。它包含经典银鱼源码/数据，不包含 Hearthbuddy.exe、GreyMagic 等主程序文件。
+
+SHA-256：
+
+    ec1ff768036deee5ebda81274f6e1a61a69c105b0b6cd37b285c2d8dd34f771c
+
+当确认该源码包可以公开发布时，可将此 ZIP 上传到本仓库 tag 为 classic-source-2026-11-05 的 GitHub Release 资产，然后在 Actions 中选择 owner-classic-work-package。工作流会验证文件 SHA-256，直接从归档导入实际 2026-11-05 经典源码，再编译。此模式比上传完整旧主程序安装包更合适。
+
+若源码不希望公开，请不要使用公开 Release，改在私有仓库中运行工作流或通过有权限的私有制品仓库连接。
+
 ## 最新版 2026-11-05 的正式构建
 
 工作流支持从当前仓库的 GitHub Release 下载原始 ZIP，并要求 SHA-256 必须等于以下值：
 
     1879f784ed5b6854d53e148fc444d0f65bd8afbd52ccc1b3d8cf56e23efb5071
 
-只有在 ZIP 已被上传为名为 Hearthbuddy1.7.1(1).zip 的对应 Release 资产时，才能使用 Actions > Classic Silverfish compile (diagnostic) > Run workflow，选择 owner-2026-11-05-release 模式。
+原始安装包模式仍保留：将原版 ZIP 作为同一 Release 资产上传后，在 Actions > Classic Silverfish compile (diagnostic) > Run workflow 中选择 owner-2026-11-05-release 并将 release_asset 指定为 Hearthbuddy1.7.1(1).zip。优先使用上面的独立源码包模式。
 
 注意本仓库是公开的。不要直接公开完整安装包中可能含有的账号配置、私有资料或不想发布的二进制。若不希望发布，建议在私有仓库托管该 ZIP 并使用最小权限的 GitHub Actions 凭证接入，或先确认归档内容及公开范围。
 
