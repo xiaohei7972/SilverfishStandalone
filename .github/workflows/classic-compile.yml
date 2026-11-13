@@ -134,6 +134,11 @@ jobs:
           Get-Content classic-smoke.log -Tail 60
           exit $code
 
+      - name: Test classic bestmove-to-legal-action bridge
+        shell: pwsh
+        run: |
+          dotnet test tests/Silverfish.ClassicBridge.Tests/Silverfish.ClassicBridge.Tests.csproj -c Release --nologo
+
       - name: Run classic AI autoTester against a fixed offline board
         shell: pwsh
         run: |
