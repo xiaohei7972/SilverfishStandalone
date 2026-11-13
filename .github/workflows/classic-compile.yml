@@ -146,3 +146,14 @@ jobs:
             classic-smoke.log
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Upload independently compiled classic Silverfish
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classic-silverfish-net8
+          path: |
+            src/Silverfish.Classic/bin/Release/net8.0/**
+            src/Silverfish.Classic.Smoke/bin/Release/net8.0/**
+          if-no-files-found: error
+          retention-days: 14
