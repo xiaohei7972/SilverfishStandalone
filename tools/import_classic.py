@@ -69,6 +69,10 @@ def stage(archive: Path, destination: Path, expected_sha256: str | None = None) 
                 content = REMOVE_USING.sub('', content)
                 for before, after in REPLACE.items():
                     content = content.replace(before, after)
+                if relative == 'ai/PenalityManager.cs':
+                    # Avoid an early-captured Ai singleton reference while testing
+                    # the headless classic search before host init has occurred.
+                    content = content.replace('ai.botBase', 'Ai.Instance.botBase')
                 data = content.encode('utf-8')
                 if content != old:
                     transformed.append(relative)
