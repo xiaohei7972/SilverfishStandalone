@@ -134,6 +134,14 @@ jobs:
           Get-Content classic-smoke.log -Tail 60
           exit $code
 
+      - name: Run classic AI autoTester against a fixed offline board
+        shell: pwsh
+        run: |
+          dotnet run --project src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.csproj -c Release -- samples/classic-simple-lethal-zh.txt *> classic-board-test.log
+          $code = $LASTEXITCODE
+          Get-Content classic-board-test.log -Tail 80
+          exit $code
+
       - name: Upload import manifest and compile logs, even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -144,6 +152,7 @@ jobs:
             classic-build.log
             classic-console.log
             classic-smoke.log
+            classic-board-test.log
           if-no-files-found: warn
           retention-days: 14
 
