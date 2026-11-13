@@ -2,7 +2,7 @@
 
 ## Owner's selection
 
-The project owner asked to prioritize their **latest Hearthbuddy / Silverfish update**, possibly the final one, rather than treating older online forks as authoritative.
+The project owner asked to prioritize their **latest Hearthbuddy release**, possibly the final one, while extracting the **classic Silverfish AI** (`Ai`, `Hrtprozis`, `Playfield`, `CardDB` and associated simulation code). Do not use alternative AI rewrites as the migration baseline.
 
 **Status: source not yet received in this chat.** No file/archive or exact commit/tag corresponding to that latest update has been provided in a form that can be inspected. Do not assume it equals either public reference listed below. The initial repository foundation intentionally contains no imported code from either.
 
@@ -12,7 +12,7 @@ When the authoritative archive/repository is supplied:
 
 1. Record source URL or archive filename, version/date and commit SHA when available.
 2. For an archive, record SHA-256 and file inventory; keep the input read-only.
-3. Identify original license/attribution for each subtree and binary dependency.
+3. Identify original license/attribution for each subtree and binary dependency, concentrating on the classic Silverfish strategy implementation.
 4. Find strategy entry points, AI simulator, state collector, action adapter, UI and plugins.
 5. Produce a source-to-target mapping table and dependency graph.
 6. Set a known-good offline regression corpus before modifying the AI.
@@ -23,7 +23,6 @@ When the authoritative archive/repository is supplied:
 A search of the owner's connected GitHub account found these additional projects:
 
 - `xiaohei7972/Hearthbuddy_Refactor` — latest observed commit 2026-09-04 (refactor/build work).
-- `xiaohei7972/Hearthbuddy_Silverfish` — latest observed commit 2026-07-31 (Silverfish v2 card defaults).
 - `xiaohei7972/Hearthbuddy_Origin` — latest observed commit 2026-05-05 (original host refactor).
 - `xiaohei7972/Hearthbuddy_backed` — last observed commit 2025-11-12.
 - `xiaohei7972/Hearthbuddy_SimTemplate` — last observed commit 2025-10-02.
