@@ -32,6 +32,10 @@ on:
       - "tools/package_reference_classic.py"
       - "src/Silverfish.Classic/**"
       - "src/Silverfish.Classic.Smoke/**"
+      - "tests/Silverfish.ClassicBridge.Tests/**"
+      - "samples/classic-*.txt"
+      - "tools/test_normalize_classic.py"
+
 
 permissions:
   contents: read
