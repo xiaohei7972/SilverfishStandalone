@@ -35,3 +35,4 @@ public static class LibmemProcessProbe
             session.Bits,
             modules);
     }
+}
