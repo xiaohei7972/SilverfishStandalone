@@ -18,6 +18,18 @@ When the authoritative archive/repository is supplied:
 6. Set a known-good offline regression corpus before modifying the AI.
 7. Import only authorized, independently buildable portions to a dedicated port project.
 
+## Owner's existing related repositories (candidate references, not yet confirmed baseline)
+
+A search of the owner's connected GitHub account found these additional projects:
+
+- `xiaohei7972/Hearthbuddy_Refactor` — latest observed commit 2026-09-04 (refactor/build work).
+- `xiaohei7972/Hearthbuddy_Silverfish` — latest observed commit 2026-07-31 (Silverfish v2 card defaults).
+- `xiaohei7972/Hearthbuddy_Origin` — latest observed commit 2026-05-05 (original host refactor).
+- `xiaohei7972/Hearthbuddy_backed` — last observed commit 2025-11-12.
+- `xiaohei7972/Hearthbuddy_SimTemplate` — last observed commit 2025-10-02.
+
+These dates are repository commit dates, **not proof that any repository is the owner's mentioned newest Hearthbuddy release**. An authoritative exact source choice is still required before code migration.
+
 ## Non-authoritative research references
 
 - https://github.com/lijhnihaoa/HB — useful inventory of a community-maintained Silverfish code tree.
