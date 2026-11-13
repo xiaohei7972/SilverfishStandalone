@@ -39,6 +39,9 @@ jobs:
     name: Build headless classic Silverfish
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: '1'
     steps:
       - name: Checkout SilverfishStandalone
         uses: actions/checkout@v4
