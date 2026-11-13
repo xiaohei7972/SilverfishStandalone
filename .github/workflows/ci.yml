@@ -17,6 +17,8 @@ jobs:
           dotnet-version: "8.0.x"
       - name: Validate classic import tool
         run: python tools/test_import_classic.py
+      - name: Validate headless classic source patching
+        run: python tools/test_normalize_classic.py
       - name: Unit tests
         run: dotnet test tests/Silverfish.Tests/Silverfish.Tests.csproj -c Release --nologo
       - name: Offline sample
