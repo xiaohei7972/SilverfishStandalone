@@ -10,6 +10,7 @@ on:
         options:
           - old-reference-diagnostic
           - owner-2026-11-05-release
+          - owner-classic-work-package
         default: old-reference-diagnostic
       release_tag:
         description: "Release tag for owner's ZIP (owner release mode)"
@@ -20,7 +21,7 @@ on:
         description: "Release ZIP asset filename (owner release mode)"
         required: false
         type: string
-        default: Hearthbuddy1.7.1(1).zip
+        default: ClassicSilverfish_2026-11-05_独立源码工作包.zip
   push:
     branches:
       - "feat/**"
@@ -67,7 +68,7 @@ jobs:
           python tools/package_reference_classic.py .reference-source "$env:RUNNER_TEMP/classic-source.zip"
 
       - name: Download owner archive from this repo's release assets
-        if: github.event_name == 'workflow_dispatch' && inputs.source_mode == 'owner-2026-11-05-release'
+        if: github.event_name == 'workflow_dispatch' && (inputs.source_mode == 'owner-2026-11-05-release' || inputs.source_mode == 'owner-classic-work-package')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -84,6 +85,26 @@ jobs:
         shell: pwsh
         run: |
           python tools/import_classic.py "$env:RUNNER_TEMP/classic-source.zip" --dest . --sha256 1879f784ed5b6854d53e148fc444d0f65bd8afbd52ccc1b3d8cf56e23efb5071
+
+      - name: Verify and stage owner's source-only classic work package
+        if: github.event_name == 'workflow_dispatch' && inputs.source_mode == 'owner-classic-work-package'
+        shell: pwsh
+        run: |
+          $archive = "$env:RUNNER_TEMP/classic-source.zip"
+          $sha = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne "ec1ff768036deee5ebda81274f6e1a61a69c105b0b6cd37b285c2d8dd34f771c") {
+            throw "Classic source-only work package SHA-256 mismatch: $sha"
+          }
+          $staging = Join-Path $env:RUNNER_TEMP "verified-classic-package"
+          Expand-Archive -LiteralPath $archive -DestinationPath $staging -Force
+          $imported = Join-Path $staging "src/Silverfish.Classic/Imported"
+          $manifest = Join-Path $staging "classic-import-manifest.json"
+          if (-not (Test-Path (Join-Path $imported "ai/Ai.cs"))) { throw "Imported classic Ai.cs missing from pinned work package" }
+          if (-not (Test-Path -LiteralPath $manifest)) { throw "Source manifest missing" }
+          New-Item -ItemType Directory -Force -Path "src/Silverfish.Classic/Imported" | Out-Null
+          Copy-Item -Path (Join-Path $imported "*") -Destination "src/Silverfish.Classic/Imported" -Recurse -Force
+          Copy-Item -LiteralPath $manifest -Destination "classic-import-manifest.json" -Force
+          Write-Host "Verified owner's 2026-11-05 source-only work package."
 
       - name: Import older reference for compiler diagnostics
         if: github.event_name == 'push' || inputs.source_mode == 'old-reference-diagnostic'
