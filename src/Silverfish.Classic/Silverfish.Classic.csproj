@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="ClassicCompatibility.cs" />
+    <Compile Include="Imported/**/*.cs" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <None Include="Imported/data/CardDefs.xml" Link="CardDefs.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Imported/Hsreplay/*.json" Link="Hsreplay/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
