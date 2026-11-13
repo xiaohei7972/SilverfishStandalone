@@ -13,7 +13,7 @@ def test_synthetic_import() -> None:
         archive = root / 'sample.zip'
         prefix = 'release/Routines/DefaultRoutine/Silverfish/'
         with ZipFile(archive, 'w') as z:
-            z.writestr(prefix + 'ai/Ai.cs', 'using System.Windows;\nusing Triton.Game;\nclass Ai {}')
+            z.writestr(prefix + 'ai/Ai.cs', 'using System.Windows;\nusing Triton.Game;\nclass Ai { void Update(){ Silverfish.Instance.updateCThunInfo(1, 2, 3); } }')
             z.writestr(prefix + 'ai/Hrtprozis.cs', 'class Hrtprozis {}')
             z.writestr(prefix + 'ai/Playfield/Playfield.Ctors.cs', 'class Playfield {}')
             z.writestr(prefix + 'data/CardDefs.xml', '<cards/>')
@@ -28,7 +28,7 @@ def test_synthetic_import() -> None:
         assert report['imported_cs_files'] == 3
         assert report['sha256'] == digest
         assert 'ai/Zones.cs' in report['quarantined']
-        assert (out / 'src/Silverfish.Classic/Imported/ai/Ai.cs').read_text() == '\n\nclass Ai {}'
+        assert (out / 'src/Silverfish.Classic/Imported/ai/Ai.cs').read_text() == '\n\nclass Ai { void Update(){ Hrtprozis.Instance.updateCThunInfo(1, 2, 3); } }'
         assert not list(out.rglob('Hearthbuddy.exe'))
         assert not list(out.rglob('bad.cs'))
         try:
@@ -39,6 +39,22 @@ def test_synthetic_import() -> None:
             raise AssertionError('Expected digest mismatch to be rejected')
 
 
+def test_monolithic_playfield_import() -> None:
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        archive = root / 'old-style.zip'
+        prefix = 'old/Routines/DefaultRoutine/Silverfish/'
+        with ZipFile(archive, 'w') as z:
+            z.writestr(prefix + 'ai/Ai.cs', 'class Ai {}')
+            z.writestr(prefix + 'ai/Hrtprozis.cs', 'class Hrtprozis {}')
+            z.writestr(prefix + 'ai/Playfield.cs', 'class Playfield {}')
+            z.writestr(prefix + 'data/CardDefs.xml', '<cards/>')
+        report = stage(archive, root / 'out')
+        assert report['imported_files'] == 4
+        assert (root / 'out/src/Silverfish.Classic/Imported/ai/Playfield.cs').exists()
+
+
 if __name__ == '__main__':
     test_synthetic_import()
+    test_monolithic_playfield_import()
     print('PASS: archive hash, safe source selection, headless patching and quarantine')
