@@ -1,38 +1,46 @@
-# Silverfish extraction plan
+# 经典银鱼独立化技术计划
 
-## Source candidates (review required)
+## 真实源码基准
 
-- Historical reference: https://github.com/ChuckHearthstone/SilverFish
-- Newer community implementation: https://github.com/lijhnihaoa/HB
-- Existing internal transport: https://github.com/CardResearchLab/StandaloneGameMod
+以用户上传的 `Hearthbuddy1.7.1(1).zip` 为准，压缩包目录为 `炉石兄弟-2026.11.05`，SHA-256 详见 `docs/SOURCE_BASELINE.md`。不使用 V2 代码，不以任何旧公开 fork 覆盖本次提供的源码。
 
-In the community HB source, the first files to study are:
+## 现有工作（已实际完成）
 
-- Routines/DefaultRoutine/DefaultRoutine.cs — Hearthbuddy/Triton-facing IRoutine; NOT a drop-in library.
-- Routines/DefaultRoutine/Silverfish/ai/Ai.cs — search orchestration and bestmove; contains UI coupling.
-- Routines/DefaultRoutine/Silverfish/ai/Hrtprozis.cs — aggregated state expected by the simulator.
-- Routines/DefaultRoutine/Silverfish/Playfield/ — game simulation and rule implementation.
-- CardDB, Handmanager, PenalityManager, Behavior and related simulator helpers.
+- 从源码包筛选 19,166 个经典银鱼相关源码与文本资源，其中 19,135 个 C# 文件。
+- 以 `tools/import_classic.py` 做可重复、有哈希约束的来源选择和接口调整；测试工具已运行通过。
+- 已建立 `src/Silverfish.Classic/Silverfish.Classic.csproj` 和 smoke runner。
+- `ClassicCompatibility.cs` 提供新的日志、行为路径、Entity tag 和 Mulligan 输入边界。
+- 隔离原版输入操作扩展、弃用的旧主程序 Zone 包装，以及四个直接读取 live GameState 的模拟脚本。
+- 原主程序和原生 DLL 不参与构建；工作包仅包含纯文本源码和数据。
+- **尚未完成** 对这批新导入经典源码的 .NET 编译、测试局面决策和实时状态适配。
 
-These are research references, not yet imported or independently compiled here.
+## 逐项拆解（严格依赖顺序）
 
-## Ordered porting work
+### 1. 原始经典源码编译
 
-1. Inventory files, upstream origins, licenses and transitive dependencies. Check actual licensing per file.
-2. Extract dependency graph. Categorize: pure simulation, data model, file-backed data, log/settings, Triton/IRoutine, and UI.
-3. Build an isolated SilverfishPort project with only legally reusable source and no Hearthbuddy executable or Triton reference.
-4. Replace global game state capture with an explicit per-request board state. Initially support only a narrow, documented card/rule subset.
-5. Introduce a snapshot-to-Hrtprozis translator, with missing-field diagnostics rather than unsafe default values.
-6. Replace UI/log/singleton coupling with injected interfaces where needed, while retaining deterministic regression tests.
-7. Compare the port against known offline test fixtures from the upstream engine. Validate every newly supported mechanic.
-8. Replace BaselineStrategyEngine behind IStrategyEngine only when independent calculation tests pass.
+`Ai.cs`, `Hrtprozis.cs`, `Playfield/*.cs`, `CardDB/*.cs`, `Handmanager.cs`, `Movegenerator.cs`, `Minion.cs`, `Weapon.cs`, `MiniSimulator.cs` 以及卡牌脚本属于同一模拟核心，不能只复制 `Ai.cs` 就宣称 AI 独立。先运行 `dotnet build src/Silverfish.Classic/Silverfish.Classic.csproj`，按真实编译错误修复；如果有无法独立的逻辑，明确隔离而不是引用 Triton 临时过关。
 
-## First useful completion criterion
+### 2. 原版 BoardTester 离线回归
 
-    JSON fixture -> validated GameSnapshot -> independent Silverfish simulation -> BotDecision
+使用 `Silverfish.Classic.Smoke`（`Ai.Instance.autoTester`）加载一份可复现的板面测试文本，证明经典算法本身计算完成、得到 `bestmove`，记录输出和耗时。此阶段不需要游戏或 UI。
 
-The output must be possible without Hearthbuddy.exe, Triton, GreyMagic, a running game, or a UI. This criterion is NOT yet met by the baseline implementation: the baseline is an intentionally limited architectural smoke test.
+### 3. 可复现的状态转换
 
-## Version notes
+转换 `StandaloneGameMod state.snapshot` 为完整银鱼输入（`Hrtprozis`、`Handmanager`、`miniEnch` 的元数据等）。必须处理卡牌 ID、实体 ID、装备、光环、奥秘、墓地、手牌/牌库数量、回合标签以及尚未知的字段。数据不完整时明确报告，而非以默认值生成不可信决策。
 
-Modern Hearthstone card rules, triggers, choice modes, secrets, buffs and special mechanics evolve continuously. The existence of a card in an upstream database is not evidence that its simulation is correct.
+### 4. 动作映射与安全验证
+
+将 `Ai.bestmove` 转换成当前项目 `BotDecision`，每个决策绑定 matchId 和 sequence。只允许来自已确认合法候选动作的推荐，并在下一份快照变化后重算；不将旧点击/Hook 代码混入算法。
+
+### 5. Libmem.NET 与 UI
+
+Libmem.NET 保留为独立进程数据能力，不能代替银鱼完整局面语义。新 UI（Vue 3 + WebView2）显示局面、AI 计算步骤、候选动作、日志和回放。游戏交互在单独边界实现，不属于 `Silverfish.Classic`。
+
+## 验收标准
+
+```
+一份离线牌面 -> 经典 Ai 实际计算 -> 可复现 bestmove
+一份有效 state.snapshot -> 独立适配器 -> 经典 Ai -> BotDecision
+```
+
+上面的第一条目前还没有实际通过；仓库中的 BaselineStrategyEngine 只是架构演示，不能作为经典银鱼算法的替代完成标志。
