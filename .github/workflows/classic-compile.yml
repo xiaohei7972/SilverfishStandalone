@@ -129,7 +129,7 @@ jobs:
       - name: Run classic CardDB smoke if build succeeds
         shell: pwsh
         run: |
-          dotnet run --project src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.csproj -c Release --nologo *> classic-smoke.log
+          dotnet run --project src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.csproj -c Release *> classic-smoke.log
           $code = $LASTEXITCODE
           Get-Content classic-smoke.log -Tail 60
           exit $code
