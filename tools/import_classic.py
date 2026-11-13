@@ -78,7 +78,7 @@ def stage(archive: Path, destination: Path, expected_sha256: str | None = None) 
 
     if 'ai/Ai.cs' not in copied or 'ai/Hrtprozis.cs' not in copied:
         raise ValueError('Archive does not contain the classic Silverfish AI core')
-    if 'ai/Playfield/Playfield.Ctors.cs' not in copied or 'data/CardDefs.xml' not in copied:
+    if not any(p in copied for p in ('ai/Playfield/Playfield.Ctors.cs', 'ai/Playfield.cs')) or 'data/CardDefs.xml' not in copied:
         raise ValueError('Archive lacks required simulation or card data files')
 
     report = {
