@@ -15,6 +15,7 @@ def test_synthetic_import() -> None:
         with ZipFile(archive, 'w') as z:
             z.writestr(prefix + 'ai/Ai.cs', 'using System.Windows;\nusing Triton.Game;\nclass Ai { void Update(){ Silverfish.Instance.updateCThunInfo(1, 2, 3); } }')
             z.writestr(prefix + 'ai/Hrtprozis.cs', 'class Hrtprozis {}')
+            z.writestr(prefix + 'ai/PenalityManager.cs', 'class PenalityManager { void Score(){ ai.botBase.ToString(); } }')
             z.writestr(prefix + 'ai/Playfield/Playfield.Ctors.cs', 'class Playfield {}')
             z.writestr(prefix + 'data/CardDefs.xml', '<cards/>')
             z.writestr(prefix + 'ai/Zones.cs', 'using Triton.Game;')
@@ -24,11 +25,12 @@ def test_synthetic_import() -> None:
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         out = root / 'output'
         report = stage(archive, out, expected_sha256=digest)
-        assert report['imported_files'] == 4
-        assert report['imported_cs_files'] == 3
+        assert report['imported_files'] == 5
+        assert report['imported_cs_files'] == 4
         assert report['sha256'] == digest
         assert 'ai/Zones.cs' in report['quarantined']
         assert (out / 'src/Silverfish.Classic/Imported/ai/Ai.cs').read_text() == '\n\nclass Ai { void Update(){ Hrtprozis.Instance.updateCThunInfo(1, 2, 3); } }'
+        assert 'Ai.Instance.botBase' in (out / 'src/Silverfish.Classic/Imported/ai/PenalityManager.cs').read_text()
         assert not list(out.rglob('Hearthbuddy.exe'))
         assert not list(out.rglob('bad.cs'))
         try:
