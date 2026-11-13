@@ -39,7 +39,7 @@ public static class ClassicDecisionAdapter
 
         int? source = name switch
         {
-            "playcard" => bestMove.hc?.entity,
+            "playcard" => FindHandEntityId(bestMove),
             "attackWithMinion" => bestMove.own?.entitiyID,
             "attackWithHero" => snapshot.OurHero.EntityId,
             _ => null
@@ -70,6 +70,16 @@ public static class ClassicDecisionAdapter
             Score = bestMoveValue,
             Reason = "Original classic AI bestmove, matched to a unique legal candidate."
         };
+    }
+
+    private static int? FindHandEntityId(ClassicAction move)
+    {
+        // Old classic action.cs used a public field named 'card'; the
+        // 2026-11-05 source renamed this field to 'hc'. Resolve only
+        // this small compatibility edge at runtime.
+        var field = typeof(ClassicAction).GetField("hc")
+                    ?? typeof(ClassicAction).GetField("card");
+        return (field?.GetValue(move) as HREngine.Bots.Handmanager.Handcard)?.entity;
     }
 
     private static BotDecision Unavailable(GameSnapshot snapshot, string reason) => new()
