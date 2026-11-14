@@ -1,6 +1,8 @@
 # SilverfishStandalone
 
-**目标：在不依赖炉石兄弟主程序的前提下，逐步重构经典银鱼 AI 自己的实体模型、局面模拟、卡牌效果与搜索引擎。**
+**当前唯一优先目标：把 2026-11-05 经典银鱼完整脱离炉石兄弟主程序，完成独立 .NET 8 编译、原版 CardDB 加载、原版 Ai.autoTester 离线决策、可打包运行和错误处理。**
+
+模型重构已冻结；这一阶段**不改动**原始 Minion、Handcard、Weapon、Playfield、Movegenerator、Ai 或约 1.9 万份卡牌脚本的设计。
 
 本项目不采用 Silverfish V2，也不把 StandaloneGameMod 接入作为当前开发阶段的前置条件。
 
@@ -13,7 +15,16 @@
 
 **明确的未完成事项：** 当前公开仓库的自动诊断使用较旧的 `xiaohei7972/Hearthbuddy_backed`，不能代表用户上传的 **2026-11-05** 最新版编译通过。完整新版源码暂未放进 GitHub Actions 可下载的 Release 资产，因此最新版的独立编译和回归尚未验收。新 `Silverfish.Domain` 也尚未取代旧 `Playfield` 以及近两万份旧卡牌模拟脚本。
 
-## 当前重构路线
+## 当前阶段：先完成独立化
+
+1. 使用**2026-11-05 正式基线**执行 SHA-256 校验、.NET 8 类库构建与 smoke 测试，不以旧版参考代码通过冒充最新版。
+2. 确保 standalone smoke 明确初始化原版通用策略、报告非空 bestmove、无宿主单例调用或异常静默退出。
+3. 保留完整源码与卡牌资源，生成能直接在 Windows .NET 8 SDK 下自行编译的独立包；与 GitHub Actions 提供相同检测。
+4. **只有上述全部完成后才解冻模型重构。**
+
+见 [独立化优先验收](docs/INDEPENDENCE_FIRST.md)。
+
+## 已暂停的后续重构路线
 
 1. **锁定 2026-11-05 版基线**：SHA-256 校验、GitHub Actions 编译、`Ai.autoTester`、固定决策回归。
 2. **更新实体状态模型**：把 `Minion/Handcard/Weapon` 各自堆积的字段拆成实体、战斗、费用、装备、标签和效果组件；用不可变快照避免不同搜索分支共享可变集合。
@@ -24,10 +35,10 @@
 
 ## 工程结构
 
-- `src/Silverfish.Domain`：新不可变实体与局面核心，**不引用** Hearthbuddy、Triton 或旧 Silverfish。
+- `src/Silverfish.Domain`：**冻结的实验分支代码**，独立化验收前暂不继续开发。
 - `tests/Silverfish.Domain.Tests`：新模型的分支隔离、状态不变量和基础功能测试。
 - `src/Silverfish.Classic`：按 SHA/选择规则从旧源归档导入的经典银鱼源码编译项目。
-- `src/Silverfish.ClassicModelAdapter`：只读旧模型投影，辅助逐步迁移。
+- `src/Silverfish.ClassicModelAdapter`：**冻结的实验性只读旧模型投影**，独立化验收前不作为最新版测试门槛。
 - `tests/Silverfish.ClassicModelAdapter.Tests`：对实际编译的旧 Minion/Handcard/Weapon 的映射回归。
 - `src/Silverfish.Classic.Smoke`：原版 AI 和 CardDB 离线回归程序。
 - `src/Silverfish.ClassicBridge`：原版动作到合法候选动作 ID 的映射。
@@ -39,6 +50,10 @@
 已经生成不含炉石兄弟主程序二进制和 V2 源码的独立 ZIP，SHA-256：
 
 `ec1ff768036deee5ebda81274f6e1a61a69c105b0b6cd37b285c2d8dd34f771c`
+
+新整理的独立运行源码包（原版 Minion/Handcard/Weapon/Playfield 保留，增加 smoke 入口及退出错误修复）SHA-256：
+
+`81f6f19e2888ba5158ea194d6bea30d1f2ad90a7e67e7fd8565ffc7d2bff75e7`
 
 工作流支持 `owner-classic-work-package`，从已上传的 Release 资产核验 SHA-256，然后编译并跑原版 AI 离线回归与模型迁移单测。
 
