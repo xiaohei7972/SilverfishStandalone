@@ -49,6 +49,18 @@ pwsh ./tools/publish_owner_classic_source.ps1 -ArchivePath "C:\\path\\ClassicSil
 
 由于仓库是公开仓库，Release 资产也会公开。**这一步还没有执行**：当前 GitHub 连接不能直接上传 18MB 二进制文件。如果不希望公开，使用私有构建来源，不要传到公共 Release。
 
+## 阿格拉玛四个卡牌脚本已临时停用
+
+按用户要求，为避免当前 2026-11-05 版复仇者阿格拉玛和三个泰坦技能的实现阻塞独立化，`Sim_TTN_092.cs`、`Sim_TTN_092t1.cs`、`Sim_TTN_092t2.cs`、`Sim_TTN_092t3.cs` 现在保留为可编译的空 `SimTemplate` 类。每个文件的原效果源码以行注释保留在 `BEGIN DISABLED ORIGINAL` 与 `END DISABLED ORIGINAL` 之间，不再调用旧 `GameState.Get()`。两份原本就为空的相关脚本 `Sim_TTN_092t.cs` 与 `Sim_TTN_092e2t.cs` 没有修改。
+
+该措施**不是卡牌行为修复**：战吼装备武器及三个技能效果不再由这些模拟器执行，因此使用这些卡牌时的 AI 评估可能不正确。后续独立化完成后按单独任务恢复其算法实现。
+
+复现步骤：`tools/import_classic.py` 在从原始归档导入时自动将四个原始脚本改成“原逻辑注释 + 空 SimTemplate”；`tools/disable_aggramar.py` 为已提取的源码工作包补齐四个占位文件并保持幂等。GitHub Actions 在编译前运行该步骤。新独立源码包 SHA-256：
+
+`4d6944304c0d224d366afda1691f0429c5d3cffbc0daae18259310a7f6f95d92`
+
+最新版 .NET 8 编译与完整离线回归仍须在 Actions 上执行，不以静态检查代替。
+
 ## 完成标准
 
 只有最新版本源码在 Actions 中编译通过、固定牌面真实 AI 运算通过且异常处理测试通过，才能将 P0 标为完成。其他模块的回归成功不算替代验收。
