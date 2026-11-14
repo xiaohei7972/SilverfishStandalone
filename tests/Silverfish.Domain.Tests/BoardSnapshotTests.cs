@@ -53,7 +53,15 @@ public sealed class BoardSnapshotTests
             Cost = new ManaCost(3, 1), HandModifiers = new HandStatModifiers(1, 0)
         };
         var original = BoardSnapshot.Create(new[] { hand });
-        var moved = original.Move(hand.Id, EntityZone.Battlefield, 1);
+        // Moving a card into play must also construct its runtime combat
+        // component. A bare zone edit is deliberately rejected.
+        Assert.Throws<ArgumentException>(() =>
+            original.Move(hand.Id, EntityZone.Battlefield, 1));
+        var moved = original.Replace(hand with {
+            Zone = EntityZone.Battlefield, Position = 1,
+            Combat = new CombatStats(4, 3, 3, Ready: false),
+            Cost = null, HandModifiers = null
+        });
         Assert.Equal(EntityZone.Hand, original.Get(hand.Id).Zone);
         Assert.Equal(EntityZone.Battlefield, moved.Get(hand.Id).Zone);
         Assert.Equal(hand.Id, moved.Get(hand.Id).Id);
