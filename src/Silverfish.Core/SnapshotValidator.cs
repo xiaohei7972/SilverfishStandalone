@@ -20,6 +20,13 @@ public static class SnapshotValidator
         if (snapshot.AvailableMana < 0)
             throw new ArgumentException("AvailableMana cannot be negative.", nameof(snapshot));
 
+        if (snapshot.MaximumMana is < 0 || snapshot.EnemyHandCount is < 0 ||
+            snapshot.EnemyDeckCount is < 0 || snapshot.OurSecretCount is < 0 ||
+            snapshot.EnemySecretCount is < 0)
+            throw new ArgumentException("Optional game-state counts cannot be negative.", nameof(snapshot));
+        if (snapshot.MaximumMana is int max && snapshot.AvailableMana > max)
+            throw new ArgumentException("Available mana cannot exceed maximum mana.", nameof(snapshot));
+
         if (snapshot.OurHero is null || snapshot.EnemyHero is null)
             throw new ArgumentException("Both hero snapshots are required.", nameof(snapshot));
 
