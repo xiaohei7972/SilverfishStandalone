@@ -12,14 +12,14 @@ from pathlib import Path, PurePosixPath
 import re
 import zipfile
 
+from disable_aggramar import SCRIPTS as AGGRAMAR_SCRIPTS, disabled_source
+
+AGGRAMAR_RELATIVES = {'cards/1858-泰坦诸神/' + name for name in AGGRAMAR_SCRIPTS}
+
 MARKER = 'Routines/DefaultRoutine/Silverfish/'
 EXCLUDE = {
     'Helpers/Extensions.cs': 'Hearthbuddy input/HSCard API adapter',
     'ai/Zones.cs': 'Triton Game.Mapping Card wrapper, not used by the simulator',
-    'cards/1858-泰坦诸神/Sim_TTN_092.cs': 'calls live GameState in a card simulator',
-    'cards/1858-泰坦诸神/Sim_TTN_092t1.cs': 'calls live GameState in a card simulator',
-    'cards/1858-泰坦诸神/Sim_TTN_092t2.cs': 'calls live GameState in a card simulator',
-    'cards/1858-泰坦诸神/Sim_TTN_092t3.cs': 'calls live GameState in a card simulator',
 }
 REMOVE_USING = re.compile(r'^\s*using\s+(?:(?:Triton|IronPython|Microsoft\.Scripting|log4net|System\.Windows)(?:\.[\w.]+)?|Logger\s*=\s*Triton\.[\w.]+)\s*;\s*$', re.M)
 REPLACE = {
@@ -73,6 +73,10 @@ def stage(archive: Path, destination: Path, expected_sha256: str | None = None) 
                     # Avoid an early-captured Ai singleton reference while testing
                     # the headless classic search before host init has occurred.
                     content = content.replace('ai.botBase', 'Ai.Instance.botBase')
+                if relative in AGGRAMAR_RELATIVES:
+                    # Original effect source is kept as literal comments;
+                    # compile a minimal no-op SimTemplate instead of calling live GameState.
+                    content = disabled_source(file.name, old)
                 data = content.encode('utf-8')
                 if content != old:
                     transformed.append(relative)
@@ -93,6 +97,7 @@ def stage(archive: Path, destination: Path, expected_sha256: str | None = None) 
         'imported_cs_files': sum(x.endswith('.cs') for x in copied),
         'transformed_files': len(transformed),
         'quarantined': skipped,
+        'disabled_card_simulators': sorted(x for x in copied if x in AGGRAMAR_RELATIVES),
         'root': 'src/Silverfish.Classic/Imported',
         'note': 'Source staged; requires dotnet build and offline regression verification.'
     }
