@@ -28,7 +28,7 @@ public static class LegacyEntityProjection
         Add(legacy.immune, "IMMUNE");
         Add(legacy.reborn, "REBORN");
         Add(legacy.silenced, "SILENCED");
-        Add(legacy.Titan, "TITAN");
+        Add(ReadBool(legacy, "Titan") == true, "TITAN");
         Add(legacy.frozen, "FROZEN");
 
         var snapshot = new EntityState
@@ -44,13 +44,7 @@ public static class LegacyEntityProjection
                 legacy.numAttacksThisTurn, legacy.Ready),
             Keywords = keywords.ToImmutable(),
             EnchantmentCardIds = legacy.enchs.Select(x => x.ToString()).ToImmutableArray(),
-            Counters = ImmutableDictionary<string, int>.Empty
-                .Add("scriptData1", legacy.TAG_SCRIPT_DATA_NUM_1)
-                .Add("scriptData2", legacy.TAG_SCRIPT_DATA_NUM_2)
-                .Add("dormant", legacy.dormant)
-                .Add("titanAbility1Used", legacy.TitanAbilityUsed1 ? 1 : 0)
-                .Add("titanAbility2Used", legacy.TitanAbilityUsed2 ? 1 : 0)
-                .Add("titanAbility3Used", legacy.TitanAbilityUsed3 ? 1 : 0)
+            Counters = CharacterCounters(legacy)
         };
         snapshot.Validate();
         return snapshot;
@@ -79,16 +73,51 @@ public static class LegacyEntityProjection
             Cost = new ManaCost(definition.PrintedCost, legacy.manacost),
             HandModifiers = new HandStatModifiers(legacy.addattack, legacy.addHp),
             EnchantmentCardIds = legacy.enchs.Select(x => x.ToString()).ToImmutableArray(),
-            Counters = ImmutableDictionary<string, int>.Empty
-                .Add("scriptData1", legacy.SCRIPT_DATA_NUM_1)
-                .Add("scriptData2", legacy.SCRIPT_DATA_NUM_2)
-                .Add("conditionalCount", legacy.conditionalCount)
-                .Add("poweredUp", legacy.poweredUp)
-                .Add("temporary", legacy.temporary ? 1 : 0)
-                .Add("unplayable", legacy.literallyUnplayable ? 1 : 0)
+            Counters = HandCounters(legacy)
         };
         snapshot.Validate();
         return snapshot;
+    }
+
+    private static ImmutableDictionary<string, int> CharacterCounters(Minion source)
+    {
+        var counters = ImmutableDictionary<string, int>.Empty
+            .Add("dormant", source.dormant);
+        counters = AddIfPresent(counters, "scriptData1", ReadInt(source, "TAG_SCRIPT_DATA_NUM_1"));
+        counters = AddIfPresent(counters, "scriptData2", ReadInt(source, "TAG_SCRIPT_DATA_NUM_2"));
+        counters = AddIfPresent(counters, "titanAbility1Used", ReadBool(source, "TitanAbilityUsed1") is bool a ? (a ? 1 : 0) : null);
+        counters = AddIfPresent(counters, "titanAbility2Used", ReadBool(source, "TitanAbilityUsed2") is bool b ? (b ? 1 : 0) : null);
+        counters = AddIfPresent(counters, "titanAbility3Used", ReadBool(source, "TitanAbilityUsed3") is bool c ? (c ? 1 : 0) : null);
+        return counters;
+    }
+
+    private static ImmutableDictionary<string, int> HandCounters(Handmanager.Handcard source)
+    {
+        var counters = ImmutableDictionary<string, int>.Empty
+            .Add("conditionalCount", source.conditionalCount)
+            .Add("poweredUp", source.poweredUp)
+            .Add("temporary", source.temporary ? 1 : 0);
+        counters = AddIfPresent(counters, "scriptData1", ReadInt(source, "SCRIPT_DATA_NUM_1"));
+        counters = AddIfPresent(counters, "scriptData2", ReadInt(source, "SCRIPT_DATA_NUM_2"));
+        counters = AddIfPresent(counters, "unplayable", ReadBool(source, "literallyUnplayable") is bool u ? (u ? 1 : 0) : null);
+        return counters;
+    }
+
+    private static ImmutableDictionary<string, int> AddIfPresent(
+        ImmutableDictionary<string, int> counters, string name, int? value) =>
+        value is int present ? counters.Add(name, present) : counters;
+
+    // Old forks lack some modern tags. Missing fields are omitted; they must
+    // never be presented as known zero values in the migrated state.
+    private static int? ReadInt(object source, string name) =>
+        source.GetType().GetField(name)?.GetValue(source) is int value ? value : null;
+
+    private static bool? ReadBool(object source, string name)
+    {
+        var type = source.GetType();
+        var value = type.GetField(name)?.GetValue(source)
+                    ?? type.GetProperty(name)?.GetValue(source);
+        return value is bool present ? present : null;
     }
 
     /// <summary>
