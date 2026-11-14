@@ -26,8 +26,9 @@ public sealed class BoardSnapshot
         {
             ArgumentNullException.ThrowIfNull(entity);
             entity.Validate();
-            if (!builder.TryAdd(entity.Id, entity))
+            if (builder.ContainsKey(entity.Id))
                 throw new ArgumentException($"Duplicate entity ID {entity.Id}.");
+            builder.Add(entity.Id, entity);
         }
         return new BoardSnapshot(builder.ToImmutable());
     }
