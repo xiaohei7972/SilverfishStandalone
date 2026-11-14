@@ -15,14 +15,31 @@ public sealed class LegacyEntityProjectionTests
             entitiyID = 11, own = true, Hp = 3, maxHp = 3,
             Angr = 4, zonepos = 1, Ready = true, taunt = true
         };
+        // The latest source stores typed enchantments, while older classic
+        // code used a single string. Exercise both layouts without a fork.
+        var rawEnchants = typeof(Minion).GetField("enchs")!.GetValue(old);
+        var typedEnchants = rawEnchants as IList<CardDB.cardIDEnum>;
+        typedEnchants?.Add(CardDB.cardIDEnum.None);
+        typeof(Minion).GetField("TAG_SCRIPT_DATA_NUM_1")?.SetValue(old, 42);
+
         var definition = new CardDefinition("EX1_612", EntityKind.Minion, 3, 4, 3);
         var captured = LegacyEntityProjection.CaptureCharacter(old, definition);
         old.Hp = 1;
         old.taunt = false;
+        typedEnchants?.Clear();
 
         Assert.Equal(3, captured.Combat!.Health);
         Assert.Contains("TAUNT", captured.Keywords);
-        Assert.Empty(captured.EnchantmentCardIds);
+        if (typedEnchants is not null)
+        {
+            Assert.Single(captured.EnchantmentCardIds);
+            Assert.Equal(42, captured.Counters["scriptData1"]);
+        }
+        else
+        {
+            Assert.Empty(captured.EnchantmentCardIds);
+            Assert.False(captured.Counters.ContainsKey("scriptData1"));
+        }
     }
 
     [Fact]
