@@ -12,6 +12,10 @@ public sealed record GameSnapshot
     public GamePhase Phase { get; init; }
     public bool IsOurTurn { get; init; }
     public int AvailableMana { get; init; }
+    // Optional snapshot fields; required by the limited classic BoardTester adapter.
+    public int? MaximumMana { get; init; }
+    public int? EnemyHandCount { get; init; }
+    public int? EnemyDeckCount { get; init; }
     public HeroSnapshot OurHero { get; init; } = new();
     public HeroSnapshot EnemyHero { get; init; } = new();
     public IReadOnlyList<MinionSnapshot> OurBoard { get; init; } = Array.Empty<MinionSnapshot>();
@@ -35,12 +39,15 @@ public sealed record HeroSnapshot
     public int Health { get; init; }
     public int Armor { get; init; }
     public int Attack { get; init; }
+    public string ClassNameZh { get; init; } = string.Empty;
 }
 
 public sealed record MinionSnapshot
 {
     public int EntityId { get; init; }
     public string CardId { get; init; } = string.Empty;
+    // Only used by the legacy Chinese BoardTester text format.
+    public string CardNameZh { get; init; } = string.Empty;
     public int Attack { get; init; }
     public int Health { get; init; }
     public bool CanAttack { get; init; }
