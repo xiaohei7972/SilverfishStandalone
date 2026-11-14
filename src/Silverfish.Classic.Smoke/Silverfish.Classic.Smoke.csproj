@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Silverfish.Classic/Silverfish.Classic.csproj" />
+    <ProjectReference Include="../Silverfish.ClassicBridge/Silverfish.ClassicBridge.csproj" />
   </ItemGroup>
 </Project>
