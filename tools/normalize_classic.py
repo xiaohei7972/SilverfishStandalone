@@ -67,10 +67,9 @@ def normalize(root: Path) -> dict:
     # The old routine used Environment.Exit(0) on invalid board input.
     # That kills an embedding process and falsely marks a failed CI smoke as
     # a successful exit. The detached library must surface a normal error.
-    after = re.sub(
-        r'Environment\\.Exit\\(0\\);(?:[^\\n]*)',
+    after = after.replace(
+        'Environment.Exit(0);',
         'throw new FormatException("Invalid classic BoardTester input.", e);',
-        after,
     )
     if after != before:
         path.write_text(after, encoding="utf-8")
