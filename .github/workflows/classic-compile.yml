@@ -33,6 +33,9 @@ on:
       - "src/Silverfish.Classic/**"
       - "src/Silverfish.Classic.Smoke/**"
       - "tests/Silverfish.ClassicBridge.Tests/**"
+      - "tests/Silverfish.ClassicModelAdapter.Tests/**"
+      - "src/Silverfish.ClassicModelAdapter/**"
+      - "src/Silverfish.Domain/**"
       - "samples/classic-*.txt"
       - "samples/classic-*.json"
       - "tools/test_normalize_classic.py"
@@ -148,6 +151,11 @@ jobs:
         shell: pwsh
         run: |
           dotnet test tests/Silverfish.ClassicBridge.Tests/Silverfish.ClassicBridge.Tests.csproj -c Release --nologo
+
+      - name: Test old-to-new Minion Handcard Weapon state projection
+        shell: pwsh
+        run: |
+          dotnet test tests/Silverfish.ClassicModelAdapter.Tests/Silverfish.ClassicModelAdapter.Tests.csproj -c Release --nologo
 
       - name: Run classic AI autoTester against a fixed offline board
         shell: pwsh
