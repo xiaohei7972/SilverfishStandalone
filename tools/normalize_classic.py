@@ -43,7 +43,16 @@ def normalize(root: Path) -> dict:
         raise FileNotFoundError(f"Expected classic source file missing: {relative}")
     before = path.read_text(encoding="utf-8-sig")
     after = before
-    if ENEMY_HAND_MARKER not in before:
+    # A pre-patched 2026-11-05 source bundle already contains both fields;
+    # do not inject duplicate parser branches when staging it through Actions.
+    chinese_start = before.find("private void setupFromChnFile")
+    mana_at = before.find('if (s.StartsWith("水晶： "))', chinese_start)
+    chinese_prefix = before[chinese_start:mana_at] if chinese_start >= 0 and mana_at >= 0 else ""
+    already_supported = (
+        'if (s.StartsWith("Enemy cards: "))' in chinese_prefix
+        and 'if (s.StartsWith("Enemy deck: "))' in chinese_prefix
+    )
+    if ENEMY_HAND_MARKER not in before and not already_supported:
         pattern = r'(?m)^([ \t]*)if\s*\(s\.StartsWith\("水晶： "\)\)'
         def inject(match):
             indent = match.group(1)
