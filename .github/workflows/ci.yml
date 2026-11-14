@@ -21,6 +21,8 @@ jobs:
         run: python tools/test_normalize_classic.py
       - name: Unit tests
         run: dotnet test tests/Silverfish.Tests/Silverfish.Tests.csproj -c Release --nologo
+      - name: Immutable AI model regression tests
+        run: dotnet test tests/Silverfish.Domain.Tests/Silverfish.Domain.Tests.csproj -c Release --nologo
       - name: Offline sample
         run: dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- samples/lethal.json
       - name: Libmem.NET integration build (Windows x64)
