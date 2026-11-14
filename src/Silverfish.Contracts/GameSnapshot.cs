@@ -16,6 +16,8 @@ public sealed record GameSnapshot
     public int? MaximumMana { get; init; }
     public int? EnemyHandCount { get; init; }
     public int? EnemyDeckCount { get; init; }
+    public int? OurSecretCount { get; init; }
+    public int? EnemySecretCount { get; init; }
     public HeroSnapshot OurHero { get; init; } = new();
     public HeroSnapshot EnemyHero { get; init; } = new();
     public IReadOnlyList<MinionSnapshot> OurBoard { get; init; } = Array.Empty<MinionSnapshot>();
