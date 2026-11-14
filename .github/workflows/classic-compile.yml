@@ -182,6 +182,17 @@ jobs:
           Get-Content classic-snapshot-test.log -Tail 80
           exit $code
 
+      - name: Verify malformed BoardTester input fails visibly
+        shell: pwsh
+        run: |
+          dotnet run --project src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.csproj -c Release -- samples/classic-invalid-zh.txt *> classic-invalid-test.log
+          $code = $LASTEXITCODE
+          Get-Content classic-invalid-test.log -Tail 30
+          if ($code -eq 0) { throw "Invalid board returned success, expected a nonzero exit" }
+          if (-not (Select-String -Path classic-invalid-test.log -Pattern "Invalid classic BoardTester input" -Quiet)) {
+            throw "Invalid board did not emit the expected standalone input error"
+          }
+
       - name: Upload import manifest and compile logs, even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -195,6 +206,7 @@ jobs:
             classic-smoke.log
             classic-board-test.log
             classic-snapshot-test.log
+            classic-invalid-test.log
           if-no-files-found: warn
           retention-days: 14
 
