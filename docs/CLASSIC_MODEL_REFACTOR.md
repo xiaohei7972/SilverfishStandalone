@@ -34,6 +34,18 @@
 
 第一批测试重点是**分支隔离、实体身份稳定、卡牌定义/运行时数据分离、装备/战斗/费用状态分离、未知标签保留**。
 
+## 第二批：只读旧模型投影
+
+`src/Silverfish.ClassicModelAdapter` 新增 `LegacyEntityProjection`，把原始 `Minion`、`Handmanager.Handcard`、`Weapon` 中能明确识别的状态投影为独立、不可变的 `EntityState`：
+
+- 英雄和随从依然读取旧类，但转换后按不同 `EntityKind` 保存。
+- 同一张牌的**基础费用/属性**来自独立 `CardDefinition`，当前费用、攻防、附魔是实体状态；不再修改 CardDB 共享卡牌定义。
+- 扩展标签如果旧版本不存在，会省略为未知，不伪造数值 0。
+- 2026-11-05 的 `Minion.enchs` 是卡牌 ID 列表；旧版参考源仍是字符串。投影层只在能够明确转换时接受，不会把字符串拆成字符作为错误的卡牌 ID。
+- 原版 `Weapon` 缺少可靠的实体 ID、最大耐久，投影接口要求显式传入；有尚未可转换的武器附魔时拒绝转换。
+
+`tests/Silverfish.ClassicModelAdapter.Tests` 将直接引用 CI 导入的旧银鱼源码进行回归，验证投影后的实体不再随旧对象继续变化。**它仍不是 Playfield 的完整替代实现**。
+
 ## 迁移顺序（不一次性重写 19K 个脚本）
 
 1. **模型冻结与回归基准**：给 2026-11-05 原始经典源码在 GitHub Actions 做 SHA-256 校验、编译、`BoardTester` 和 JSON 决策回归。目前 Actions 只能从旧版仓库自动取源码；原 ZIP/独立源码工作包尚未放在可供 Actions 下载的存储位置，不能假称最新版已通过。
