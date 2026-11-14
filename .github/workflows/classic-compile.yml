@@ -189,7 +189,7 @@ jobs:
           $code = $LASTEXITCODE
           Get-Content classic-invalid-test.log -Tail 30
           if ($code -eq 0) { throw "Invalid board returned success, expected a nonzero exit" }
-          if (-not (Select-String -Path classic-invalid-test.log -Pattern "Invalid classic BoardTester input" -Quiet)) {
+          if (-not (Select-String -Path classic-invalid-test.log -Pattern "Invalid classic (BoardTester|offline board) input" -Quiet)) {
             throw "Invalid board did not emit the expected standalone input error"
           }
 
