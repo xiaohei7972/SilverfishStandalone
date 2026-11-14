@@ -22,6 +22,7 @@ $asset = "ClassicSilverfish_2026-11-05_独立源码工作包.zip"
 $acceptedSha = @(
     "ec1ff768036deee5ebda81274f6e1a61a69c105b0b6cd37b285c2d8dd34f771c"
     "81f6f19e2888ba5158ea194d6bea30d1f2ad90a7e67e7fd8565ffc7d2bff75e7"
+    "4d6944304c0d224d366afda1691f0429c5d3cffbc0daae18259310a7f6f95d92"
 )
 
 if (-not $ConfirmPublic) {
