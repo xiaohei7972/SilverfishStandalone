@@ -64,6 +64,14 @@ def normalize(root: Path) -> dict:
         after, replacements = re.subn(pattern, inject, before, count=1)
         if replacements != 1:
             raise ValueError("BoardTester Chinese snapshot parser anchor not found")
+    # The old routine used Environment.Exit(0) on invalid board input.
+    # That kills an embedding process and falsely marks a failed CI smoke as
+    # a successful exit. The detached library must surface a normal error.
+    after = re.sub(
+        r'Environment\\.Exit\\(0\\);(?:[^\\n]*)',
+        'throw new FormatException("Invalid classic BoardTester input.", e);',
+        after,
+    )
     if after != before:
         path.write_text(after, encoding="utf-8")
         modified[relative] = True
