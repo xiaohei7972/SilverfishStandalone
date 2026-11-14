@@ -5,7 +5,7 @@
   GitHub Release asset, then start its independent build.
 
 .EXAMPLE
-  pwsh ./tools/publish_owner_classic_source.ps1 -ArchivePath "./ClassicSilverfish_2026-11-05_独立源码工作包.zip" -ConfirmPublic
+  pwsh ./tools/publish_owner_classic_source.ps1 -ArchivePath "./ClassicSilverfish_2026-11-05_独立化优先_源码版.zip" -ConfirmPublic
 
 This explicitly publishes the source-only ZIP because the repository is public.
 #>
@@ -19,7 +19,10 @@ $ErrorActionPreference = "Stop"
 $repo = "xiaohei7972/SilverfishStandalone"
 $branch = "feat/standalone-foundation"
 $asset = "ClassicSilverfish_2026-11-05_独立源码工作包.zip"
-$expectedSha = "ec1ff768036deee5ebda81274f6e1a61a69c105b0b6cd37b285c2d8dd34f771c"
+$acceptedSha = @(
+    "ec1ff768036deee5ebda81274f6e1a61a69c105b0b6cd37b285c2d8dd34f771c"
+    "81f6f19e2888ba5158ea194d6bea30d1f2ad90a7e67e7fd8565ffc7d2bff75e7"
+)
 
 if (-not $ConfirmPublic) {
     throw "The ZIP would be published as a PUBLIC GitHub Release asset. Add -ConfirmPublic only after reviewing its contents."
@@ -29,8 +32,8 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 }
 $source = (Resolve-Path -LiteralPath $ArchivePath).ProviderPath
 $hash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($hash -ne $expectedSha) {
-    throw "Incorrect source ZIP. Expected SHA-256 $expectedSha, got $hash."
+if ($hash -notin $acceptedSha) {
+    throw "Incorrect source ZIP. Expected one of the pinned November 2026 source hashes, got $hash."
 }
 
 Add-Type -AssemblyName System.IO.Compression
