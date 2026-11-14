@@ -20,6 +20,22 @@ SHA-256：
 
 若源码不希望公开，请不要使用公开 Release，改在私有仓库中运行工作流或通过有权限的私有制品仓库连接。
 
+## 一条命令上传独立源码包并启动最新版本构建
+
+仓库已加入 `tools/publish_owner_classic_source.ps1`：
+
+```powershell
+pwsh ./tools/publish_owner_classic_source.ps1 -ArchivePath "C:\\path\\ClassicSilverfish_2026-11-05_独立源码工作包.zip" -ConfirmPublic
+```
+
+该脚本会依次核验哈希、确认经典 `Ai.cs` 与 `Minion.cs`、检查不含 V2 或旧主程序 exe/dll、上传到 `classic-source-2026-11-05` Release 资产，并手动触发 `owner-classic-work-package` Actions。需要 GitHub CLI `gh` 已登录。因仓库是公开的，必须显式输入 `-ConfirmPublic`。
+
+此步骤**仍未在 GitHub 端完成**：当前连接的 GitHub 工具不能上传此 18MB 二进制 Release 资产；请勿把旧版 CI 通过当成最新版本的结果。
+
+## 重构相关回归
+
+经典工作流在原版编译之后，还会测试 `Silverfish.ClassicModelAdapter`：只读地把旧 Minion、Handcard、Weapon 投影到 `Silverfish.Domain`，验证状态复制与身份映射。后续对原版模型动手改造时，这些测试用于识别新旧状态差异。
+
 ## 最新版 2026-11-05 的正式构建
 
 工作流支持从当前仓库的 GitHub Release 下载原始 ZIP，并要求 SHA-256 必须等于以下值：
