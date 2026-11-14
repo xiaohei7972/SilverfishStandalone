@@ -34,6 +34,7 @@ on:
       - "src/Silverfish.Classic.Smoke/**"
       - "tests/Silverfish.ClassicBridge.Tests/**"
       - "samples/classic-*.txt"
+      - "samples/classic-*.json"
       - "tools/test_normalize_classic.py"
 
 
@@ -156,6 +157,14 @@ jobs:
           Get-Content classic-board-test.log -Tail 80
           exit $code
 
+      - name: Run classic Silverfish from versioned JSON GameSnapshot
+        shell: pwsh
+        run: |
+          dotnet run --project src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.csproj -c Release -- samples/classic-snapshot-lethal.json *> classic-snapshot-test.log
+          $code = $LASTEXITCODE
+          Get-Content classic-snapshot-test.log -Tail 80
+          exit $code
+
       - name: Upload import manifest and compile logs, even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -168,6 +177,7 @@ jobs:
             classic-console.log
             classic-smoke.log
             classic-board-test.log
+            classic-snapshot-test.log
           if-no-files-found: warn
           retention-days: 14
 
