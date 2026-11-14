@@ -43,7 +43,7 @@ public static class LegacyEntityProjection
                 legacy.Angr, legacy.Hp, legacy.maxHp, legacy.armor,
                 legacy.numAttacksThisTurn, legacy.Ready),
             Keywords = keywords.ToImmutable(),
-            EnchantmentCardIds = legacy.enchs.Select(x => x.ToString()).ToImmutableArray(),
+            EnchantmentCardIds = CaptureCharacterEnchantments(legacy),
             Counters = CharacterCounters(legacy)
         };
         snapshot.Validate();
@@ -77,6 +77,19 @@ public static class LegacyEntityProjection
         };
         snapshot.Validate();
         return snapshot;
+    }
+
+    private static ImmutableArray<string> CaptureCharacterEnchantments(Minion source)
+    {
+        // The 2026-11-05 classic Minion stores List<cardIDEnum>, while an
+        // older reference version still has a string 'enchs'. Never split
+        // arbitrary old text into one-character card IDs.
+        var raw = source.GetType().GetField("enchs")?.GetValue(source);
+        if (raw is IEnumerable<CardDB.cardIDEnum> ids)
+            return ids.Select(x => x.ToString()).ToImmutableArray();
+        if (raw is string text && string.IsNullOrWhiteSpace(text))
+            return ImmutableArray<string>.Empty;
+        throw new NotSupportedException("Cannot safely map old Minion enchantment format.");
     }
 
     private static ImmutableDictionary<string, int> CharacterCounters(Minion source)
