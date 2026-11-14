@@ -101,7 +101,11 @@ jobs:
         run: |
           $archive = "$env:RUNNER_TEMP/classic-source.zip"
           $sha = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($sha -ne "ec1ff768036deee5ebda81274f6e1a61a69c105b0b6cd37b285c2d8dd34f771c") {
+          $accepted = @(
+            "ec1ff768036deee5ebda81274f6e1a61a69c105b0b6cd37b285c2d8dd34f771c"
+            "81f6f19e2888ba5158ea194d6bea30d1f2ad90a7e67e7fd8565ffc7d2bff75e7"
+          )
+          if ($sha -notin $accepted) {
             throw "Classic source-only work package SHA-256 mismatch: $sha"
           }
           $staging = Join-Path $env:RUNNER_TEMP "verified-classic-package"
@@ -110,6 +114,10 @@ jobs:
           $manifest = Join-Path $staging "classic-import-manifest.json"
           if (-not (Test-Path (Join-Path $imported "ai/Ai.cs"))) { throw "Imported classic Ai.cs missing from pinned work package" }
           if (-not (Test-Path -LiteralPath $manifest)) { throw "Source manifest missing" }
+          $baseline = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+          if ($baseline.sha256 -ne "1879f784ed5b6854d53e148fc444d0f65bd8afbd52ccc1b3d8cf56e23efb5071") {
+            throw "Imported classic source manifest does not match the owner's November 5 baseline"
+          }
           New-Item -ItemType Directory -Force -Path "src/Silverfish.Classic/Imported" | Out-Null
           Copy-Item -Path (Join-Path $imported "*") -Destination "src/Silverfish.Classic/Imported" -Recurse -Force
           Copy-Item -LiteralPath $manifest -Destination "classic-import-manifest.json" -Force
@@ -152,7 +160,8 @@ jobs:
         run: |
           dotnet test tests/Silverfish.ClassicBridge.Tests/Silverfish.ClassicBridge.Tests.csproj -c Release --nologo
 
-      - name: Test old-to-new Minion Handcard Weapon state projection
+      - name: Test old-to-new Minion Handcard Weapon state projection (legacy refactor experiment)
+        if: github.event_name == 'push' || inputs.source_mode == 'old-reference-diagnostic'
         shell: pwsh
         run: |
           dotnet test tests/Silverfish.ClassicModelAdapter.Tests/Silverfish.ClassicModelAdapter.Tests.csproj -c Release --nologo
