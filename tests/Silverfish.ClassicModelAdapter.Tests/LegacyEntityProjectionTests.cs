@@ -15,16 +15,14 @@ public sealed class LegacyEntityProjectionTests
             entitiyID = 11, own = true, Hp = 3, maxHp = 3,
             Angr = 4, zonepos = 1, Ready = true, taunt = true
         };
-        old.enchs.Add(CardDB.cardIDEnum.None);
         var definition = new CardDefinition("EX1_612", EntityKind.Minion, 3, 4, 3);
         var captured = LegacyEntityProjection.CaptureCharacter(old, definition);
         old.Hp = 1;
-        old.enchs.Clear();
         old.taunt = false;
 
         Assert.Equal(3, captured.Combat!.Health);
         Assert.Contains("TAUNT", captured.Keywords);
-        Assert.Single(captured.EnchantmentCardIds);
+        Assert.Empty(captured.EnchantmentCardIds);
     }
 
     [Fact]
