@@ -63,17 +63,17 @@ pwsh ./tools/publish_owner_classic_source.ps1 -ArchivePath "C:\\path\\ClassicSil
 
 ## 私有 GitHub Actions：最新版不公开源码的验收通道
 
-为避免将 2026-11-05 的完整经典银鱼 ZIP 发布到公开 Release，已在账号已有的 **Private** 仓库 \`xiaohei7972/Hearthbuddy_Silverfish\` 的 main 分支创建 \`.github/workflows/verify-classic-2026-11.yml\`。
+为避免将 2026-11-05 的完整经典银鱼 ZIP 发布到公开 Release，已在账号已有的 **Private** 仓库 `xiaohei7972/Hearthbuddy_Silverfish` 的 main 分支创建 `.github/workflows/verify-classic-2026-11.yml`。
 
-- 在该私有仓库下载 **Private Release** 中的 \`ClassicSilverfish_2026-11-05_阿格拉玛效果已注释_独立源码版.zip\`。
-- 强制 SHA-256 校验为 \`4d6944304c0d224d366afda1691f0429c5d3cffbc0daae18259310a7f6f95d92\`，再检查用户原始来源的 SHA-256。
+- 在该私有仓库下载 **Private Release** 中的 `ClassicSilverfish_2026-11-05_阿格拉玛效果已注释_独立源码版.zip`。
+- 强制 SHA-256 校验为 `4d6944304c0d224d366afda1691f0429c5d3cffbc0daae18259310a7f6f95d92`，再检查用户原始来源的 SHA-256。
 - 从公开的 SilverfishStandalone 开发分支检出引擎构建工具，但最新源码只在私有 Windows runner 下载/编译，不向公开 repo 提交。
 - 依次执行 CardDB、原版 Ai.autoTester 中文牌面、ClassicBridge JSON 决策、错误牌面非零退出，以及构建日志与 DLL Artifact。
-- 上传步骤可用仓库脚本 \`tools/verify_owner_classic_private.ps1\` 自动完成，该脚本会再次检查目标仓库必须为 Private。
+- 上传步骤可用仓库脚本 `tools/verify_owner_classic_private.ps1` 自动完成，该脚本会再次检查目标仓库必须为 Private。
 
-\`\`\`powershell
+```powershell
 pwsh ./tools/verify_owner_classic_private.ps1 -ArchivePath "C:\path\ClassicSilverfish_2026-11-05_阿格拉玛效果已注释_独立源码版.zip"
-\`\`\`
+```
 
 **当前状态：私有工作流和上传脚本已经提交，但私有 Release 资产未上传，所以 2026-11-05 最新源码的真实 Windows/.NET 8 编译仍未进行。** 已运行成功的旧参考源 Actions 不能代替此次正式验收。
 
