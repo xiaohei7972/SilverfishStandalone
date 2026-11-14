@@ -19,16 +19,28 @@ def test_synthetic_import() -> None:
             z.writestr(prefix + 'ai/Playfield/Playfield.Ctors.cs', 'class Playfield {}')
             z.writestr(prefix + 'data/CardDefs.xml', '<cards/>')
             z.writestr(prefix + 'ai/Zones.cs', 'using Triton.Game;')
-            z.writestr(prefix + 'cards/1858-泰坦诸神/Sim_TTN_092.cs', 'using Triton.Game;')
+            for name in ('Sim_TTN_092.cs', 'Sim_TTN_092t1.cs',
+                         'Sim_TTN_092t2.cs', 'Sim_TTN_092t3.cs'):
+                z.writestr(prefix + 'cards/1858-泰坦诸神/' + name,
+                           'using Triton.Game;\nclass Broken { void Call() { GameState.Get(); } }')
             z.writestr(prefix + 'cards/../../bad.cs', 'evil')
             z.writestr('release/Hearthbuddy.exe', 'not-a-real-exe')
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         out = root / 'output'
         report = stage(archive, out, expected_sha256=digest)
-        assert report['imported_files'] == 5
-        assert report['imported_cs_files'] == 4
+        assert report['imported_files'] == 9
+        assert report['imported_cs_files'] == 8
         assert report['sha256'] == digest
         assert 'ai/Zones.cs' in report['quarantined']
+        assert len(report['disabled_card_simulators']) == 4
+        for name in ('Sim_TTN_092.cs', 'Sim_TTN_092t1.cs',
+                     'Sim_TTN_092t2.cs', 'Sim_TTN_092t3.cs'):
+            text = (out / 'src/Silverfish.Classic/Imported/cards/1858-泰坦诸神' / name).read_text()
+            assert '// SILVERFISH_STANDALONE_AGGRAMAR_DISABLED' in text
+            assert '// BEGIN DISABLED ORIGINAL' in text
+            assert '// using Triton.Game;' in text
+            assert '    class ' + name[:-3] + ' : SimTemplate' in text
+            assert not any(line.strip().startswith('using Triton.Game;') for line in text.splitlines())
         assert (out / 'src/Silverfish.Classic/Imported/ai/Ai.cs').read_text() == '\n\nclass Ai { void Update(){ Hrtprozis.Instance.updateCThunInfo(1, 2, 3); } }'
         assert 'Ai.Instance.botBase' in (out / 'src/Silverfish.Classic/Imported/ai/PenalityManager.cs').read_text()
         assert not list(out.rglob('Hearthbuddy.exe'))
