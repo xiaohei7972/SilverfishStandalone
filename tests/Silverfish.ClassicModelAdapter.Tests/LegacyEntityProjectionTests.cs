@@ -277,9 +277,11 @@ public sealed class LegacyEntityProjectionTests
         var titan = Assert.Single(playfield.ownMinions);
         var definition = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.TTN_858);
         Assert.Equal(CardDB.cardIDEnum.TTN_858, definition.cardIDenum);
+        Assert.True(definition.Titan);
         var printedAbilities = definition.TitanAbility;
         titan.handcard.card = definition;
-        titan.Titan = true;
+        // The older generator reads the definition's tag directly.
+        typeof(Minion).GetField("Titan")?.SetValue(titan, true);
 
         var actions = Movegenerator.Instance.getMoveList(playfield, false, false, true);
 
