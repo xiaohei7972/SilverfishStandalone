@@ -20,6 +20,7 @@ def test_normalize() -> None:
         )
         (imported / "BoardTester.cs").write_text(
             'if (s.StartsWith("水晶： ")) { ParseMana(); }\n'
+            'foreach (string enchantment in enchs.split(" ")) { ParseEnchantment(enchantment); }\n'
             'catch (Exception e) { Environment.Exit(0); }',
             encoding="utf-8",
         )
@@ -37,6 +38,8 @@ def test_normalize() -> None:
         assert 'enemyNumberHand = Convert.ToInt32' in board
         assert 'enemyDecksize = Convert.ToInt32' in board
         assert 'if (s.StartsWith("水晶： "))' in board
+        assert '.split(" ")' not in board
+        assert "enchs.Split(' ')" in board
         assert 'Environment.Exit(0)' not in board
         assert 'throw new FormatException("Invalid classic BoardTester input.", e);' in board
 

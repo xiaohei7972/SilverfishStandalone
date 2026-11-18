@@ -10,8 +10,10 @@ TestResults/
 *.snupkg
 coverage/
 artifacts/
+__pycache__/
 
 # Latest owner-provided classic Silverfish sources are staged locally.
 # Avoid accidentally publishing the entire raw archive on the public repo.
 src/Silverfish.Classic/Imported/
 classic-import-manifest.json
+classic-headless-patches.json

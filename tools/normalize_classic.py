@@ -80,6 +80,8 @@ def normalize(root: Path) -> dict:
         'Environment.Exit(0);',
         'throw new FormatException("Invalid classic BoardTester input.", e);',
     )
+    # The November source uses a host string extension in the enchantment parser.
+    after = after.replace('.split(" ")', ".Split(' ')")
     if after != before:
         path.write_text(after, encoding="utf-8")
         modified[relative] = True
