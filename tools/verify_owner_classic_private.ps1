@@ -4,7 +4,7 @@ Upload pinned November 2026 classic source to a PRIVATE repository and
 dispatch the independent verification workflow. Requires 'gh auth login'.
 
 Example:
-pwsh ./tools/verify_owner_classic_private.ps1 -ArchivePath "C:\Downloads\ClassicSilverfish_2026-11-05_阿格拉玛效果已注释_独立源码版.zip"
+pwsh ./tools/verify_owner_classic_private.ps1 -ArchivePath "C:\Downloads\ClassicSilverfish_2026-11-05_Standalone.zip"
 #>
 [CmdletBinding()]
 param(
@@ -14,7 +14,7 @@ param(
 $ErrorActionPreference='Stop'
 $privateRepo='xiaohei7972/Hearthbuddy_Silverfish'
 $workflow='verify-classic-2026-11.yml'
-$asset='ClassicSilverfish_2026-11-05_阿格拉玛效果已注释_独立源码版.zip'
+$asset='ClassicSilverfish_2026-11-05_Standalone.zip'
 $expected='4d6944304c0d224d366afda1691f0429c5d3cffbc0daae18259310a7f6f95d92'
 $original='1879f784ed5b6854d53e148fc444d0f65bd8afbd52ccc1b3d8cf56e23efb5071'
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {

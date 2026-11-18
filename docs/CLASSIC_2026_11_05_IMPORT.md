@@ -61,7 +61,4 @@ dotnet run --project src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.cspro
 
 - 已验证实际 ZIP 的 SHA-256、目录内容、选择性导入数量以及提取器的合成用例。
 - 原有 `Silverfish.Contracts -> Silverfish.Core -> Silverfish.Cli` 离线演示和单测此前通过 GitHub Actions。
-- **还没有对这一批新提取的经典源码完成 dotnet 构建验证**：当前执行环境没有 .NET SDK，而且约 1.9 万个源文件尚未加入 GitHub 远程分支。
-- 因此不能宣称经典 `Ai` 已经独立运行或接入 `GameSnapshot`，更不能宣称实战可用。
-
-下一道技术门槛：解决独立编译错误、把新版 `state.snapshot` 映射到 `Hrtprozis/Handmanager`、使真实经典 `Ai` 在固定离线局面中产生决策，然后才接 UI。
+- 2026-11-18 使用私有 Release 的 2026-11-05 源码工作包完成 Windows .NET 8 独立编译、原版 `Ai.autoTester` 固定牌面决策、受限 `GameSnapshot` 决策和无效牌面回归。[独立化验收记录](https://github.com/xiaohei7972/SilverfishStandalone/blob/feat/standalone-foundation/docs/INDEPENDENCE_FIRST.md)

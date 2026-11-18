@@ -8,7 +8,11 @@
 
 注意：这份 GitHub 参考仓库比你上传的 2026-11-05 ZIP 更旧。此模式用于识别早期解耦的编译问题，不能据此宣布最新版银鱼已通过测试，也不能用旧文件覆盖最终版代码。
 
-## 推荐：使用独立源码工作包（不包含旧主程序）
+## 正式基线：私有工作流
+
+2026-11-05 版已使用私有 Release 的 `ClassicSilverfish_2026-11-05_Standalone.zip` 完成独立编译、`CardDB`、固定牌面与错误输入回归。可执行文件和日志已归档。[私有 Actions #44256337489](https://github.com/xiaohei7972/Hearthbuddy_Silverfish/actions/runs/44256337489)
+
+## 可选：公开仓库中的独立源码工作包方式
 
 已经从用户提供的最新版 ZIP 生成了 ClassicSilverfish_2026-11-05_独立源码工作包.zip（约 18 MB）。它包含经典银鱼源码/数据，不包含 Hearthbuddy.exe、GreyMagic 等主程序文件。
 
@@ -30,7 +34,7 @@ pwsh ./tools/publish_owner_classic_source.ps1 -ArchivePath "C:\\path\\ClassicSil
 
 该脚本会依次核验哈希、确认经典 `Ai.cs` 与 `Minion.cs`、检查不含 V2 或旧主程序 exe/dll、上传到 `classic-source-2026-11-05` Release 资产，并手动触发 `owner-classic-work-package` Actions。需要 GitHub CLI `gh` 已登录。因仓库是公开的，必须显式输入 `-ConfirmPublic`。
 
-此步骤**仍未在 GitHub 端完成**：当前连接的 GitHub 工具不能上传此 18MB 二进制 Release 资产；请勿把旧版 CI 通过当成最新版本的结果。
+正式验收记录见上方私有工作流。
 
 ## 重构相关回归
 

@@ -1,4 +1,4 @@
-# P0：2026-11-05 经典银鱼独立化（模型重构冻结）
+# 2026-11-05 经典银鱼独立化验收
 
 ## 范围
 
@@ -14,16 +14,18 @@
 
 ## P0 验收清单
 
-- [x] 完整经典银鱼源码从 2026-11-05 用户归档中提取：19,135 个 C# 源文件；SHA-256 有记录。
+- [x] 验收工作包从 2026-11-05 用户归档生成。清单记录 19,139 个 C# 文件及原始归档 SHA-256。
 - [x] 源码包不含 Hearthbuddy.exe、Triton/GreyMagic DLL，也没有 V2；旧宿主功能仅在很少量边界上兼容处理。
 - [x] 已准备标准独立 .NET 8 类库和 smoke 运行入口（包含原版通用策略初始化、真实 Ai.bestmove 输出）。
 - [x] 老版参考源码在 [GitHub Actions #43531545029](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43531545029) 完成编译、CardDB、原版 Ai.autoTester 离线运算与 JSON 决策测试。
 - [x] 为最新版准备宿主单例与策略初始化、明确的固定牌面输入字段、错误抛出和 Roslyn 共享编译限制修正。
 - [x] 已经制作完整的**2026-11-05 独立化源码包**；它的静态完整性检查通过。
-- [ ] **最新版 2026-11-05 源码的 .NET 8 实际编译成功**（当前容器未安装 dotnet SDK；Actions 还拿不到用户 ZIP）。
-- [ ] **最新版的 CardDB 和 Ai.autoTester 离线回归成功**，至少得到非空的 `attackWithMinion` (source entity 11 -> target entity 1)。
-- [ ] **固定牌面发生语法错误时退出码非零且提供解释**。
-- [ ] 将最新版 CLI 可执行产物保存为 GitHub Actions Artifact，并锁定源码 hash。
+- [x] 2026-11-05 版在 Windows 下通过 .NET 8 Release 编译。
+- [x] `CardDB` 加载了肯瑞托法师 `EX1_612`。原版 `Ai.autoTester` 返回 `attackWithMinion`（实体 11 攻击实体 1）。JSON 快照返回 `attack-face`。
+- [x] 无效文本牌面输出格式错误说明，进程退出码为 2。
+- [x] 私有 Actions 归档 `classic-2026-11-05-net8-private` 和 `classic-2026-11-05-private-build-logs`。
+
+验收于 2026-11-18 完成，构建工具版本为 `49fffbc`。导入脚本将附魔解析改为 .NET 字符串拆分，并让动作查找识别离线牌面使用的我方英雄实体 ID `0`。Windows 本地也通过了编译、打包和解压运行。[验收运行](https://github.com/xiaohei7972/Hearthbuddy_Silverfish/actions/runs/44256337489)
 
 ## 使用 GitHub Actions 验证最新版
 
@@ -39,15 +41,7 @@
 
 `81f6f19e2888ba5158ea194d6bea30d1f2ad90a7e67e7fd8565ffc7d2bff75e7`
 
-工作流 `.github/workflows/classic-compile.yml` 的 `owner-classic-work-package` 方式接受两种经过校验的工作包 SHA，并核对 `classic-import-manifest.json` 的原始来源 SHA。它仅在下载到有效 Release 资产后编译，旧版参考模式仍严格区分。
-
-如确认可以公开 ZIP，请从开发分支运行（需要 PowerShell 7 和已登录的 `gh`）：
-
-```powershell
-pwsh ./tools/publish_owner_classic_source.ps1 -ArchivePath "C:\\path\\ClassicSilverfish_2026-11-05_独立化优先_源码版.zip" -ConfirmPublic
-```
-
-由于仓库是公开仓库，Release 资产也会公开。**这一步还没有执行**：当前 GitHub 连接不能直接上传 18MB 二进制文件。如果不希望公开，使用私有构建来源，不要传到公共 Release。
+公开仓库的 `classic-compile.yml` 自动运行旧版参考源码的诊断。2026-11-05 版通过下方私有工作流进行验收。
 
 ## 阿格拉玛四个卡牌脚本已临时停用
 
@@ -59,23 +53,37 @@ pwsh ./tools/publish_owner_classic_source.ps1 -ArchivePath "C:\\path\\ClassicSil
 
 `4d6944304c0d224d366afda1691f0429c5d3cffbc0daae18259310a7f6f95d92`
 
-最新版 .NET 8 编译与完整离线回归仍须在 Actions 上执行，不以静态检查代替。
-
 ## 私有 GitHub Actions：最新版不公开源码的验收通道
 
 为避免将 2026-11-05 的完整经典银鱼 ZIP 发布到公开 Release，已在账号已有的 **Private** 仓库 `xiaohei7972/Hearthbuddy_Silverfish` 的 main 分支创建 `.github/workflows/verify-classic-2026-11.yml`。
 
-- 在该私有仓库下载 **Private Release** 中的 `ClassicSilverfish_2026-11-05_阿格拉玛效果已注释_独立源码版.zip`。
+- 私有 Release 标签为 `classic-source-2026-11-05-private`，资产名为 `ClassicSilverfish_2026-11-05_Standalone.zip`。工作流默认使用这两个值。
 - 强制 SHA-256 校验为 `4d6944304c0d224d366afda1691f0429c5d3cffbc0daae18259310a7f6f95d92`，再检查用户原始来源的 SHA-256。
 - 从公开的 SilverfishStandalone 开发分支检出引擎构建工具，但最新源码只在私有 Windows runner 下载/编译，不向公开 repo 提交。
 - 依次执行 CardDB、原版 Ai.autoTester 中文牌面、ClassicBridge JSON 决策、错误牌面非零退出，以及构建日志与 DLL Artifact。
 - 上传步骤可用仓库脚本 `tools/verify_owner_classic_private.ps1` 自动完成，该脚本会再次检查目标仓库必须为 Private。
 
 ```powershell
-pwsh ./tools/verify_owner_classic_private.ps1 -ArchivePath "C:\path\ClassicSilverfish_2026-11-05_阿格拉玛效果已注释_独立源码版.zip"
+pwsh ./tools/verify_owner_classic_private.ps1 -ArchivePath "C:\path\ClassicSilverfish_2026-11-05_Standalone.zip"
 ```
 
-**当前状态：私有工作流和上传脚本已经提交，但私有 Release 资产未上传，所以 2026-11-05 最新源码的真实 Windows/.NET 8 编译仍未进行。** 已运行成功的旧参考源 Actions 不能代替此次正式验收。
+## 在 Windows 本地复现
+
+在干净的开发分支检出目录中，先核对私有 Release ZIP 的 SHA-256。解压 ZIP 后，将其中的 `src/Silverfish.Classic/Imported` 目录和 `classic-import-manifest.json` 复制到检出目录的相同位置，再使用 Python 和 .NET 8 SDK 执行以下命令。
+
+```powershell
+python tools/normalize_classic.py
+python tools/disable_aggramar.py
+dotnet test tests/Silverfish.ClassicBridge.Tests/Silverfish.ClassicBridge.Tests.csproj -c Release
+dotnet publish src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.csproj -c Release -o artifacts/classic
+./artifacts/classic/Silverfish.Classic.Smoke.exe
+./artifacts/classic/Silverfish.Classic.Smoke.exe samples/classic-simple-lethal-zh.txt
+./artifacts/classic/Silverfish.Classic.Smoke.exe samples/classic-snapshot-lethal.json
+./artifacts/classic/Silverfish.Classic.Smoke.exe samples/classic-invalid-zh.txt
+$LASTEXITCODE
+```
+
+运行发布目录中的程序需要 Windows .NET 8 Runtime。最后一条牌面测试应输出输入格式错误并返回 2。
 
 ## 完成标准
 
