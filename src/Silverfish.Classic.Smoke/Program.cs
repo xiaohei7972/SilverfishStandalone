@@ -44,6 +44,7 @@ if (args.Length == 1)
 
     // Previously initialized by Hearthbuddy's Routine; independent host sets
     // its own compatible classic search strategy explicitly.
+    Hrtprozis.Instance.setInstances();
     Ai.Instance.botBase = new Behavior丨通用丨不设惩罚();
     int calculationPasses;
     try

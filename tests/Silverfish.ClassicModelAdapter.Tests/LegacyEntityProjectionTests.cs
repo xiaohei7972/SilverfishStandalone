@@ -293,6 +293,7 @@ public sealed class LegacyEntityProjectionTests
     private static Playfield CreatePlayfield(int mana = 1)
     {
         Settings.Instance.setFilePath(AppContext.BaseDirectory);
+        Hrtprozis.Instance.setInstances();
         var fixture = new BoardTester(
             $"""
             水晶： {mana} / {mana} [我方英雄] 法师 生命值:( 30 + 0 奥秘数: 0 ) [敌方英雄] 法师 生命值:( 3 + 0 奥秘数: 0 )
