@@ -3,6 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from normalize_classic import ENEMY_HAND_MARKER, add_card_metadata_copy, isolate_minion_copies, normalize
+from migrate_classic_deck_effects import migrate_deck_effect
 
 
 def test_normalize() -> None:
@@ -221,4 +222,18 @@ def test_normalize() -> None:
 
 if __name__ == "__main__":
     test_normalize()
+    recruit = (
+        "\tpublic override void onCardPlay(Playfield p, bool ownplay, Minion target, int choice)\n"
+        "    {\n"
+        '        Log("}"); // {\n'
+        "\t\tforeach (var card in p.DeckEstimate)\n"
+        "        { KeepOldBody(); }\n"
+        "\t}\n"
+        "\tpublic override PlayReq[] GetPlayReqs() => new PlayReq[0];\n"
+    )
+    migrated = migrate_deck_effect(recruit, "Sim_LOOT_093")
+    assert "p.RecruitFromDeck(ownplay, 3, card => card.cost <= 2);" in migrated
+    assert "KeepOldBody" not in migrated
+    assert "GetPlayReqs() => new PlayReq[0];" in migrated
+    assert migrate_deck_effect(migrated, "Sim_LOOT_093") == migrated
     print("PASS: classic source patches are deterministic and idempotent")

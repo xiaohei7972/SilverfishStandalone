@@ -5,6 +5,7 @@ import re
 
 from isolate_classic_deck import DECK_EFFECTS, isolate_deck_effect
 from isolate_classic_deck_estimate import ESTIMATED_DRAWS, isolate_estimated_card_effect
+from migrate_classic_deck_effects import DECK_EFFECT_BODIES, migrate_deck_effect
 
 
 # Each target is the owner of the card being written, not a CardDB lookup.
@@ -101,6 +102,7 @@ def isolate_card_effects(source: str, stem: str) -> str:
 def isolate_imported_card_effects(imported: Path) -> list[str]:
     card_names = set(CARD_WRITES) | set(TEMPORARY_COPIES) | DECK_EFFECTS | set(ESTIMATED_DRAWS)
     card_names.update({"Sim_CFM_637", "Sim_DED_517"})
+    card_names.update(f"Sim_{card}" for card in DECK_EFFECT_BODIES)
     files = list((imported / "cards").rglob("Sim_*.cs"))
     files.extend(imported / "ai" / name for name in (
         "Movegenerator.cs",
@@ -123,6 +125,7 @@ def isolate_imported_card_effects(imported: Path) -> list[str]:
         after = isolate_card_effects(before, path.stem)
         if path.name.startswith("Sim_"):
             after = isolate_estimated_card_effect(after, path.stem)
+            after = migrate_deck_effect(after, path.stem)
         if after != before:
             path.write_text(after, encoding="utf-8")
             modified.append(path.relative_to(imported).as_posix())

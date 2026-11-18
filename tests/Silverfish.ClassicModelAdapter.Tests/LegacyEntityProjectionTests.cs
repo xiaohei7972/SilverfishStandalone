@@ -451,14 +451,7 @@ public sealed class LegacyEntityProjectionTests
             var drawing = new Playfield(parent);
             var sibling = new Playfield(parent);
             var forge = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.ICC_281);
-            var simulation = forge.sim_card;
-            // The two classic revisions use different spell callback signatures.
-            var callback = simulation.GetType().GetMethods().Single(method =>
-                method.DeclaringType == simulation.GetType() && method.Name == "onCardPlay");
-            object?[] args = callback.GetParameters().Length == 5
-                ? new object?[] { drawing, true, null, 0, new Handmanager.Handcard(forge) }
-                : new object?[] { drawing, true, null, 0 };
-            callback.Invoke(simulation, args);
+            PlaySpell(drawing, forge);
 
             Assert.Equal(2, drawing.owncards.Count);
             Assert.All(drawing.owncards, card => Assert.Equal(weapon, card.card.cardIDenum));
@@ -512,6 +505,107 @@ public sealed class LegacyEntityProjectionTests
             host.turnDeck = saved;
             host.patchesInDeck = savedPatches;
         }
+    }
+
+    [Fact]
+    public void CallToArmsConsumesDuplicatesAndRespectsAvailableBoardSpace()
+    {
+        CreatePlayfield();
+        var host = Hrtprozis.Instance;
+        var saved = host.turnDeck;
+        var novice = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.EX1_015);
+        var spell = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.CS2_024);
+        var callToArms = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.LOOT_093);
+        var buff = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.WORK_013);
+        try
+        {
+            host.turnDeck = new() { [novice.cardIDenum] = 3, [spell.cardIDenum] = 1 };
+            var parent = new Playfield { ownDeckSize = 4 };
+            parent.ownDeck.AddRange(new[] { novice, novice, spell });
+            var child = new Playfield(parent);
+            var crowded = new Playfield(parent);
+            buff.sim_card.getBattlecryEffect(child, Assert.Single(child.ownMinions), null, 0);
+            while (crowded.ownMinions.Count < 6)
+                crowded.callKid(CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.CS2_172), crowded.ownMinions.Count, true);
+
+            PlaySpell(child, callToArms);
+            PlaySpell(crowded, callToArms);
+
+            var recruited = child.ownMinions.Where(m => m.handcard.card.cardIDenum == novice.cardIDenum).ToArray();
+            Assert.Equal(new[] { novice.Attack + 1, novice.Attack + 1, novice.Attack }, recruited.Select(m => m.Angr));
+            Assert.Same(spell, Assert.Single(child.ownDeck));
+            Assert.Equal(1, child.ownDeckSize);
+            Assert.Empty(child.CheckTurnDeckForType(CardDB.cardtype.MOB, 4));
+            Assert.Equal(7, crowded.ownMinions.Count);
+            Assert.Equal(3, crowded.ownDeckSize);
+            Assert.Equal(2, crowded.CheckTurnDeckForType(CardDB.cardtype.MOB, 4).Count);
+            Assert.Equal(4, parent.ownDeckSize);
+            Assert.Equal(3, parent.ownDeck.Count);
+            Assert.Equal(3, host.turnDeck[novice.cardIDenum]);
+        }
+        finally
+        {
+            host.turnDeck = saved;
+        }
+    }
+
+    [Fact]
+    public void IceFishingAndFinjaConsumeTheSameDeckWithinABranch()
+    {
+        var parent = CreatePlayfield();
+        var murloc = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.CS2_168);
+        var other = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.CS2_172);
+        var fishing = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.ICC_089);
+        parent.ownDeck.AddRange(new[] { other, murloc, murloc, murloc });
+        parent.ownDeckSize = 4;
+        var child = new Playfield(parent);
+        var sibling = new Playfield(parent);
+
+        PlaySpell(child, fishing);
+        child.SummonMurlocs(Assert.Single(child.ownMinions));
+        sibling.SummonMurlocs(Assert.Single(sibling.ownMinions));
+
+        Assert.Equal(2, child.owncards.Count);
+        Assert.All(child.owncards, card => Assert.Equal(murloc.cardIDenum, card.card.cardIDenum));
+        Assert.Single(child.ownMinions, m => m.handcard.card.cardIDenum == murloc.cardIDenum);
+        Assert.Same(other, Assert.Single(child.ownDeck));
+        Assert.Equal(1, child.ownDeckSize);
+        Assert.Equal(2, sibling.ownMinions.Count(m => m.handcard.card.cardIDenum == murloc.cardIDenum));
+        Assert.Equal(2, sibling.ownDeckSize);
+        Assert.Equal(4, parent.ownDeckSize);
+    }
+
+    [Fact]
+    public void GlacialMysteriesConsumesOneCopyOfEachInactiveSecret()
+    {
+        var parent = CreatePlayfield();
+        var counterspell = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.EX1_287);
+        var mirror = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.EX1_294);
+        var iceBlock = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.EX1_295);
+        var mysteries = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.ICC_086);
+        parent.ownDeck.AddRange(new[] { counterspell, mirror, mirror, iceBlock });
+        parent.ownDeckSize = 4;
+        parent.ownSecretsIDList.Add(counterspell.cardIDenum);
+        var child = new Playfield(parent);
+
+        PlaySpell(child, mysteries);
+
+        Assert.Equal(new[] { counterspell.cardIDenum, mirror.cardIDenum, iceBlock.cardIDenum }, child.ownSecretsIDList);
+        Assert.Equal(new[] { counterspell, mirror }, child.ownDeck);
+        Assert.Equal(2, child.ownDeckSize);
+        Assert.Equal(counterspell.cardIDenum, Assert.Single(parent.ownSecretsIDList));
+        Assert.Equal(4, parent.ownDeckSize);
+    }
+
+    private static void PlaySpell(Playfield playfield, CardDB.Card spell)
+    {
+        var simulation = spell.sim_card;
+        var callback = simulation.GetType().GetMethods().Single(method =>
+            method.DeclaringType == simulation.GetType() && method.Name == "onCardPlay");
+        object?[] args = callback.GetParameters().Length == 5
+            ? new object?[] { playfield, true, null, 0, new Handmanager.Handcard(spell) }
+            : new object?[] { playfield, true, null, 0 };
+        callback.Invoke(simulation, args);
     }
 
     private static Playfield CreatePlayfield(int mana = 1)

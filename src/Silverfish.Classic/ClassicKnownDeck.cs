@@ -38,7 +38,11 @@ public partial class Playfield
 
     internal void DrawKnownDeckCard(int index, int costReduction = 0)
     {
-        var card = TakeKnownDeckCard(index);
+        DrawTakenDeckCard(TakeKnownDeckCard(index), costReduction);
+    }
+
+    private void DrawTakenDeckCard(CardDB.Card card, int costReduction)
+    {
         if (costReduction > 0 && owncards.Count < 10)
         {
             card = card.CopyForSimulation();
@@ -60,7 +64,112 @@ public partial class Playfield
 
         var card = TakeCardFromDeck(id);
         if (card is not null)
-            DrawCard(id, true, true, card);
+            DrawTakenDeckCard(card, costReduction: 0);
+    }
+
+    internal int DrawMatchingDeckCards(bool own, int count, Predicate<CardDB.Card> matches, int costReduction = 0)
+    {
+        if (!own)
+            return 0;
+
+        var drawn = 0;
+        while (drawn < count)
+        {
+            var card = TakeMatchingDeckCard(matches);
+            if (card is null)
+                break;
+            DrawTakenDeckCard(card, costReduction);
+            drawn++;
+        }
+        return drawn;
+    }
+
+    internal int RecruitFromDeck(bool own, int count, Predicate<CardDB.Card> matches = null,
+        System.Action<Minion> afterSummon = null)
+    {
+        if (!own)
+            return 0;
+
+        var recruited = 0;
+        while (recruited < count && ownMinions.Count < 7)
+        {
+            var card = TakeMatchingDeckCard(candidate => candidate.type == CardDB.cardtype.MOB &&
+                (matches is null || matches(candidate)));
+            if (card is null)
+                break;
+
+            var minion = callKidAndReturn(card, ownMinions.Count, true);
+            recruited++;
+            afterSummon?.Invoke(minion);
+        }
+        return recruited;
+    }
+
+    internal void PutSecretsFromDeck(bool own, int count)
+    {
+        if (own)
+        {
+            for (var placed = 0; placed < count && ownSecretsIDList.Count < 5; placed++)
+            {
+                var secret = TakeMatchingDeckCard(card => card.Secret && !ownSecretsIDList.Contains(card.cardIDenum));
+                if (secret is null)
+                    break;
+                ownSecretsIDList.Add(secret.cardIDenum);
+            }
+        }
+        else
+        {
+            for (var placed = 0; placed < count && enemySecretCount < 5 && enemyDeckSize > 0; placed++)
+            {
+                enemyDeckSize--;
+                enemySecretCount++;
+                enemySecretList.Add(Probabilitymaker.Instance.getNewSecretGuessedItem(getNextEntity(), enemyHeroStartClass));
+            }
+        }
+    }
+
+    internal bool HasMatchingDeckCard(Predicate<CardDB.Card> matches) => FindMatchingDeckCard(matches).Card is not null;
+
+    internal static bool MatchesDeckRace(CardDB.Card card, CardDB.Race race) =>
+        card.race == race || card.race == CardDB.Race.ALL ||
+        (card.races?.Contains(race) ?? false) || (card.races?.Contains(CardDB.Race.ALL) ?? false);
+
+    private (int KnownIndex, CardDB.Card Card) FindMatchingDeckCard(Predicate<CardDB.Card> matches)
+    {
+        if (ownDeckSize <= 0)
+            return (-1, null);
+
+        var index = ownDeck.FindIndex(matches);
+        if (index >= 0)
+            return (index, ownDeck[index]);
+        if (ownDeck.Count >= ownDeckSize)
+            return (-1, null);
+
+        foreach (var entry in DeckEstimate)
+        {
+            var definition = CardDB.Instance.getCardDataFromID(entry.Key);
+            if (definition.cardIDenum != entry.Key || !matches(definition))
+                continue;
+
+            // The estimate includes the known copies. Only its residual count
+            // can provide a separate candidate with the printed attributes.
+            if (entry.Value > ownDeck.Count(card => card.cardIDenum == entry.Key))
+                return (-1, definition);
+        }
+        return (-1, null);
+    }
+
+    private CardDB.Card TakeMatchingDeckCard(Predicate<CardDB.Card> matches)
+    {
+        var (index, card) = FindMatchingDeckCard(matches);
+        if (index >= 0)
+            return TakeKnownDeckCard(index);
+        if (card is null)
+            return null;
+
+        ChangeEstimatedCount(card.cardIDenum, -1);
+        ownDeckSize--;
+        return card;
     }
 
     private CardDB.Card TakeKnownDeckCard(int index)

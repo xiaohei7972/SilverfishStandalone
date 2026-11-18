@@ -12,6 +12,7 @@ import sys
 from isolate_classic_card_effects import isolate_imported_card_effects
 from isolate_classic_deck import carry_known_deck_into_branches, draw_from_known_deck
 from isolate_classic_deck_estimate import isolate_playfield_deck_estimate, seed_replay_deck
+from migrate_classic_deck_effects import migrate_playfield_deck_effects
 
 PATCHES = {
     "ai/Ai.cs": [
@@ -219,6 +220,8 @@ def normalize(root: Path) -> dict:
         ("ai/Playfield.cs", isolate_playfield_deck_estimate),
         *((path.relative_to(imported).as_posix(), isolate_playfield_deck_estimate)
           for path in (imported / "ai" / "Playfield").glob("Playfield.*.cs")),
+        ("ai/Playfield.cs", migrate_playfield_deck_effects),
+        ("ai/Playfield/Playfield.Combat.cs", migrate_playfield_deck_effects),
     ):
         path = imported / relative
         if path.is_file():
@@ -230,7 +233,7 @@ def normalize(root: Path) -> dict:
 
     report = {
         "purpose": "headless normalization, offline fixture fields and branch copy isolation",
-        "modified": sorted([*modified, *isolate_imported_card_effects(imported)]),
+        "modified": sorted(set(modified) | set(isolate_imported_card_effects(imported))),
     }
     (root / "classic-headless-patches.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False) + "\n",
