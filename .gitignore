@@ -17,3 +17,4 @@ __pycache__/
 src/Silverfish.Classic/Imported/
 classic-import-manifest.json
 classic-headless-patches.json
+/myLog.txt

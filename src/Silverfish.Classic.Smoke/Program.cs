@@ -11,8 +11,14 @@ Settings.Instance.setLoggPath(Path.Combine(Path.GetTempPath(), "silverfish-stand
 Directory.CreateDirectory(Settings.Instance.logpath);
 Settings.Instance.setLoggFile("classic-smoke.log");
 
-var unknown = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.None);
-Console.WriteLine($"Classic CardDB loaded: {unknown is not null}");
+const CardDB.cardIDEnum fixtureCardId = CardDB.cardIDEnum.EX1_612;
+var fixtureCard = CardDB.Instance.getCardDataFromID(fixtureCardId);
+if (fixtureCard is null || fixtureCard.cardIDenum != fixtureCardId)
+{
+    Console.Error.WriteLine($"Classic CardDB did not load fixture card {fixtureCardId}.");
+    return 1;
+}
+Console.WriteLine($"Classic CardDB loaded: True ({fixtureCardId})");
 
 var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
 {
@@ -39,10 +45,19 @@ if (args.Length == 1)
     // Previously initialized by Hearthbuddy's Routine; independent host sets
     // its own compatible classic search strategy explicitly.
     Ai.Instance.botBase = new Behavior丨通用丨不设惩罚();
-    var durations = Ai.Instance.autoTester(printstuff: false, data: board, mode: 2);
-    Console.WriteLine($"Classic AI ran {durations.Count} calculation pass(es).");
+    int calculationPasses;
+    try
+    {
+        calculationPasses = Ai.Instance.autoTester(printstuff: false, data: board, mode: 2).Count;
+    }
+    catch (FormatException error)
+    {
+        Console.Error.WriteLine(error.Message);
+        return 2;
+    }
+    Console.WriteLine($"Classic AI ran {calculationPasses} calculation pass(es).");
     var best = Ai.Instance.bestmove;
-    if (durations.Count == 0 || best is null)
+    if (calculationPasses == 0 || best is null)
     {
         Console.Error.WriteLine("Classic AI did not produce a concrete bestmove.");
         return 1;

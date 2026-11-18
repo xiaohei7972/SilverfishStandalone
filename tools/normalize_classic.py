@@ -86,6 +86,22 @@ def normalize(root: Path) -> dict:
         path.write_text(after, encoding="utf-8")
         modified[relative] = True
 
+    # The Chinese BoardTester assigns the friendly hero ID 0. The November
+    # action resolver must recognize that hero when simulating enemy attacks.
+    relative = "ai/Playfield/Playfield.Actions.cs"
+    path = imported / relative
+    if path.is_file():
+        before = path.read_text(encoding="utf-8-sig")
+        after = re.sub(
+            r"(public Minion FindMinionByEntityId\(int entityID\)\s*\{\n)"
+            r"([ \t]*)(if \(entityID <= 0\) return null;)",
+            r"\1\2if (entityID == 0 && this.ownHero.entitiyID == 0) return this.ownHero;\n\2\3",
+            before,
+        )
+        if after != before:
+            path.write_text(after, encoding="utf-8")
+            modified[relative] = True
+
     report = {
         "purpose": "headless normalization and explicit offline fixture fields",
         "modified": sorted(modified),
