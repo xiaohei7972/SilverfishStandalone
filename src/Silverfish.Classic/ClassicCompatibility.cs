@@ -53,6 +53,51 @@ public sealed record EntityDefinition(string CardId)
     public string GetCardId() => CardId;
 }
 
+internal static class ClassicWeaponState
+{
+    internal static List<miniEnch> CopyEnchantments(List<miniEnch> enchantments)
+    {
+        var copies = new List<miniEnch>(enchantments.Count);
+        var entities = new Dictionary<Entity, Entity>(ReferenceEqualityComparer.Instance);
+        var pending = new Queue<Entity>();
+
+        foreach (var enchantment in enchantments)
+        {
+            copies.Add(enchantment is null ? null : new miniEnch(
+                enchantment.CARDID,
+                enchantment.creator,
+                enchantment.controllerOfCreator,
+                enchantment.copyDeathrattle,
+                CopyReference(enchantment.entity)));
+        }
+
+        // Entity attachments can share nodes or contain cycles. Allocate each
+        // node once per weapon while copying its mutable tags and attachments.
+        while (pending.TryDequeue(out var source))
+        {
+            var copy = entities[source];
+            foreach (var tag in source.Tags)
+                copy.Tags.Add(tag.Key, tag.Value);
+            foreach (var attachment in source.Attachments)
+                copy.Attachments.Add(CopyReference(attachment));
+        }
+        return copies;
+
+        Entity CopyReference(Entity source)
+        {
+            if (source is null)
+                return null;
+            if (entities.TryGetValue(source, out var copy))
+                return copy;
+
+            copy = new Entity { Id = source.Id, CardId = source.CardId };
+            entities.Add(source, copy);
+            pending.Enqueue(source);
+            return copy;
+        }
+    }
+}
+
 // The original classic Silverfish uses the client GAME_TAG enum at a few edges.
 // The numeric values below are pinned to its own bundled TAGGS.cs snapshot.
 public enum GAME_TAG

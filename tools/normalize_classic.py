@@ -21,12 +21,50 @@ PATCHES = {
 ENEMY_HAND_MARKER = "// HEADLESS_BOARDTESTER_ENEMY_HAND_COUNT"
 
 
+def detach_card_before_write(source: str, receiver: str, field: str) -> str:
+    pattern = rf"(?m)^([ \t]*){re.escape(receiver)}\.{field}\s*="
+
+    def detach(match: re.Match) -> str:
+        assignment = f"{match.group(1)}{receiver} = {receiver}.CopyForSimulation();\n"
+        if source[:match.start()].endswith(assignment):
+            return match.group(0)
+        return assignment + match.group(0)
+
+    return re.sub(pattern, detach, source)
+
+
+def add_card_metadata_copy(source: str) -> str:
+    if "internal Card CopyForSimulation()" in source:
+        return source
+    card = re.search(r"(?m)^([ \t]*)public class Card[ \t]*\n[ \t]*\{\n", source)
+    if card is None:
+        raise ValueError("Classic CardDB.Card class anchor not found")
+    indent = card.group(1) + "    "
+    if re.search(r"(?m)^\s*public Card Copy\(\)", source):
+        # The November source already defines the card definition copy.
+        method = f"{indent}internal Card CopyForSimulation() => Copy();"
+    else:
+        method = "\n".join(indent + line for line in (
+            "internal Card CopyForSimulation()",
+            "{",
+            "    var copy = (Card)MemberwiseClone();",
+            "    copy.trigers = this.trigers is null ? null : new(this.trigers);",
+            "    copy.TitanAbility = this.TitanAbility is null ? null : new(this.TitanAbility);",
+            "    copy.races = this.races is null ? null : new(this.races);",
+            "    return copy;",
+            "}",
+        ))
+    return source[:card.end()] + method + "\n\n" + source[card.end():]
+
+
 def isolate_handcard_copies(source: str) -> str:
     for field in ("enchs", "conditionalList"):
         source = source.replace(
             f"this.{field} = hc.{field};",
             f"this.{field} = hc.{field} is null ? null : new(hc.{field});",
         )
+    if "public void getDIYCard(CardDB.Card part1, CardDB.Card part2)" in source:
+        source = detach_card_before_write(source, "this.card", "cost")
 
     # Minion formerly retained the entire Handcard object. Preserve all its
     # existing fields, including fields deliberately omitted by Handcard(hc).
@@ -53,6 +91,25 @@ def isolate_minion_copies(source: str) -> str:
     if re.search(r"(?m)^\s*public List<CardDB\.cardIDEnum> enchs\b", source):
         return source.replace("this.enchs = m.enchs;", "this.enchs = m.enchs is null ? null : new(m.enchs);")
     return source
+
+
+def isolate_weapon_copies(source: str) -> str:
+    if "ClassicWeaponState.CopyEnchantments(w.enchants)" in source:
+        return source
+    constructor = re.search(
+        r"(?m)^([ \t]*)public Weapon\(Weapon w\)\s*\{\n", source,
+    )
+    if constructor is None:
+        raise ValueError("Classic Weapon copy constructor anchor not found")
+    indent = constructor.group(1) + "    "
+    assignments = "\n".join(indent + line for line in (
+        "this.pID = w.pID;",
+        "this.Overkill = w.Overkill;",
+        "this.HonorableKill = w.HonorableKill;",
+        "if (w.enchants is { Count: > 0 })",
+        "    this.enchants = ClassicWeaponState.CopyEnchantments(w.enchants);",
+    ))
+    return source[:constructor.end()] + assignments + "\n" + source[constructor.end():]
 
 
 def normalize(root: Path) -> dict:
@@ -117,6 +174,9 @@ def normalize(root: Path) -> dict:
     )
     # The November source uses a host string extension in the enchantment parser.
     after = after.replace('.split(" ")', ".Split(' ')")
+    after = detach_card_before_write(after, "card.card", "MODULAR_ENTITY_PART_1")
+    after = detach_card_before_write(after, "this.ownHero.handcard.card", "type")
+    after = detach_card_before_write(after, "this.enemyHero.handcard.card", "type")
     if after != before:
         path.write_text(after, encoding="utf-8")
         modified[relative] = True
@@ -138,8 +198,11 @@ def normalize(root: Path) -> dict:
             modified[relative] = True
 
     for relative, isolate in (
+        ("ai/CardDB.cs", add_card_metadata_copy),
+        ("ai/CardDB/CardDB.cs", add_card_metadata_copy),
         ("ai/Handmanager.cs", isolate_handcard_copies),
         ("ai/Minion.cs", isolate_minion_copies),
+        ("ai/Weapon.cs", isolate_weapon_copies),
     ):
         path = imported / relative
         if path.is_file():
