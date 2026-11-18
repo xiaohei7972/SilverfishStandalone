@@ -168,8 +168,7 @@ jobs:
         run: |
           dotnet test tests/Silverfish.ClassicBridge.Tests/Silverfish.ClassicBridge.Tests.csproj -c Release --nologo
 
-      - name: Test old-to-new Minion Handcard Weapon state projection (legacy refactor experiment)
-        if: github.event_name == 'push' || inputs.source_mode == 'old-reference-diagnostic'
+      - name: Test classic state projection and simulation branch isolation
         shell: pwsh
         run: |
           dotnet test tests/Silverfish.ClassicModelAdapter.Tests/Silverfish.ClassicModelAdapter.Tests.csproj -c Release --nologo

@@ -20,6 +20,41 @@ PATCHES = {
 
 ENEMY_HAND_MARKER = "// HEADLESS_BOARDTESTER_ENEMY_HAND_COUNT"
 
+
+def isolate_handcard_copies(source: str) -> str:
+    for field in ("enchs", "conditionalList"):
+        source = source.replace(
+            f"this.{field} = hc.{field};",
+            f"this.{field} = hc.{field} is null ? null : new(hc.{field});",
+        )
+
+    # Minion formerly retained the entire Handcard object. Preserve all its
+    # existing fields, including fields deliberately omitted by Handcard(hc).
+    if "internal Handcard CopyForMinion()" in source:
+        return source
+    constructor = re.search(r"(?m)^([ \t]*)public Handcard\(Handcard hc\)", source)
+    if constructor is None:
+        raise ValueError("Classic Handcard copy constructor anchor not found")
+    indent = constructor.group(1)
+    method = "\n".join(indent + line for line in (
+        "internal Handcard CopyForMinion()",
+        "{",
+        "    var copy = (Handcard)MemberwiseClone();",
+        "    copy.enchs = this.enchs is null ? null : new(this.enchs);",
+        "    copy.conditionalList = this.conditionalList is null ? null : new(this.conditionalList);",
+        "    return copy;",
+        "}",
+    ))
+    return source[:constructor.start()] + method + "\n\n" + source[constructor.start():]
+
+
+def isolate_minion_copies(source: str) -> str:
+    source = source.replace("this.handcard = m.handcard;", "this.handcard = m.handcard?.CopyForMinion();")
+    if re.search(r"(?m)^\s*public List<CardDB\.cardIDEnum> enchs\b", source):
+        return source.replace("this.enchs = m.enchs;", "this.enchs = m.enchs is null ? null : new(m.enchs);")
+    return source
+
+
 def normalize(root: Path) -> dict:
     imported = root / "src" / "Silverfish.Classic" / "Imported"
     modified = {}
@@ -102,8 +137,20 @@ def normalize(root: Path) -> dict:
             path.write_text(after, encoding="utf-8")
             modified[relative] = True
 
+    for relative, isolate in (
+        ("ai/Handmanager.cs", isolate_handcard_copies),
+        ("ai/Minion.cs", isolate_minion_copies),
+    ):
+        path = imported / relative
+        if path.is_file():
+            before = path.read_text(encoding="utf-8-sig")
+            after = isolate(before)
+            if after != before:
+                path.write_text(after, encoding="utf-8")
+                modified[relative] = True
+
     report = {
-        "purpose": "headless normalization and explicit offline fixture fields",
+        "purpose": "headless normalization, offline fixture fields and branch copy isolation",
         "modified": sorted(modified),
     }
     (root / "classic-headless-patches.json").write_text(

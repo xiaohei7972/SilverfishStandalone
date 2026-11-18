@@ -2,7 +2,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from normalize_classic import normalize, ENEMY_HAND_MARKER
+from normalize_classic import ENEMY_HAND_MARKER, isolate_minion_copies, normalize
 
 
 def test_normalize() -> None:
@@ -34,10 +34,27 @@ def test_normalize() -> None:
             "}\n",
             encoding="utf-8",
         )
+        minion_path = imported / "Minion.cs"
+        minion_path.write_text(
+            "public List<CardDB.cardIDEnum> enchs = new();\n"
+            "this.handcard = m.handcard;\n"
+            "this.enchs = m.enchs;\n",
+            encoding="utf-8",
+        )
+        handcard_path = imported / "Handmanager.cs"
+        handcard_path.write_text(
+            "    public Handcard(Handcard hc)\n"
+            "    {\n"
+            "        this.enchs = hc.enchs;\n"
+            "        this.conditionalList = hc.conditionalList;\n"
+            "    }\n",
+            encoding="utf-8",
+        )
 
         first = normalize(root)
         assert sorted(first["modified"]) == [
-            "ai/Ai.cs", "ai/BoardTester.cs", "ai/PenalityManager.cs",
+            "ai/Ai.cs", "ai/BoardTester.cs", "ai/Handmanager.cs",
+            "ai/Minion.cs", "ai/PenalityManager.cs",
             "ai/Playfield/Playfield.Actions.cs",
         ]
         ai = (imported / "Ai.cs").read_text(encoding="utf-8")
@@ -58,11 +75,22 @@ def test_normalize() -> None:
             "if (entityID == 0 && this.ownHero.entitiyID == 0) return this.ownHero;\n"
             "    if (entityID <= 0) return null;"
         ) in actions
+        minion = minion_path.read_text(encoding="utf-8")
+        assert "this.handcard = m.handcard?.CopyForMinion();" in minion
+        assert "this.enchs = m.enchs is null ? null : new(m.enchs);" in minion
+        handcard = handcard_path.read_text(encoding="utf-8")
+        assert "    internal Handcard CopyForMinion()" in handcard
+        assert "this.enchs = hc.enchs is null ? null : new(hc.enchs);" in handcard
+        assert "this.conditionalList = hc.conditionalList is null ? null : new(hc.conditionalList);" in handcard
+        original = 'public string enchs = "";\nthis.enchs = m.enchs;\n'
+        assert isolate_minion_copies(original) == original
 
         second = normalize(root)
         assert second["modified"] == []
         assert (imported / "BoardTester.cs").read_text(encoding="utf-8") == board
         assert actions_path.read_text(encoding="utf-8") == actions
+        assert minion_path.read_text(encoding="utf-8") == minion
+        assert handcard_path.read_text(encoding="utf-8") == handcard
 
 
 if __name__ == "__main__":

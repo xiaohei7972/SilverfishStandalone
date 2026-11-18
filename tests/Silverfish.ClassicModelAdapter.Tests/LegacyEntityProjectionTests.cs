@@ -8,6 +8,109 @@ namespace Silverfish.ClassicModelAdapter.Tests;
 public sealed class LegacyEntityProjectionTests
 {
     [Fact]
+    public void PlayfieldCopyIsolatesMinionAndHandCardStateFromSiblingBranches()
+    {
+        Settings.Instance.setFilePath(AppContext.BaseDirectory);
+        var fixture = new BoardTester(
+            """
+            水晶： 1 / 1 [我方英雄] 法师 生命值:( 30 + 0 奥秘数: 0 ) [敌方英雄] 法师 生命值:( 3 + 0 奥秘数: 0 )
+            [我方场面] 肯瑞托法师 ( 4 / 3 )
+            Enemy cards: 0
+            Enemy deck: 0
+            """);
+        Assert.True(fixture.datareaded);
+        var original = new Playfield();
+        var minion = Assert.Single(original.ownMinions);
+        minion.handcard.extraParam2 = 17;
+        minion.handcard.enchs.Add(CardDB.cardIDEnum.EX1_612);
+        var originalEnchantments = MinionEnchantments(minion);
+        originalEnchantments?.Add(CardDB.cardIDEnum.EX1_612);
+        var handCard = new Handmanager.Handcard { entity = 77, manacost = 2 };
+        handCard.enchs.Add(CardDB.cardIDEnum.EX1_612);
+        handCard.conditionalList.Add(CardDB.cardIDEnum.EX1_612);
+        original.owncards.Add(handCard);
+
+        var left = new Playfield(original);
+        var right = new Playfield(original);
+        var leftMinion = Assert.Single(left.ownMinions);
+        Assert.Equal(17, leftMinion.handcard.extraParam2);
+        Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(leftMinion.handcard.enchs));
+        leftMinion.handcard.extraParam2 = 99;
+        leftMinion.handcard.enchs.Clear();
+        if (originalEnchantments is not null)
+        {
+            var enchantments = Assert.IsAssignableFrom<IList<CardDB.cardIDEnum>>(MinionEnchantments(leftMinion));
+            Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(enchantments));
+            enchantments.Clear();
+        }
+        var leftHandCard = Assert.Single(left.owncards);
+        Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(leftHandCard.enchs));
+        Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(leftHandCard.conditionalList));
+        leftHandCard.enchs.Clear();
+        leftHandCard.conditionalList.Clear();
+
+        foreach (var untouched in new[] { original, right })
+        {
+            var untouchedMinion = Assert.Single(untouched.ownMinions);
+            Assert.Equal(17, untouchedMinion.handcard.extraParam2);
+            Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(untouchedMinion.handcard.enchs));
+            if (originalEnchantments is not null)
+            {
+                var enchantments = Assert.IsAssignableFrom<IList<CardDB.cardIDEnum>>(MinionEnchantments(untouchedMinion));
+                Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(enchantments));
+            }
+            var untouchedHandCard = Assert.Single(untouched.owncards);
+            Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(untouchedHandCard.enchs));
+            Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(untouchedHandCard.conditionalList));
+        }
+    }
+
+    [Fact]
+    public void MinionTransformPreservesDestinationIdentityAndCopiesMutableState()
+    {
+        var source = new Minion { entitiyID = 11 };
+        source.handcard.extraParam2 = 17;
+        source.handcard.enchs.Add(CardDB.cardIDEnum.EX1_612);
+        MinionEnchantments(source)?.Add(CardDB.cardIDEnum.EX1_612);
+
+        var transformed = new Minion { entitiyID = 22 };
+        transformed.setMinionToMinion(source);
+        Assert.Equal(22, transformed.entitiyID);
+        Assert.Equal(17, transformed.handcard.extraParam2);
+        Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(transformed.handcard.enchs));
+        transformed.handcard.enchs.Clear();
+        MinionEnchantments(transformed)?.Clear();
+
+        Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(source.handcard.enchs));
+        if (MinionEnchantments(source) is { } enchantments)
+            Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(enchantments));
+    }
+
+    [Fact]
+    public void HandCardReplacementCopiesListsAndRetainsDestinationIdentity()
+    {
+        var source = new Handmanager.Handcard { entity = 11, manacost = 3 };
+        source.enchs.Add(CardDB.cardIDEnum.EX1_612);
+        source.conditionalList.Add(CardDB.cardIDEnum.EX1_612);
+
+        var replacement = new Handmanager.Handcard { entity = 22, position = 2 };
+        replacement.setHCtoHC(source);
+        Assert.Equal(22, replacement.entity);
+        Assert.Equal(2, replacement.position);
+        Assert.Equal(3, replacement.manacost);
+        Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(replacement.enchs));
+        Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(replacement.conditionalList));
+        replacement.enchs.Clear();
+        replacement.conditionalList.Clear();
+
+        Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(source.enchs));
+        Assert.Equal(CardDB.cardIDEnum.EX1_612, Assert.Single(source.conditionalList));
+    }
+
+    private static IList<CardDB.cardIDEnum>? MinionEnchantments(Minion minion) =>
+        typeof(Minion).GetField("enchs")?.GetValue(minion) as IList<CardDB.cardIDEnum>;
+
+    [Fact]
     public void CharacterSnapshotDoesNotShareMutableEnchantmentOrStatFields()
     {
         var old = new Minion
@@ -17,8 +120,7 @@ public sealed class LegacyEntityProjectionTests
         };
         // The latest source stores typed enchantments, while older classic
         // code used a single string. Exercise both layouts without a fork.
-        var rawEnchants = typeof(Minion).GetField("enchs")!.GetValue(old);
-        var typedEnchants = rawEnchants as IList<CardDB.cardIDEnum>;
+        var typedEnchants = MinionEnchantments(old);
         typedEnchants?.Add(CardDB.cardIDEnum.None);
         typeof(Minion).GetField("TAG_SCRIPT_DATA_NUM_1")?.SetValue(old, 42);
 
