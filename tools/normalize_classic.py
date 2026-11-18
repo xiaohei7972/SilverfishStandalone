@@ -9,6 +9,8 @@ import json
 import re
 import sys
 
+from isolate_classic_card_effects import isolate_imported_card_effects
+
 PATCHES = {
     "ai/Ai.cs": [
         ("Silverfish.Instance.updateCThunInfo(", "Hrtprozis.Instance.updateCThunInfo("),
@@ -214,7 +216,7 @@ def normalize(root: Path) -> dict:
 
     report = {
         "purpose": "headless normalization, offline fixture fields and branch copy isolation",
-        "modified": sorted(modified),
+        "modified": sorted([*modified, *isolate_imported_card_effects(imported)]),
     }
     (root / "classic-headless-patches.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False) + "\n",

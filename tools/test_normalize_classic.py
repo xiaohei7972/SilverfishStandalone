@@ -60,12 +60,37 @@ def test_normalize() -> None:
         card_db_path.write_text("public class Card\n{\n}\n", encoding="utf-8")
         weapon_path = imported / "Weapon.cs"
         weapon_path.write_text("public Weapon(Weapon w)\n{\n    this.card = w.card;\n}\n", encoding="utf-8")
+        cards_path = imported.parent / "cards" / "fixture"
+        cards_path.mkdir(parents=True)
+        weapon_effect_path = cards_path / "Sim_WW_010t.cs"
+        weapon_effect_path.write_text(
+            "/*\n    p.ownWeapon.card.TAG_SCRIPT_DATA_NUM_1++;\n*/\n"
+            "if (canAttack)\n    p.ownWeapon.card.TAG_SCRIPT_DATA_NUM_1++;\n"
+            "    //p.ownWeapon.card.TAG_SCRIPT_DATA_NUM_2++;\n"
+            "    p.ownWeapon.card.TAG_SCRIPT_DATA_NUM_2++;\n"
+            "    var saved = p.ownWeapon.card.TAG_SCRIPT_DATA_NUM_1;\n",
+            encoding="utf-8",
+        )
+        hand_effect_path = cards_path / "Sim_EDR_572.cs"
+        hand_effect_path.write_text("p.owncards[p.owncards.Count - 1].card.cost -= 1;\n", encoding="utf-8")
+        token_effect_path = cards_path / "Sim_TTN_465.cs"
+        token_effect_path.write_text(
+            "    CardDB.Card kid = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.TTN_465t);\n",
+            encoding="utf-8",
+        )
+        moves_path = imported / "Movegenerator.cs"
+        moves_path.write_text(
+            "titan.handcard.card.TitanAbility = titan.handcard.card.GetTitanAbility();\n"
+            "CardDB.Card ability = titan.handcard.card.TitanAbility[i];\n",
+            encoding="utf-8",
+        )
 
         first = normalize(root)
         assert sorted(first["modified"]) == [
             "ai/Ai.cs", "ai/BoardTester.cs", "ai/CardDB.cs", "ai/Handmanager.cs",
-            "ai/Minion.cs", "ai/PenalityManager.cs",
+            "ai/Minion.cs", "ai/Movegenerator.cs", "ai/PenalityManager.cs",
             "ai/Playfield/Playfield.Actions.cs", "ai/Weapon.cs",
+            "cards/fixture/Sim_EDR_572.cs", "cards/fixture/Sim_TTN_465.cs", "cards/fixture/Sim_WW_010t.cs",
         ]
         ai = (imported / "Ai.cs").read_text(encoding="utf-8")
         assert "Hrtprozis.Instance.updateCThunInfo" in ai
@@ -105,6 +130,18 @@ def test_normalize() -> None:
         modern_card_db = add_card_metadata_copy(modern_card_db)
         assert "internal Card CopyForSimulation() => Copy();" in modern_card_db
         assert add_card_metadata_copy(modern_card_db) == modern_card_db
+        weapon_effect = weapon_effect_path.read_text(encoding="utf-8")
+        assert "/*\n    p.ownWeapon.card.TAG_SCRIPT_DATA_NUM_1++;\n*/" in weapon_effect
+        assert "if (canAttack)\n    p.ownWeapon.CardForWrite().TAG_SCRIPT_DATA_NUM_1++;" in weapon_effect
+        assert "    p.ownWeapon.CardForWrite().TAG_SCRIPT_DATA_NUM_2++;" in weapon_effect
+        assert "    var saved = p.ownWeapon.card.TAG_SCRIPT_DATA_NUM_1;" in weapon_effect
+        assert "    //p.ownWeapon.card.TAG_SCRIPT_DATA_NUM_2++;" in weapon_effect
+        assert hand_effect_path.read_text(encoding="utf-8") == "p.owncards[p.owncards.Count - 1].CardForWrite().cost -= 1;\n"
+        assert "TTN_465t).CopyForSimulation();" in token_effect_path.read_text(encoding="utf-8")
+        assert moves_path.read_text(encoding="utf-8") == (
+            "var titanAbilities = titan.handcard.card.GetTitanAbility();\n"
+            "CardDB.Card ability = titanAbilities[i];\n"
+        )
         original = 'public string enchs = "";\nthis.enchs = m.enchs;\n'
         assert isolate_minion_copies(original) == original
 
@@ -116,6 +153,7 @@ def test_normalize() -> None:
         assert handcard_path.read_text(encoding="utf-8") == handcard
         assert card_db_path.read_text(encoding="utf-8") == card_db
         assert weapon_path.read_text(encoding="utf-8") == weapon
+        assert weapon_effect_path.read_text(encoding="utf-8") == weapon_effect
 
 
 if __name__ == "__main__":

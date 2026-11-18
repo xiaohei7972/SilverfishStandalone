@@ -3,6 +3,15 @@ using System.Diagnostics;
 
 namespace HREngine.Bots;
 
+internal static class ClassicCardState
+{
+    internal static CardDB.Card CardForWrite(this Handmanager.Handcard handcard) =>
+        handcard.card = handcard.card.CopyForSimulation();
+
+    internal static CardDB.Card CardForWrite(this Weapon weapon) =>
+        weapon.card = weapon.card.CopyForSimulation();
+}
+
 /// <summary>Headless logging boundary replacing the old Triton/log4net host logger.</summary>
 public interface ILog
 {

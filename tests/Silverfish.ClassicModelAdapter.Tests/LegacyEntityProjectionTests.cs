@@ -198,17 +198,108 @@ public sealed class LegacyEntityProjectionTests
         }
     }
 
-    private static Playfield CreatePlayfield()
+    [Fact]
+    public void WeaponScriptCountersStayOnTheAttackingBranch()
+    {
+        var parent = CreatePlayfield();
+        var definition = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.WW_010t);
+        Assert.Equal(CardDB.cardIDEnum.WW_010t, definition.cardIDenum);
+        var firstCounter = definition.TAG_SCRIPT_DATA_NUM_1;
+        var secondCounter = definition.TAG_SCRIPT_DATA_NUM_2;
+        parent.ownWeapon.equip(definition);
+        var attacking = new Playfield(parent);
+        var waiting = new Playfield(parent);
+
+        for (var attack = 0; attack < 2; attack++)
+            definition.sim_card.afterHeroattack(attacking, attacking.ownHero, attacking.enemyHero);
+
+        Assert.Equal(parent.ownMinions.Count + 2, attacking.ownMinions.Count);
+        Assert.Equal(firstCounter + 2, attacking.ownWeapon.card.TAG_SCRIPT_DATA_NUM_1);
+        Assert.Equal(secondCounter + 2, attacking.ownWeapon.card.TAG_SCRIPT_DATA_NUM_2);
+        Assert.Equal(firstCounter, waiting.ownWeapon.card.TAG_SCRIPT_DATA_NUM_1);
+        Assert.Equal(secondCounter, waiting.ownWeapon.card.TAG_SCRIPT_DATA_NUM_2);
+        Assert.Equal(firstCounter, parent.ownWeapon.card.TAG_SCRIPT_DATA_NUM_1);
+        Assert.Equal(secondCounter, parent.ownWeapon.card.TAG_SCRIPT_DATA_NUM_2);
+        Assert.Equal(firstCounter, definition.TAG_SCRIPT_DATA_NUM_1);
+        Assert.Equal(secondCounter, definition.TAG_SCRIPT_DATA_NUM_2);
+    }
+
+    [Fact]
+    public void ConditionalLifestealDoesNotRewriteThePrintedSpell()
+    {
+        var playfield = CreatePlayfield(mana: 10);
+        var definition = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.RLK_209);
+        Assert.Equal(CardDB.cardIDEnum.RLK_209, definition.cardIDenum);
+        Assert.False(definition.lifesteal);
+        var cast = new Handmanager.Handcard(definition);
+        var unplayed = new Handmanager.Handcard(cast);
+        var startingHealth = playfield.enemyHero.Hp;
+
+        definition.sim_card.onCardPlay(playfield, true, null, 0, cast);
+
+        Assert.True(cast.card.lifesteal);
+        Assert.False(unplayed.card.lifesteal);
+        Assert.False(definition.lifesteal);
+        Assert.True(playfield.enemyHero.Hp < startingHealth);
+    }
+
+    [Fact]
+    public void ForgeOfWillsCreatesDifferentGiantsWithoutChangingTheirTemplate()
+    {
+        var parent = CreatePlayfield();
+        var forge = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.TTN_465);
+        var giant = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.TTN_465t);
+        Assert.Equal(CardDB.cardIDEnum.TTN_465, forge.cardIDenum);
+        Assert.Equal(CardDB.cardIDEnum.TTN_465t, giant.cardIDenum);
+        var printed = (giant.Attack, giant.Health, giant.dormant);
+        var left = new Playfield(parent);
+        var right = new Playfield(parent);
+        var firstTarget = Assert.Single(left.ownMinions);
+        var secondTarget = Assert.Single(right.ownMinions);
+        secondTarget.Angr = 6;
+        secondTarget.Hp = 2;
+
+        forge.sim_card.useLocation(left, null, firstTarget);
+        forge.sim_card.useLocation(right, null, secondTarget);
+
+        var firstGiant = Assert.Single(left.ownMinions, m => m.handcard.card.cardIDenum == giant.cardIDenum);
+        var secondGiant = Assert.Single(right.ownMinions, m => m.handcard.card.cardIDenum == giant.cardIDenum);
+        Assert.Equal((4, 3), (firstGiant.Angr, firstGiant.Hp));
+        Assert.Equal((6, 2), (secondGiant.Angr, secondGiant.Hp));
+        Assert.Equal((4, 3), (firstGiant.handcard.card.Attack, firstGiant.handcard.card.Health));
+        Assert.Equal(printed, (giant.Attack, giant.Health, giant.dormant));
+    }
+
+    [Fact]
+    public void TitanActionGenerationDoesNotWriteBackToThePrintedCard()
+    {
+        var playfield = CreatePlayfield();
+        var titan = Assert.Single(playfield.ownMinions);
+        var definition = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.TTN_858);
+        Assert.Equal(CardDB.cardIDEnum.TTN_858, definition.cardIDenum);
+        var printedAbilities = definition.TitanAbility;
+        titan.handcard.card = definition;
+        titan.Titan = true;
+
+        var actions = Movegenerator.Instance.getMoveList(playfield, false, false, true);
+
+        Assert.Contains(actions, action =>
+            action.actionType == actionEnum.useTitanAbility && action.own.entitiyID == titan.entitiyID);
+        Assert.Same(printedAbilities, definition.TitanAbility);
+    }
+
+    private static Playfield CreatePlayfield(int mana = 1)
     {
         Settings.Instance.setFilePath(AppContext.BaseDirectory);
         var fixture = new BoardTester(
-            """
-            水晶： 1 / 1 [我方英雄] 法师 生命值:( 30 + 0 奥秘数: 0 ) [敌方英雄] 法师 生命值:( 3 + 0 奥秘数: 0 )
+            $"""
+            水晶： {mana} / {mana} [我方英雄] 法师 生命值:( 30 + 0 奥秘数: 0 ) [敌方英雄] 法师 生命值:( 3 + 0 奥秘数: 0 )
             [我方场面] 肯瑞托法师 ( 4 / 3 )
             Enemy cards: 0
             Enemy deck: 0
             """);
         Assert.True(fixture.datareaded);
+        Ai.Instance.botBase = new Behavior丨通用丨不设惩罚();
         return new Playfield();
     }
 
