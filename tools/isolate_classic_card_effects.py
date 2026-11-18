@@ -3,6 +3,8 @@
 from pathlib import Path
 import re
 
+from isolate_classic_deck import DECK_EFFECTS, isolate_deck_effect
+
 
 # Each target is the owner of the card being written, not a CardDB lookup.
 CARD_WRITES = {
@@ -86,11 +88,13 @@ def isolate_card_effects(source: str, stem: str) -> str:
         if initialization in source and lookup in source:
             source = source.replace(initialization, "var titanAbilities = titan.handcard.card.GetTitanAbility();")
             source = source.replace(lookup, "titanAbilities[i]")
+    if stem in DECK_EFFECTS:
+        source = isolate_deck_effect(source, stem)
     return source
 
 
 def isolate_imported_card_effects(imported: Path) -> list[str]:
-    card_names = set(CARD_WRITES) | set(TEMPORARY_COPIES) | {"Sim_DED_517"}
+    card_names = set(CARD_WRITES) | set(TEMPORARY_COPIES) | DECK_EFFECTS | {"Sim_DED_517"}
     files = [
         path for path in (imported / "cards").rglob("Sim_*.cs") if path.stem in card_names
     ]

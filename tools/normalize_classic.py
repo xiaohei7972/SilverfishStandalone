@@ -10,6 +10,7 @@ import re
 import sys
 
 from isolate_classic_card_effects import isolate_imported_card_effects
+from isolate_classic_deck import carry_known_deck_into_branches, draw_from_known_deck
 
 PATCHES = {
     "ai/Ai.cs": [
@@ -114,6 +115,11 @@ def isolate_weapon_copies(source: str) -> str:
     return source[:constructor.end()] + assignments + "\n" + source[constructor.end():]
 
 
+def isolate_monolithic_playfield(source: str) -> str:
+    source = re.sub(r"(?m)^([ \t]*)public class Playfield\b", r"\1public partial class Playfield", source)
+    return draw_from_known_deck(carry_known_deck_into_branches(source))
+
+
 def normalize(root: Path) -> dict:
     imported = root / "src" / "Silverfish.Classic" / "Imported"
     modified = {}
@@ -205,6 +211,9 @@ def normalize(root: Path) -> dict:
         ("ai/Handmanager.cs", isolate_handcard_copies),
         ("ai/Minion.cs", isolate_minion_copies),
         ("ai/Weapon.cs", isolate_weapon_copies),
+        ("ai/Playfield.cs", isolate_monolithic_playfield),
+        ("ai/Playfield/Playfield.Ctors.cs", carry_known_deck_into_branches),
+        ("ai/Playfield/Playfield.HandDeck.cs", draw_from_known_deck),
     ):
         path = imported / relative
         if path.is_file():

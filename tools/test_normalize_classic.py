@@ -84,13 +84,45 @@ def test_normalize() -> None:
             "CardDB.Card ability = titan.handcard.card.TitanAbility[i];\n",
             encoding="utf-8",
         )
+        playfield_path = imported / "Playfield.cs"
+        playfield_path.write_text(
+            "public class Playfield\n"
+            "{\n"
+            "    public Playfield(Playfield p, bool transToEnemy = false)\n"
+            "    {\n"
+            "        this.ownDeckSize = p.ownDeckSize;\n"
+            "    }\n"
+            "    public bool isEqualf(Playfield p)\n"
+            "    {\n"
+            "        return true;\n"
+            "    }\n"
+            "    public void drawACard(CardDB.cardIDEnum ss, bool own, bool nopen = false)\n"
+            "    {\n"
+            "        var c = CardDB.Instance.getCardDataFromID(s);\n"
+            "    }\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        deck_effect_path = cards_path / "Sim_WORK_013.cs"
+        deck_effect_path.write_text(
+            "    foreach (CardDB.Card card in p.ownDeck)\n"
+            "    {\n"
+            "        if (card.battlecry)\n"
+            "        {\n"
+            "            card.Attack += 1;\n"
+            "            card.Health += 1;\n"
+            "        }\n"
+            "    }\n",
+            encoding="utf-8",
+        )
 
         first = normalize(root)
         assert sorted(first["modified"]) == [
             "ai/Ai.cs", "ai/BoardTester.cs", "ai/CardDB.cs", "ai/Handmanager.cs",
             "ai/Minion.cs", "ai/Movegenerator.cs", "ai/PenalityManager.cs",
-            "ai/Playfield/Playfield.Actions.cs", "ai/Weapon.cs",
-            "cards/fixture/Sim_EDR_572.cs", "cards/fixture/Sim_TTN_465.cs", "cards/fixture/Sim_WW_010t.cs",
+            "ai/Playfield.cs", "ai/Playfield/Playfield.Actions.cs", "ai/Weapon.cs",
+            "cards/fixture/Sim_EDR_572.cs", "cards/fixture/Sim_TTN_465.cs",
+            "cards/fixture/Sim_WORK_013.cs", "cards/fixture/Sim_WW_010t.cs",
         ]
         ai = (imported / "Ai.cs").read_text(encoding="utf-8")
         assert "Hrtprozis.Instance.updateCThunInfo" in ai
@@ -142,6 +174,15 @@ def test_normalize() -> None:
             "var titanAbilities = titan.handcard.card.GetTitanAbility();\n"
             "CardDB.Card ability = titanAbilities[i];\n"
         )
+        playfield = playfield_path.read_text(encoding="utf-8")
+        assert "public partial class Playfield" in playfield
+        assert "if (!transToEnemy) this.ownDeck.AddRange(p.ownDeck);" in playfield
+        assert "if (!HasSameKnownDeck(p)) return false;" in playfield
+        assert "DrawCard(ss, own, nopen, null);" in playfield
+        assert "knownCard ?? CardDB.Instance.getCardDataFromID(s)" in playfield
+        deck_effect = deck_effect_path.read_text(encoding="utf-8")
+        assert "CardDB.Card card = p.ownDeck[deckIndex];" in deck_effect
+        assert "            card = p.DeckCardForWrite(deckIndex);\n            card.Attack += 1;" in deck_effect
         original = 'public string enchs = "";\nthis.enchs = m.enchs;\n'
         assert isolate_minion_copies(original) == original
 
@@ -154,6 +195,8 @@ def test_normalize() -> None:
         assert card_db_path.read_text(encoding="utf-8") == card_db
         assert weapon_path.read_text(encoding="utf-8") == weapon
         assert weapon_effect_path.read_text(encoding="utf-8") == weapon_effect
+        assert playfield_path.read_text(encoding="utf-8") == playfield
+        assert deck_effect_path.read_text(encoding="utf-8") == deck_effect
 
 
 if __name__ == "__main__":

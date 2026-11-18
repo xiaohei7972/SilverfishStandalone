@@ -290,6 +290,114 @@ public sealed class LegacyEntityProjectionTests
         Assert.Same(printedAbilities, definition.TitanAbility);
     }
 
+    [Fact]
+    public void DeckBuffKeepsDuplicatesSeparateAcrossPlayfieldBranches()
+    {
+        var parent = CreatePlayfield();
+        var battlecry = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.EX1_612);
+        var ordinary = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.CS2_172);
+        var effect = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.WORK_013);
+        var printed = (battlecry.Attack, battlecry.Health);
+        Assert.True(battlecry.battlecry);
+        parent.ownDeck.AddRange(new[] { battlecry, ordinary, battlecry });
+        parent.ownDeckSize = 3;
+        var modified = new Playfield(parent);
+        var sibling = new Playfield(parent);
+        Assert.Equal(parent.ownDeck.Select(c => c.cardIDenum), modified.ownDeck.Select(c => c.cardIDenum));
+        Assert.Empty(new Playfield(parent, true).ownDeck);
+
+        effect.sim_card.getBattlecryEffect(modified, Assert.Single(modified.ownMinions), null, 0);
+
+        Assert.Equal((printed.Attack + 1, printed.Health + 1), (modified.ownDeck[0].Attack, modified.ownDeck[0].Health));
+        Assert.Equal((printed.Attack + 1, printed.Health + 1), (modified.ownDeck[2].Attack, modified.ownDeck[2].Health));
+        Assert.NotSame(modified.ownDeck[0], modified.ownDeck[2]);
+        Assert.Same(ordinary, modified.ownDeck[1]);
+        Assert.Equal(printed, (parent.ownDeck[0].Attack, parent.ownDeck[0].Health));
+        Assert.Equal(printed, (sibling.ownDeck[2].Attack, sibling.ownDeck[2].Health));
+        Assert.Equal(printed, (battlecry.Attack, battlecry.Health));
+        Assert.False(modified.isEqualf(sibling));
+        var stateHash = typeof(Playfield).GetMethod("GetStateHash");
+        if (stateHash is not null)
+            Assert.NotEqual(stateHash.Invoke(modified, null), stateHash.Invoke(sibling, null));
+    }
+
+    [Fact]
+    public void TargetedDrawCarriesDeckBuffsAndConsumesOneKnownSlot()
+    {
+        var parent = CreatePlayfield();
+        var card = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.EX1_612);
+        var effect = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.WORK_013);
+        var forest = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.TOY_507);
+        var printed = (card.cost, card.Attack, card.Health);
+        parent.ownDeck.AddRange(new[] { card, card });
+        parent.ownDeckSize = 2;
+        var child = new Playfield(parent);
+        effect.sim_card.getBattlecryEffect(child, Assert.Single(child.ownMinions), null, 0);
+
+        forest.sim_card.useLocation(child, null, null);
+
+        var drawn = Assert.Single(child.owncards);
+        Assert.Equal(card.cardIDenum, drawn.card.cardIDenum);
+        Assert.Equal((printed.cost - 1, printed.Attack + 1, printed.Health + 1),
+            (drawn.manacost, drawn.card.Attack, drawn.card.Health));
+        var remaining = Assert.Single(child.ownDeck);
+        Assert.Equal((printed.cost, printed.Attack + 1, printed.Health + 1),
+            (remaining.cost, remaining.Attack, remaining.Health));
+        Assert.Equal(1, child.ownDeckSize);
+        Assert.Equal(2, parent.ownDeckSize);
+        Assert.Equal(2, parent.ownDeck.Count);
+        Assert.Equal(printed, (card.cost, card.Attack, card.Health));
+    }
+
+    [Fact]
+    public void TargetedDrawBurnsOneKnownCardWhenTheHandIsFull()
+    {
+        var playfield = CreatePlayfield();
+        var card = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.EX1_612);
+        var forest = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.TOY_507);
+        playfield.ownDeck.Add(card);
+        playfield.ownDeckSize = 1;
+        for (var i = 0; i < 10; i++)
+            playfield.owncards.Add(new Handmanager.Handcard(card) { entity = i + 100 });
+        var cost = card.cost;
+
+        forest.sim_card.useLocation(playfield, null, null);
+
+        Assert.Empty(playfield.ownDeck);
+        Assert.Equal(0, playfield.ownDeckSize);
+        Assert.Equal(10, playfield.owncards.Count);
+        Assert.Equal(cost, card.cost);
+    }
+
+    [Fact]
+    public void TormentedDreadwingDrawsExactlyTwoDiscountedDragonSlots()
+    {
+        var parent = CreatePlayfield();
+        var dragon = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.EX1_561);
+        var other = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.CS2_172);
+        var dreadwing = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.EDR_572);
+        Assert.Equal(CardDB.cardIDEnum.EDR_572, dreadwing.cardIDenum);
+        Assert.Equal(TAG_RACE.DRAGON, (TAG_RACE)dragon.race);
+        var cost = dragon.cost;
+        parent.ownDeck.AddRange(new[] { other, dragon, dragon, dragon });
+        parent.ownDeckSize = 4;
+        var child = new Playfield(parent);
+
+        dreadwing.sim_card.onDeathrattle(child, Assert.Single(child.ownMinions));
+
+        Assert.Equal(2, child.owncards.Count);
+        Assert.All(child.owncards, card =>
+        {
+            Assert.Equal(dragon.cardIDenum, card.card.cardIDenum);
+            Assert.Equal(cost - 1, card.manacost);
+        });
+        Assert.NotSame(child.owncards[0].card, child.owncards[1].card);
+        Assert.Equal(new[] { other, dragon }, child.ownDeck);
+        Assert.Equal(2, child.ownDeckSize);
+        Assert.Equal(4, parent.ownDeck.Count);
+        Assert.Equal(cost, dragon.cost);
+    }
+
     private static Playfield CreatePlayfield(int mana = 1)
     {
         Settings.Instance.setFilePath(AppContext.BaseDirectory);
