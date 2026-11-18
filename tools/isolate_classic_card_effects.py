@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 
 from isolate_classic_deck import DECK_EFFECTS, isolate_deck_effect
+from isolate_classic_deck_estimate import ESTIMATED_DRAWS, isolate_estimated_card_effect
 
 
 # Each target is the owner of the card being written, not a CardDB lookup.
@@ -88,16 +89,19 @@ def isolate_card_effects(source: str, stem: str) -> str:
         if initialization in source and lookup in source:
             source = source.replace(initialization, "var titanAbilities = titan.handcard.card.GetTitanAbility();")
             source = source.replace(lookup, "titanAbilities[i]")
+        source = source.replace(
+            "if (hc.card.Tradeable && p.mana >= hc.card.TradeCost)",
+            "if (hc.card.Tradeable && p.mana >= hc.card.TradeCost && p.ownDeckSize > 0)",
+        )
     if stem in DECK_EFFECTS:
         source = isolate_deck_effect(source, stem)
     return source
 
 
 def isolate_imported_card_effects(imported: Path) -> list[str]:
-    card_names = set(CARD_WRITES) | set(TEMPORARY_COPIES) | DECK_EFFECTS | {"Sim_DED_517"}
-    files = [
-        path for path in (imported / "cards").rglob("Sim_*.cs") if path.stem in card_names
-    ]
+    card_names = set(CARD_WRITES) | set(TEMPORARY_COPIES) | DECK_EFFECTS | set(ESTIMATED_DRAWS)
+    card_names.update({"Sim_CFM_637", "Sim_DED_517"})
+    files = list((imported / "cards").rglob("Sim_*.cs"))
     files.extend(imported / "ai" / name for name in (
         "Movegenerator.cs",
         "Action/Movegenerator.cs",
@@ -109,8 +113,16 @@ def isolate_imported_card_effects(imported: Path) -> list[str]:
     for path in files:
         if not path.is_file():
             continue
-        before = path.read_text(encoding="utf-8-sig")
+        if path.name.startswith("Sim_"):
+            data = path.read_bytes()
+            if path.stem not in card_names and b"p.prozis.turnDeck" not in data:
+                continue
+            before = data.decode("utf-8-sig").replace("\r\n", "\n")
+        else:
+            before = path.read_text(encoding="utf-8-sig")
         after = isolate_card_effects(before, path.stem)
+        if path.name.startswith("Sim_"):
+            after = isolate_estimated_card_effect(after, path.stem)
         if after != before:
             path.write_text(after, encoding="utf-8")
             modified.append(path.relative_to(imported).as_posix())

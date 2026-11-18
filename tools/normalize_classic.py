@@ -11,6 +11,7 @@ import sys
 
 from isolate_classic_card_effects import isolate_imported_card_effects
 from isolate_classic_deck import carry_known_deck_into_branches, draw_from_known_deck
+from isolate_classic_deck_estimate import isolate_playfield_deck_estimate, seed_replay_deck
 
 PATCHES = {
     "ai/Ai.cs": [
@@ -206,6 +207,7 @@ def normalize(root: Path) -> dict:
             modified[relative] = True
 
     for relative, isolate in (
+        ("ai/Ai.cs", seed_replay_deck),
         ("ai/CardDB.cs", add_card_metadata_copy),
         ("ai/CardDB/CardDB.cs", add_card_metadata_copy),
         ("ai/Handmanager.cs", isolate_handcard_copies),
@@ -214,6 +216,9 @@ def normalize(root: Path) -> dict:
         ("ai/Playfield.cs", isolate_monolithic_playfield),
         ("ai/Playfield/Playfield.Ctors.cs", carry_known_deck_into_branches),
         ("ai/Playfield/Playfield.HandDeck.cs", draw_from_known_deck),
+        ("ai/Playfield.cs", isolate_playfield_deck_estimate),
+        *((path.relative_to(imported).as_posix(), isolate_playfield_deck_estimate)
+          for path in (imported / "ai" / "Playfield").glob("Playfield.*.cs")),
     ):
         path = imported / relative
         if path.is_file():

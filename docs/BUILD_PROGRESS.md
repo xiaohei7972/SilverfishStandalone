@@ -50,6 +50,8 @@
 
 ## 下一阶段
 
+经典搜索已将牌库估计隔离到各模拟分支，回归覆盖交易、定向抽牌和帕奇斯召唤。其余状态迁移记录见 `docs/CLASSIC_MODEL_REFACTOR.md`。
+
 1. 以 2026-11-05 版独立构建与固定决策回归为基准，分阶段迁移状态模型。
 2. 为 `CardResearchLab/StandaloneGameMod` 的 `state.snapshot` 设计完整的输入版本检查、实体映射与特征缺失诊断，不能再依赖简化的中文 BoardTester 文本接口。
 3. 与独立 `Libmem.NET` 进程能力整合，最终由 Vue 3/WebView2 UI 显示局面、计算建议、回放与日志。

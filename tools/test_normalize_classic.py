@@ -11,7 +11,24 @@ def test_normalize() -> None:
         imported = root / "src/Silverfish.Classic/Imported/ai"
         imported.mkdir(parents=True)
         (imported / "Ai.cs").write_text(
-            "Silverfish.Instance.updateCThunInfo(1, 2, 3);",
+            "Silverfish.Instance.updateCThunInfo(1, 2, 3);\n"
+            "public List<double> autoTester(bool printstuff) // normal replay\n"
+            "    // Additional mode description.\n"
+            "{\n"
+            "    Playfield pMain = new Playfield();\n"
+            "    pMain.prozis.turnDeck = bt.od;\n"
+            "    if (printstuff)\n"
+            "    {\n"
+            "        pMain = new Playfield();\n"
+            "    }\n"
+            "}\n"
+            "public void simmulateWholeTurn(BoardTester bt)\n"
+            "{\n"
+            "    Playfield p = new Playfield();\n"
+            "    p.prozis.turnDeck = bt.od;\n"
+            "    var replay = new Playfield();\n"
+            "}\n"
+            "public Playfield StartLive() => new Playfield();\n",
             encoding="utf-8",
         )
         (imported / "PenalityManager.cs").write_text(
@@ -126,6 +143,9 @@ def test_normalize() -> None:
         ]
         ai = (imported / "Ai.cs").read_text(encoding="utf-8")
         assert "Hrtprozis.Instance.updateCThunInfo" in ai
+        assert "prozis.turnDeck" not in ai
+        assert ai.count("new Playfield(bt.od)") == 4
+        assert "StartLive() => new Playfield();" in ai
         penalty = (imported / "PenalityManager.cs").read_text(encoding="utf-8")
         assert "Ai.Instance.botBase" in penalty
         board = (imported / "BoardTester.cs").read_text(encoding="utf-8")

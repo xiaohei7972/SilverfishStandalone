@@ -398,6 +398,122 @@ public sealed class LegacyEntityProjectionTests
         Assert.Equal(cost, dragon.cost);
     }
 
+    [Fact]
+    public void TradingReturnsTheCardToTheActingBranchesDeckOnly()
+    {
+        CreatePlayfield(mana: 3);
+        var definition = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.SW_072);
+        Assert.True(definition.Tradeable);
+        var host = Hrtprozis.Instance;
+        var saved = host.turnDeck;
+        try
+        {
+            host.turnDeck = new() { [CardDB.cardIDEnum.EX1_612] = 2 };
+            var parent = new Playfield { ownDeckSize = 3 };
+            parent.owncards.Add(new Handmanager.Handcard(definition) { entity = 91, position = 1 });
+            var trade = new Playfield(parent);
+            var sibling = new Playfield(parent);
+            trade.doAction(new HREngine.Bots.Action(actionEnum.trade, trade.owncards[0], null, 0, null, 0, 0));
+
+            Assert.False(host.turnDeck.ContainsKey(definition.cardIDenum));
+            Assert.DoesNotContain(definition.cardIDenum, parent.CheckTurnDeckForType(CardDB.cardtype.MOB, 3));
+            Assert.DoesNotContain(definition.cardIDenum, sibling.CheckTurnDeckForType(CardDB.cardtype.MOB, 3));
+            Assert.Contains(definition.cardIDenum, trade.CheckTurnDeckForType(CardDB.cardtype.MOB, 3));
+            Assert.Equal(3, trade.ownDeckSize);
+            Assert.Equal(definition.cardIDenum, Assert.Single(trade.ownDeck).cardIDenum);
+            Assert.Equal(CardDB.cardIDEnum.None, Assert.Single(trade.owncards).card.cardIDenum);
+
+            var oneCardLeft = new Playfield(parent) { ownDeckSize = 1 };
+            var lastCard = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.EX1_612);
+            oneCardLeft.ownDeck.Add(lastCard);
+            oneCardLeft.doAction(new HREngine.Bots.Action(actionEnum.trade, oneCardLeft.owncards[0], null, 0, null, 0, 0));
+            Assert.Equal(definition.cardIDenum, Assert.Single(oneCardLeft.ownDeck).cardIDenum);
+            Assert.Equal(lastCard.cardIDenum, Assert.Single(oneCardLeft.owncards).card.cardIDenum);
+            Assert.Equal(1, oneCardLeft.ownDeckSize);
+        }
+        finally
+        {
+            host.turnDeck = saved;
+        }
+    }
+
+    [Fact]
+    public void EstimatedDrawConsumesOnlyTheRequestedCopiesInTheActingBranch()
+    {
+        CreatePlayfield();
+        var host = Hrtprozis.Instance;
+        var saved = host.turnDeck;
+        try
+        {
+            var weapon = CardDB.cardIDEnum.CS2_097;
+            host.turnDeck = new() { [weapon] = 3 };
+            var parent = new Playfield { ownDeckSize = 3 };
+            var drawing = new Playfield(parent);
+            var sibling = new Playfield(parent);
+            var forge = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.ICC_281);
+            var simulation = forge.sim_card;
+            // The two classic revisions use different spell callback signatures.
+            var callback = simulation.GetType().GetMethods().Single(method =>
+                method.DeclaringType == simulation.GetType() && method.Name == "onCardPlay");
+            object?[] args = callback.GetParameters().Length == 5
+                ? new object?[] { drawing, true, null, 0, new Handmanager.Handcard(forge) }
+                : new object?[] { drawing, true, null, 0 };
+            callback.Invoke(simulation, args);
+
+            Assert.Equal(2, drawing.owncards.Count);
+            Assert.All(drawing.owncards, card => Assert.Equal(weapon, card.card.cardIDenum));
+            Assert.Equal(1, drawing.ownDeckSize);
+            Assert.Equal(new[] { weapon }, drawing.CheckTurnDeckForType(CardDB.cardtype.WEAPON, 3));
+            Assert.Equal(3, sibling.CheckTurnDeckForType(CardDB.cardtype.WEAPON, 3).Count);
+            Assert.Equal(3, host.turnDeck[weapon]);
+            Assert.Empty(new Playfield(parent, true).CheckTurnDeckForType(CardDB.cardtype.WEAPON, 3));
+            Assert.Empty(parent.CheckTurnDeckForType(CardDB.cardtype.WEAPON, 0));
+        }
+        finally
+        {
+            host.turnDeck = saved;
+        }
+    }
+
+    [Fact]
+    public void PatchesConsumesOneDeckEntryAndCanSummonIndependentlyInSiblingBranches()
+    {
+        CreatePlayfield();
+        var host = Hrtprozis.Instance;
+        var saved = host.turnDeck;
+        var savedPatches = host.patchesInDeck;
+        try
+        {
+            var patchesId = CardDB.cardIDEnum.CFM_637;
+            var pirate = CardDB.Instance.getCardDataFromID(CardDB.cardIDEnum.CS2_146);
+            Assert.Equal(CardDB.Race.PIRATE, pirate.race);
+            host.turnDeck = new() { [patchesId] = 1 };
+            host.patchesInDeck = true;
+            var parent = new Playfield { ownDeckSize = 3 };
+            parent.ownDeck.Add(CardDB.Instance.getCardDataFromID(patchesId));
+            var first = new Playfield(parent);
+            var second = new Playfield(parent);
+
+            foreach (var branch in new[] { first, second })
+            {
+                branch.placeAmobSomewhere(new Handmanager.Handcard(pirate) { entity = 92 }, 0, branch.ownMinions.Count);
+                Assert.Single(branch.ownMinions, minion => minion.handcard.card.cardIDenum == patchesId);
+                Assert.Empty(branch.ownDeck);
+                Assert.Equal(2, branch.ownDeckSize);
+                Assert.DoesNotContain(patchesId, branch.CheckTurnDeckForType(CardDB.cardtype.MOB, 3));
+            }
+            Assert.Single(parent.ownDeck);
+            Assert.Equal(3, parent.ownDeckSize);
+            Assert.Equal(1, host.turnDeck[patchesId]);
+            Assert.True(host.patchesInDeck);
+        }
+        finally
+        {
+            host.turnDeck = saved;
+            host.patchesInDeck = savedPatches;
+        }
+    }
+
     private static Playfield CreatePlayfield(int mana = 1)
     {
         Settings.Instance.setFilePath(AppContext.BaseDirectory);

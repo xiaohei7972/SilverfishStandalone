@@ -32,6 +32,7 @@ on:
       - "tools/normalize_classic.py"
       - "tools/isolate_classic_card_effects.py"
       - "tools/isolate_classic_deck.py"
+      - "tools/isolate_classic_deck_estimate.py"
       - "tools/package_reference_classic.py"
       - "src/Silverfish.Classic/**"
       - "src/Silverfish.Classic.Smoke/**"
