@@ -137,5 +137,18 @@ jobs:
               $attack -ne 'attack,secretRevealed,returnedToHand,secretRevealed,damage,attackCancelled') {
               throw 'Unexpected counter or trap order.'
           }
+      - name: Replay and plan random effects
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- plan samples/simulation-random.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $companion = $replay.entities | Where-Object { $_.id.value -eq 23 }
+          if ($companion.cardId -ne 'NEW1_033' -or $replay.plan.outcome -ne 'inProgress' -or
+              $replay.plan.winProbability -ne 0.875 -or $replay.plan.usesSamples -or
+              !$replay.plan.replanAfterLastAction -or $replay.plan.actions.Count -ne 1 -or
+              $replay.plan.actions[0].source.value -ne 12 -or $replay.plan.transitions -gt 512) {
+              throw 'Unexpected seeded summon or random outcome plan.'
+          }
       - name: Libmem.NET integration build (Windows x64)
         run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo

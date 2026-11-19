@@ -255,7 +255,53 @@ public static class StarterCardCatalog
         {
             Focus = TriggerFocus.AttackDefender, EntityKind = EntityKind.Minion, RequiresBoardSpace = true
         }),
-        new(new("EX1_554t", EntityKind.Minion, 1, 1, 1))
+        new(new("EX1_554t", EntityKind.Minion, 1, 1, 1)),
+        new SimulationCard(new("EX1_277", EntityKind.Spell, 1))
+        {
+            OnPlay = [new RandomDamageEffect(RandomCharacterPool.EnemyCharacters, 1, Count: 3)]
+        },
+        new SimulationCard(new("CS2_114", EntityKind.Spell, 2))
+        {
+            MinimumEnemyMinions = 1,
+            OnPlay = [new RandomDamageEffect(RandomCharacterPool.EnemyMinions, 2, Count: 2, Mode: RandomDamageMode.DistinctBatch)]
+        },
+        new SimulationCard(new("EX1_251", EntityKind.Spell, 1))
+        {
+            MinimumEnemyMinions = 1, Overload = 2,
+            OnPlay = [new RandomDamageEffect(RandomCharacterPool.EnemyMinions, 2, Count: 2, Mode: RandomDamageMode.DistinctBatch)]
+        },
+        new SimulationCard(new("EX1_617", EntityKind.Spell, 3))
+        {
+            MinimumEnemyMinions = 1, OnPlay = [new DestroyRandomEnemyMinionEffect()]
+        },
+        new SimulationCard(new("EX1_407", EntityKind.Spell, 5))
+        {
+            MinimumTotalMinions = 2, OnPlay = [new DestroyAllButOneMinionEffect()]
+        },
+        new SimulationCard(new("NEW1_031", EntityKind.Spell, 3))
+        {
+            Requirements = PlayRequirements.BoardSpace,
+            OnPlay = [new SummonRandomMinionEffect(["NEW1_032", "NEW1_033", "NEW1_034"])]
+        },
+        new SimulationCard(new("NEW1_032", EntityKind.Minion, 3, 4, 4)) { Keywords = CardKeywords.Taunt },
+        new SimulationCard(new("NEW1_033", EntityKind.Minion, 3, 2, 4))
+        {
+            Auras = [new(AuraRecipients.OtherFriendlyMinions, new(StatModifierMode.Add, Attack: 1))]
+        },
+        new SimulationCard(new("NEW1_034", EntityKind.Minion, 3, 4, 2)) { Keywords = CardKeywords.Charge },
+        new SimulationCard(new("NEW1_019", EntityKind.Minion, 2, 3, 2))
+        {
+            Triggers = [new(TriggerTiming.AfterMinionSummoned, TriggerRelation.Friendly,
+                [new RandomDamageEffect(RandomCharacterPool.EnemyCharacters, 1)])]
+        },
+        new SimulationCard(new("EX1_082", EntityKind.Minion, 2, 3, 2))
+        {
+            OnPlay = [new RandomDamageEffect(RandomCharacterPool.OtherCharacters, 1, Count: 3)]
+        },
+        new SimulationCard(new("GVG_090", EntityKind.Minion, 5, 5, 4))
+        {
+            OnPlay = [new RandomDamageEffect(RandomCharacterPool.OtherCharacters, 1, Count: 6)]
+        }
     ];
 
     private static SimulationCard Secret(string cardId, int cost, CardTrigger trigger) =>

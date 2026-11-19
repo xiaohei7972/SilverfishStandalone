@@ -34,6 +34,7 @@ public sealed partial class GameSimulator
                 (definition.Kind == EntityKind.Weapon && definition.PrintedDurability <= 0) ||
                 !Enum.IsDefined(card.Target) ||
                 (card.Requirements & ~(PlayRequirements.BoardSpace | PlayRequirements.FriendlyMinionDeath)) != 0 ||
+                card.MinimumEnemyMinions is < 0 or > BoardLimit || card.MinimumTotalMinions is < 0 or > BoardLimit * 2 ||
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield |
                     CardKeywords.Rush | CardKeywords.Windfury)) != 0 ||
                 card.Overload < 0 || (card.Overload > 0 && definition.Kind is EntityKind.Hero or EntityKind.HeroPower) ||
@@ -187,10 +188,15 @@ public sealed partial class GameSimulator
 
     public SimulationResult Apply(GameState state, SimulationAction action)
     {
+        EnsureLegal(state, action);
+        return new Resolution(this, state).Run(action);
+    }
+
+    private void EnsureLegal(GameState state, SimulationAction action)
+    {
         ArgumentNullException.ThrowIfNull(action);
         if (!LegalActions(state).Contains(action))
             throw new InvalidOperationException($"Illegal action {action.Kind} for player {action.Actor.Value}.");
-        return new Resolution(this, state).Run(action);
     }
 
     private IEnumerable<EntityId?> PlayTargets(GameState state, TargetRequirement requirement)
@@ -229,10 +235,18 @@ public sealed partial class GameSimulator
     private static bool CanArmSecret(GameState state, PlayerState player, string cardId) =>
         player.In(GameZone.Secret).Length < SecretLimit && !player.In(GameZone.Secret).Any(id => state.Entities[id].CardId == cardId);
 
-    private static bool MeetsPlayRequirements(GameState state, SimulationCard card, int minions) =>
+    private bool MeetsPlayRequirements(GameState state, SimulationCard card, int minions) =>
         (!card.Requirements.HasFlag(PlayRequirements.BoardSpace) || minions < BoardLimit) &&
         (!card.Requirements.HasFlag(PlayRequirements.FriendlyMinionDeath) ||
-            state.MinionDeaths.Any(death => death.Controller == state.ActivePlayer));
+            state.MinionDeaths.Any(death => death.Controller == state.ActivePlayer)) &&
+        ((card.MinimumEnemyMinions == 0 && card.MinimumTotalMinions == 0) ||
+            HasRequiredMinions(state, card, minions));
+
+    private bool HasRequiredMinions(GameState state, SimulationCard card, int friendlyMinions)
+    {
+        var enemies = MinionCount(state, state.OpponentOf(state.ActivePlayer));
+        return enemies >= card.MinimumEnemyMinions && friendlyMinions + enemies >= card.MinimumTotalMinions;
+    }
 
     private int EffectiveCost(GameEntity entity)
     {
@@ -314,6 +328,10 @@ public sealed partial class GameSimulator
                 CounterSpellEffect => card.IsSecret && timing == TriggerTiming.SpellCounterWindow,
                 SummonAttackDefenderEffect redirect => card.IsSecret && timing == TriggerTiming.AttackProposed &&
                     GetCard(redirect.CardId).Definition.Kind == EntityKind.Minion,
+                RandomDamageEffect random => random.Amount > 0 && random.Count > 0 && Enum.IsDefined(random.Pool) && Enum.IsDefined(random.Mode),
+                DestroyRandomEnemyMinionEffect or DestroyAllButOneMinionEffect => true,
+                SummonRandomMinionEffect summon => !summon.CardIds.IsDefaultOrEmpty &&
+                    summon.CardIds.All(id => GetCard(id).Definition.Kind == EntityKind.Minion),
                 SummonEffect summon => Enum.IsDefined(summon.Placement) && GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
                 TakeControlEffect => maySelect && card.Definition.Kind == EntityKind.Spell &&
                     card.Target == TargetRequirement.EnemyMinion,

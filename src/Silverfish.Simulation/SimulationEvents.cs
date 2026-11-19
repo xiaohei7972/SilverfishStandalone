@@ -17,3 +17,7 @@ public sealed record SimulationEvent(SimulationEventKind Kind, PlayerId? Player 
     EntityId? Source = null, EntityId? Target = null, int? Amount = null, TriggerTiming? Timing = null);
 
 public sealed record SimulationResult(GameState State, ImmutableArray<SimulationEvent> Events);
+
+public sealed record SimulationOutcome(SimulationResult Result, double Probability);
+
+public sealed record SimulationDistribution(ImmutableArray<SimulationOutcome> Outcomes, int Resolutions, bool IsExact);

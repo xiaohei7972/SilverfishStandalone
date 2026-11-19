@@ -5,56 +5,131 @@ using Silverfish.Simulation;
 namespace Silverfish.Core;
 
 public sealed record TurnPlan(ImmutableArray<SimulationAction> Actions, double Score,
-    MatchOutcome Outcome, PlayerId? Winner, int Transitions);
+    MatchOutcome Outcome, PlayerId? Winner, int Transitions)
+{
+    public double WinProbability { get; init; }
+    public double LossProbability { get; init; }
+    public bool ReplanAfterLastAction { get; init; }
+    public bool UsesSamples { get; init; }
+}
 
-/// <summary>Bounded search over the current turn of a fully specified offline simulation.</summary>
+/// <summary>Bounded search over the current turn with separate continuations for random outcomes.</summary>
 public sealed class SimulationTurnPlanner(GameSimulator simulator, Func<GameState, PlayerId, double> evaluate)
 {
+    private const int ResolutionWorkPerAction = 64;
+
     public TurnPlan Plan(GameState root, int depth = 5, int beamWidth = 16, int transitionLimit = 512)
     {
         if (depth < 1 || beamWidth < 1 || transitionLimit < 1)
             throw new ArgumentOutOfRangeException(nameof(depth), "Search limits must be positive.");
 
         var perspective = root.ActivePlayer;
-        var initial = new Node(root, [], evaluate(root, perspective));
-        var frontier = new List<Node> { initial };
-        Node? best = null;
         var transitions = 0;
-
-        for (var ply = 0; ply < depth && frontier.Count > 0 && transitions < transitionLimit; ply++)
+        var best = Search(root, depth, transitionLimit, mayStop: false);
+        PlayerId? winner = best.Guarantee == GuaranteedResult.Win ? perspective :
+            best.Guarantee == GuaranteedResult.Loss ? root.OpponentOf(perspective) : null;
+        var outcome = winner is not null ? MatchOutcome.Won :
+            best.Guarantee == GuaranteedResult.Draw ? MatchOutcome.Draw : MatchOutcome.InProgress;
+        return new TurnPlan(best.Actions, best.Score, outcome, winner, transitions)
         {
-            var next = new List<Node>();
-            foreach (var node in frontier)
-            {
-                foreach (var action in simulator.LegalActions(node.State))
-                {
-                    if (transitions == transitionLimit)
-                        break;
+            WinProbability = Math.Clamp(best.Win, 0, 1), LossProbability = Math.Clamp(best.Loss, 0, 1),
+            ReplanAfterLastAction = best.Replan, UsesSamples = best.Sampled
+        };
 
-                    var state = simulator.Apply(node.State, action).State;
-                    var child = new Node(state, node.Actions.Add(action), evaluate(state, perspective));
-                    transitions++;
-                    if (best is null || Rank(child, perspective).CompareTo(Rank(best, perspective)) > 0)
-                        best = child;
-                    if (state.Outcome == MatchOutcome.Won && state.Winner == perspective)
-                        return Result(child);
-                    if (state.Outcome == MatchOutcome.InProgress && state.ActivePlayer == perspective)
-                        next.Add(child);
-                }
+        Prediction Search(GameState state, int remainingDepth, int limit, bool mayStop = true)
+        {
+            var baseline = Evaluate(state);
+            if (remainingDepth == 0 || transitions >= limit || state.Outcome != MatchOutcome.InProgress || state.ActivePlayer != perspective)
+                return baseline;
+
+            Prediction? selected = mayStop ? baseline : null;
+            var actions = simulator.LegalActions(state);
+            var candidates = new List<Candidate>();
+            for (var index = 0; index < actions.Length && transitions < limit; index++)
+            {
+                var action = actions[index];
+                var otherActions = actions.Length - index - 1;
+                var budget = Math.Min(ResolutionWorkPerAction, Math.Max(1, limit - transitions - otherActions));
+                var distribution = simulator.ApplyDistribution(state, action, budget);
+                transitions += distribution.Resolutions;
+                var immediate = Forecast(action, distribution, 0, transitions);
+                if (selected is null || Rank(immediate).CompareTo(Rank(selected)) > 0)
+                    selected = immediate;
+                if (immediate.Guarantee == GuaranteedResult.Win)
+                    return immediate;
+                candidates.Add(new(action, distribution, immediate));
             }
 
-            frontier = next.OrderByDescending(node => Rank(node, perspective)).Take(beamWidth).ToList();
-        }
-        return Result(best ?? initial);
+            if (remainingDepth <= 1)
+                return selected ?? baseline;
 
-        TurnPlan Result(Node node) => new(node.Actions, node.Score, node.State.Outcome, node.State.Winner, transitions);
+            var promising = candidates.OrderByDescending(candidate => Rank(candidate.Immediate)).Take(beamWidth).ToArray();
+            for (var index = 0; index < promising.Length && transitions < limit; index++)
+            {
+                var candidate = promising[index];
+                var share = (limit - transitions) / (promising.Length - index);
+                if (share == 0)
+                    continue;
+                var prediction = Forecast(candidate.Action, candidate.Distribution, remainingDepth - 1, transitions + share);
+                if (selected is null || Rank(prediction).CompareTo(Rank(selected)) > 0)
+                    selected = prediction;
+            }
+            return selected ?? baseline;
+        }
+
+        Prediction Forecast(SimulationAction action, SimulationDistribution distribution, int remainingDepth, int limit)
+        {
+            if (distribution.IsExact && distribution.Outcomes is [var only])
+            {
+                var after = Search(only.Result.State, remainingDepth, limit);
+                return after with { Actions = after.Actions.Insert(0, action) };
+            }
+
+            var score = 0.0;
+            var win = 0.0;
+            var loss = 0.0;
+            var sampled = !distribution.IsExact;
+            var guarantee = GuaranteedResult.None;
+            for (var index = 0; index < distribution.Outcomes.Length; index++)
+            {
+                var outcome = distribution.Outcomes[index];
+                var share = (limit - transitions) / (distribution.Outcomes.Length - index);
+                var branch = Search(outcome.Result.State, remainingDepth, transitions + share);
+                score += outcome.Probability * branch.Score;
+                win += outcome.Probability * branch.Win;
+                loss += outcome.Probability * branch.Loss;
+                sampled |= branch.Sampled;
+                if (index == 0)
+                    guarantee = branch.Guarantee;
+                else if (branch.Guarantee != guarantee)
+                    guarantee = GuaranteedResult.None;
+            }
+            return new([action], score, win, loss, sampled ? GuaranteedResult.None : guarantee, Replan: true, Sampled: sampled);
+        }
+
+        Prediction Evaluate(GameState state)
+        {
+            var guarantee = state.Outcome switch
+            {
+                MatchOutcome.Won => state.Winner == perspective ? GuaranteedResult.Win : GuaranteedResult.Loss,
+                MatchOutcome.Draw => GuaranteedResult.Draw,
+                _ => GuaranteedResult.None
+            };
+            return new([], evaluate(state, perspective), guarantee == GuaranteedResult.Win ? 1 : 0,
+                guarantee == GuaranteedResult.Loss ? 1 : 0, guarantee);
+        }
     }
 
-    private static (int Outcome, double Score, int Brevity) Rank(Node node, PlayerId perspective) =>
-        (node.State.Outcome == MatchOutcome.Won ? node.State.Winner == perspective ? 1 : -1 : 0,
-            node.Score, -node.Actions.Length);
+    private static (int Guaranteed, double NetWins, double Score, int Brevity) Rank(Prediction prediction) =>
+        (prediction.Guarantee == GuaranteedResult.Win ? 1 : prediction.Guarantee == GuaranteedResult.Loss ? -1 : 0,
+            prediction.Win - prediction.Loss, prediction.Score, -prediction.Actions.Length);
 
-    private sealed record Node(GameState State, ImmutableArray<SimulationAction> Actions, double Score);
+    private enum GuaranteedResult { None, Win, Loss, Draw }
+
+    private sealed record Prediction(ImmutableArray<SimulationAction> Actions, double Score,
+        double Win, double Loss, GuaranteedResult Guarantee, bool Replan = false, bool Sampled = false);
+
+    private sealed record Candidate(SimulationAction Action, SimulationDistribution Distribution, Prediction Immediate);
 }
 
 public static class SimulationMaterialEvaluator

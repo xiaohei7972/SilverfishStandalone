@@ -14,7 +14,7 @@ The replay command starts from a fully specified offline scenario. Its rules cov
 
 `samples/simulation-triggers.json` exercises spell and death timing through the normal replay command. Damage subscriptions can match the damaged entity or the source. Each fixed area or combat batch applies all hits before opening its damage queues. Armor loss produces a damage event, while a shield that absorbs the hit has a separate event. Each successful draw resolves the drawn card's intrinsic effects and other draw listeners before the next attempt. Fatigue dispatches damage, and a burned card never joins the draw queue.
 
-`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The catalogue defines 63 cards, powers, and tokens using the November 2026 data baseline.
+`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The catalogue defines 75 cards, powers, and tokens using the November 2026 data baseline.
 
 Characters keep base attack and maximum health when modifiers first apply. The simulator applies direct enchantments in application order, then adds positional and friendly-board aura grants. Individual grants record their source entity. The simulator refreshes auras when a minion enters play and at resolution checkpoints, including after a death wave removes its minions. Silence clears direct enchantments and the minion's own abilities. Other minions can still provide it with aura grants. Maximum-health changes update current health without dispatching damage or healing events.
 
@@ -26,7 +26,7 @@ Hero powers occupy a dedicated single-entity zone. They pay mana and consume one
 
 Returning a minion clears its battlefield state and puts the same entity in its controller's hand. A full destination hand causes death and schedules deathrattles for the death phase. Hand cost changes record their source and expire when the card is played. Transformation sets a new card form on the same entity and retains its board position. A later death records the transformed card.
 
-`minionDeaths` records the entity, card, controller, and turn at each death. It supplies resurrection candidates independently of the graveyard zone. A resurrection summons a fresh entity from the selected printed card. `randomState` can seed a replay, and the simulator stores the advanced state in each resulting branch. The planner evaluates those seeded outcomes. `samples/simulation-lifecycle.json` replays Shadowstep, Polymorph, and Resurrect.
+`minionDeaths` records the entity, card, controller, and turn at each death. It supplies resurrection candidates independently of the graveyard zone. A resurrection summons a fresh entity from the selected printed card. `samples/simulation-lifecycle.json` replays Shadowstep, Polymorph, and Resurrect.
 
 Rush bypasses summoning sickness for attacks against minions. Windfury grants two attack slots and an equipped Windfury weapon uses the hero's existing attack count. A Frozen character still retaliates in combat. It thaws as its controller ends a turn in which it had an eligible attack slot, even if its Attack was zero. Silence clears Freeze. Direct Freeze effects can continue after damage is absorbed by a shield. Damage-triggered Freeze requires damage to be dealt.
 
@@ -36,7 +36,11 @@ Each player can arm up to five distinct secrets in the `Secret` zone. The suppor
 
 Attack proposal listeners use the defender at the start of that proposal. Redirecting the attack starts another proposal after the current listeners finish. Freezing Trap rechecks whether the attacker can be returned. Explosive Trap can resolve after the attacker has already returned to hand. Combat needs a living attacker, defender, and both heroes after preparation. `samples/simulation-secrets.json` replays an armed Counterspell and both traps.
 
-The offline replay and planner take a fully specified scenario, including both players' secrets. Hidden information modelling, forced attacks, temporary mana generation, alternative weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, advanced summon placements, and probabilistic search remain future work.
+`randomState` seeds replay results. Single missiles rebuild their candidate pool after each damage event and its triggers. Cards such as Cleave draw distinct targets from one pool and apply their hits before running damage triggers. Random summons and destruction use the same choice mechanism as resurrection.
+
+The planner enumerates weighted random paths within its resolution budget and samples when exact enumeration exceeds its allowance. It uses each outcome's available follow-up actions to estimate the current turn. `replanAfterLastAction` marks the point at which the caller needs to observe the real outcome. `usesSamples` marks a selected forecast that relies on sampling. The planner reports the win probability within its search horizon. The replay seed has no effect on planning probabilities. `samples/simulation-random.json` replays Animal Companion and plans an Arcane Missiles cast with an 87.5% lethal probability.
+
+The offline replay and planner take a fully specified scenario, including both players' secrets. Hidden information modelling, forced attacks, temporary mana generation, alternative weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, and advanced summon placements remain future work.
 
 ## Components
 

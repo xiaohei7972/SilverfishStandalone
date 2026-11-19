@@ -5,10 +5,11 @@ namespace Silverfish.Simulation;
 
 public sealed partial class GameSimulator
 {
-    private sealed partial class Resolution(GameSimulator rules, GameState state)
+    private sealed partial class Resolution(GameSimulator rules, GameState state, Func<int, int>? randomChoice = null)
     {
         private readonly ImmutableArray<SimulationEvent>.Builder _events = ImmutableArray.CreateBuilder<SimulationEvent>();
         private readonly GameSimulator _rules = rules;
+        private readonly Func<int, int>? _randomChoice = randomChoice;
         private GameState _state = state;
         private int _remainingSteps = rules._resolutionLimit;
 
@@ -331,6 +332,18 @@ public sealed partial class GameSimulator
                     break;
                 case SummonAttackDefenderEffect redirect:
                     SummonAttackDefender(work, context, redirect.CardId);
+                    break;
+                case RandomDamageEffect random:
+                    ApplyRandomDamage(work, context, random);
+                    break;
+                case DestroyRandomEnemyMinionEffect:
+                    DestroyRandomEnemyMinion(context);
+                    break;
+                case DestroyAllButOneMinionEffect:
+                    DestroyAllButOneMinion();
+                    break;
+                case SummonRandomMinionEffect summon:
+                    SummonRandomMinion(work, context.Controller, summon);
                     break;
             }
         }

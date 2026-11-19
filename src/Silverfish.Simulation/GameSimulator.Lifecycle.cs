@@ -73,28 +73,6 @@ public sealed partial class GameSimulator
             }
         }
 
-        private int ChooseIndex(int count)
-        {
-            if (count == 1)
-                return 0;
-
-            // SplitMix64 gives each branch a reproducible stream. Reject the short tail before taking a modulus.
-            var randomState = _state.RandomState;
-            var bound = (ulong)count;
-            var threshold = unchecked(0UL - bound) % bound;
-            ulong value;
-            do
-            {
-                randomState = unchecked(randomState + 0x9E3779B97F4A7C15UL);
-                value = unchecked((randomState ^ (randomState >> 30)) * 0xBF58476D1CE4E5B9UL);
-                value = unchecked((value ^ (value >> 27)) * 0x94D049BB133111EBUL);
-                value ^= value >> 31;
-            } while (value < threshold);
-
-            _state = _state.SetRandomState(randomState);
-            return (int)(value % bound);
-        }
-
         private static void PushSummonTriggers(Stack<Work> work, PlayerId player, EntityId summoned)
         {
             work.Push(new Dispatch(new(TriggerTiming.AfterMinionSummoned, player, summoned)));

@@ -15,6 +15,8 @@ public enum PlayRequirements { None = 0, BoardSpace = 1, FriendlyMinionDeath = 2
 public enum DamageTarget { Selected, EnemyHero, AllMinions, Source, TriggerSubject, FriendlyHero, EnemyMinions, AllEnemies }
 public enum FreezeTarget { Selected, EnemyMinions, TriggerSubject }
 public enum EffectTarget { Selected, TriggerSubject }
+public enum RandomCharacterPool { EnemyCharacters, EnemyMinions, OtherCharacters }
+public enum RandomDamageMode { Sequential, DistinctBatch }
 public enum SummonPlacement { Default, Rightmost }
 public enum StatTarget { Selected, Source, FriendlyMinions, AllMinions, FriendlyHero }
 public enum EnchantmentDuration { Permanent, CurrentTurn }
@@ -61,6 +63,10 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(UnlockOverloadEffect), "unlockOverload")]
 [JsonDerivedType(typeof(CounterSpellEffect), "counterSpell")]
 [JsonDerivedType(typeof(SummonAttackDefenderEffect), "summonAttackDefender")]
+[JsonDerivedType(typeof(RandomDamageEffect), "randomDamage")]
+[JsonDerivedType(typeof(DestroyRandomEnemyMinionEffect), "destroyRandomEnemyMinion")]
+[JsonDerivedType(typeof(DestroyAllButOneMinionEffect), "destroyAllButOneMinion")]
+[JsonDerivedType(typeof(SummonRandomMinionEffect), "summonRandomMinion")]
 public abstract record CardEffect;
 
 public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect;
@@ -83,12 +89,19 @@ public sealed record FreezeEffect(FreezeTarget Target) : CardEffect;
 public sealed record UnlockOverloadEffect : CardEffect;
 public sealed record CounterSpellEffect : CardEffect;
 public sealed record SummonAttackDefenderEffect(string CardId) : CardEffect;
+public sealed record RandomDamageEffect(RandomCharacterPool Pool, int Amount, int Count = 1,
+    RandomDamageMode Mode = RandomDamageMode.Sequential) : CardEffect;
+public sealed record DestroyRandomEnemyMinionEffect : CardEffect;
+public sealed record DestroyAllButOneMinionEffect : CardEffect;
+public sealed record SummonRandomMinionEffect(ImmutableArray<string> CardIds) : CardEffect;
 
 public sealed record SimulationCard(CardDefinition Definition)
 {
     public CardKeywords Keywords { get; init; }
     public TargetRequirement Target { get; init; }
     public PlayRequirements Requirements { get; init; }
+    public int MinimumEnemyMinions { get; init; }
+    public int MinimumTotalMinions { get; init; }
     public int Overload { get; init; }
     public bool IsSecret { get; init; }
     public ImmutableArray<CardEffect> OnPlay { get; init; } = [];
