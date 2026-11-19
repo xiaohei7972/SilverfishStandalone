@@ -166,6 +166,66 @@ public static class StarterCardCatalog
         {
             Requirements = PlayRequirements.BoardSpace | PlayRequirements.FriendlyMinionDeath,
             OnPlay = [new ResurrectFriendlyMinionEffect()]
+        },
+        new SimulationCard(new("CS2_024", EntityKind.Spell, 2))
+        {
+            Target = TargetRequirement.Character,
+            OnPlay = [new DamageEffect(DamageTarget.Selected, 3), new FreezeEffect(FreezeTarget.Selected)]
+        },
+        new SimulationCard(new("CS2_026", EntityKind.Spell, 3))
+        {
+            OnPlay = [new FreezeEffect(FreezeTarget.EnemyMinions)]
+        },
+        new SimulationCard(new("CS2_028", EntityKind.Spell, 6))
+        {
+            OnPlay = [new DamageEffect(DamageTarget.EnemyMinions, 2), new FreezeEffect(FreezeTarget.EnemyMinions)]
+        },
+        new SimulationCard(new("UNG_205", EntityKind.Minion, 1, 2, 1))
+        {
+            Target = TargetRequirement.EnemyCharacter,
+            OnPlay = [new FreezeEffect(FreezeTarget.Selected)]
+        },
+        new SimulationCard(new("CS2_033", EntityKind.Minion, 4, 3, 6))
+        {
+            Triggers = [new(TriggerTiming.Damage, TriggerRelation.Friendly, [new FreezeEffect(FreezeTarget.TriggerSubject)])
+            {
+                Focus = TriggerFocus.DamageSource, EntityMatch = TriggerEntityMatch.Self
+            }]
+        },
+        new SimulationCard(new("GIL_803", EntityKind.Minion, 4, 2, 5))
+        {
+            Keywords = CardKeywords.Rush,
+            OnPlay = [new EnchantStatsEffect(StatTarget.Source, new(StatModifierMode.Add, Attack: 3), EnchantmentDuration.CurrentTurn)]
+        },
+        new SimulationCard(new("CS2_124", EntityKind.Minion, 3, 3, 1)) { Keywords = CardKeywords.Charge },
+        new SimulationCard(new("CS2_169", EntityKind.Minion, 1, 1, 1)) { Keywords = CardKeywords.Windfury },
+        new SimulationCard(new("EX1_033", EntityKind.Minion, 6, 4, 5)) { Keywords = CardKeywords.Windfury },
+        new SimulationCard(new("EX1_567", EntityKind.Weapon, 5, 2, PrintedDurability: 8))
+        {
+            Keywords = CardKeywords.Windfury, Overload = 2
+        },
+        new SimulationCard(new("EX1_238", EntityKind.Spell, 1))
+        {
+            Target = TargetRequirement.Character, Overload = 1,
+            OnPlay = [new DamageEffect(DamageTarget.Selected, 3)]
+        },
+        new SimulationCard(new("EX1_241", EntityKind.Spell, 3))
+        {
+            Target = TargetRequirement.Character, Overload = 2,
+            OnPlay = [new DamageEffect(DamageTarget.Selected, 5)]
+        },
+        new SimulationCard(new("EX1_259", EntityKind.Spell, 3))
+        {
+            Overload = 1, OnPlay = [new DamageEffect(DamageTarget.EnemyMinions, 3)]
+        },
+        new SimulationCard(new("BRM_011", EntityKind.Spell, 2))
+        {
+            Target = TargetRequirement.Character,
+            OnPlay = [new DamageEffect(DamageTarget.Selected, 2), new UnlockOverloadEffect()]
+        },
+        new SimulationCard(new("OG_026", EntityKind.Minion, 2, 3, 2))
+        {
+            OnPlay = [new UnlockOverloadEffect()]
         }
     ];
 }

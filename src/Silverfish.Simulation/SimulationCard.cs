@@ -5,7 +5,7 @@ using Silverfish.Domain;
 namespace Silverfish.Simulation;
 
 [Flags]
-public enum CardKeywords { None = 0, Taunt = 1, Charge = 2, DivineShield = 4 }
+public enum CardKeywords { None = 0, Taunt = 1, Charge = 2, DivineShield = 4, Rush = 8, Windfury = 16 }
 
 public enum TargetRequirement { None, Character, EnemyCharacter, EnemyMinion, FriendlyMinion, Minion }
 
@@ -13,6 +13,7 @@ public enum TargetRequirement { None, Character, EnemyCharacter, EnemyMinion, Fr
 public enum PlayRequirements { None = 0, BoardSpace = 1, FriendlyMinionDeath = 2 }
 
 public enum DamageTarget { Selected, EnemyHero, AllMinions, Source, TriggerSubject, FriendlyHero, EnemyMinions }
+public enum FreezeTarget { Selected, EnemyMinions, TriggerSubject }
 public enum SummonPlacement { Default, Rightmost }
 public enum StatTarget { Selected, Source, FriendlyMinions, AllMinions, FriendlyHero }
 public enum EnchantmentDuration { Permanent, CurrentTurn }
@@ -53,6 +54,8 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(TransformMinionEffect), "transformMinion")]
 [JsonDerivedType(typeof(DestroyMinionEffect), "destroyMinion")]
 [JsonDerivedType(typeof(ResurrectFriendlyMinionEffect), "resurrectFriendlyMinion")]
+[JsonDerivedType(typeof(FreezeEffect), "freeze")]
+[JsonDerivedType(typeof(UnlockOverloadEffect), "unlockOverload")]
 public abstract record CardEffect;
 
 public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect;
@@ -71,12 +74,15 @@ public sealed record ReturnMinionEffect(int CostDelta = 0) : CardEffect;
 public sealed record TransformMinionEffect(string CardId) : CardEffect;
 public sealed record DestroyMinionEffect : CardEffect;
 public sealed record ResurrectFriendlyMinionEffect : CardEffect;
+public sealed record FreezeEffect(FreezeTarget Target) : CardEffect;
+public sealed record UnlockOverloadEffect : CardEffect;
 
 public sealed record SimulationCard(CardDefinition Definition)
 {
     public CardKeywords Keywords { get; init; }
     public TargetRequirement Target { get; init; }
     public PlayRequirements Requirements { get; init; }
+    public int Overload { get; init; }
     public ImmutableArray<CardEffect> OnPlay { get; init; } = [];
     public ImmutableArray<CardEffect> Deathrattle { get; init; } = [];
     public ImmutableArray<CardEffect> WhenDrawn { get; init; } = [];

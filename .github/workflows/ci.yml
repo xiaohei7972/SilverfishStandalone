@@ -104,5 +104,21 @@ jobs:
               $replay.minionDeaths[0].entity.value -ne 15 -or $resurrection.source.value -ne 15 -or $resurrection.target.value -ne 22) {
               throw 'Unexpected return, transform, or resurrection replay.'
           }
+      - name: Replay combat keywords and overload
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate samples/simulation-combat-keywords.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+          $enemyHero = $replay.entities | Where-Object { $_.id.value -eq 20 }
+          $weapon = $replay.entities | Where-Object { $_.id.value -eq 11 }
+          $player = $replay.players[0]
+          $heroAttack = $replay.legalActions | Where-Object { $_.kind -eq 'attack' -and $_.source.value -eq 10 }
+          if ($heroAttack -or !$hero.character.frozen -or $hero.character.health -ne 27 -or $enemyHero.character.health -ne 26 -or
+              $weapon.weapon.durability -ne 6 -or $player.mana -ne 8 -or $player.overloadLocked -ne 2 -or
+              $player.overloadOwed -ne 0 -or $replay.minionDeaths[0].entity.value -ne 21) {
+              throw 'Unexpected combat keyword or overload replay.'
+          }
       - name: Libmem.NET integration build (Windows x64)
         run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo

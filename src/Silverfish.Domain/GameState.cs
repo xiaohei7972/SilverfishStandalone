@@ -15,6 +15,8 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
 {
     public EntityId? EquippedWeapon { get; init; }
     public int HeroPowerUsesThisTurn { get; init; }
+    public int OverloadOwed { get; init; }
+    public int OverloadLocked { get; init; }
     public ImmutableDictionary<GameZone, ImmutableArray<EntityId>> Zones { get; init; } =
         ImmutableDictionary<GameZone, ImmutableArray<EntityId>>.Empty;
 
@@ -27,6 +29,7 @@ public sealed record CharacterState(int Attack, int MaximumHealth, int Damage = 
 {
     public int? BaseAttack { get; init; }
     public int? BaseMaximumHealth { get; init; }
+    public bool Frozen { get; init; }
     public int Health => MaximumHealth - Damage;
 }
 
@@ -218,6 +221,16 @@ public sealed class GameState
     internal GameState SetHeroPowerUses(PlayerId player, int uses) =>
         UpdatePlayer(Players[player] with { HeroPowerUsesThisTurn = uses });
 
+    internal GameState SetMana(PlayerId id, int mana, int crystals, int overloadOwed, int overloadLocked)
+    {
+        var player = Players[id] with
+        {
+            Mana = mana, ManaCrystals = crystals, OverloadOwed = overloadOwed, OverloadLocked = overloadLocked
+        };
+        ValidateResources(player);
+        return UpdatePlayer(player);
+    }
+
     private GameState UpdatePlayer(PlayerState player) =>
         new(Players.SetItem(player.Id, player), Entities, _locations,
             ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
@@ -249,7 +262,8 @@ public sealed class GameState
     private static void ValidateResources(PlayerState player)
     {
         if (player.Zones is null || player.Id.Value < 1 || player.Mana < 0 || player.ManaCrystals is < 0 or > 10 ||
-            player.Mana > 10 || player.Fatigue < 0 || player.HeroPowerUsesThisTurn is < 0 or > 1)
+            player.Mana > 10 || player.Fatigue < 0 || player.HeroPowerUsesThisTurn is < 0 or > 1 ||
+            player.OverloadLocked < 0 || player.OverloadOwed < 0)
             throw new ArgumentException("Invalid player ID or resource values.");
     }
 

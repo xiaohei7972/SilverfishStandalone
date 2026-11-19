@@ -164,7 +164,7 @@ public sealed partial class GameSimulator
             var silenced = entity with
             {
                 Silenced = true, Enchantments = [],
-                Character = entity.Character! with { DivineShield = false }
+                Character = entity.Character! with { DivineShield = false, Frozen = false }
             };
             _state = _state.UpdateEntity(RecalculateStats(silenced, entity.AuraGrants));
             _events.Add(new(SimulationEventKind.Silenced, context.Controller, context.Source, id));

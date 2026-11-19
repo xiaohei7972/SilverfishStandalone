@@ -33,7 +33,9 @@ public sealed partial class GameSimulator
                 (definition.Kind == EntityKind.Weapon && definition.PrintedDurability <= 0) ||
                 !Enum.IsDefined(card.Target) ||
                 (card.Requirements & ~(PlayRequirements.BoardSpace | PlayRequirements.FriendlyMinionDeath)) != 0 ||
-                (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield)) != 0 ||
+                (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield |
+                    CardKeywords.Rush | CardKeywords.Windfury)) != 0 ||
+                card.Overload < 0 || (card.Overload > 0 && definition.Kind is EntityKind.Hero or EntityKind.HeroPower) ||
                 card.Triggers.IsDefault || card.Auras.IsDefault ||
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && !card.Deathrattle.IsEmpty) ||
                 (definition.Kind != EntityKind.Minion && !card.Auras.IsEmpty) ||
@@ -124,11 +126,14 @@ public sealed partial class GameSimulator
         foreach (var id in player.In(GameZone.Play))
         {
             var attacker = state.Entities[id];
-            if (attacker.Character is not { Health: > 0, AttacksThisTurn: 0 } character ||
-                (character.Exhausted && !HasKeyword(attacker, CardKeywords.Charge)) || EffectiveAttack(state, attacker) <= 0)
+            if (attacker.Character is not { Frozen: false } || EffectiveAttack(state, attacker) <= 0)
+                continue;
+            var reach = GetAttackReach(state, attacker);
+            if (reach == AttackReach.None)
                 continue;
             foreach (var defender in taunts.Length == 0 ? enemyBoard : taunts)
-                actions.Add(new(SimulationActionKind.Attack, actor, id, defender.Id));
+                if (reach == AttackReach.AnyCharacter || defender.Id != state.Players[enemy].Hero)
+                    actions.Add(new(SimulationActionKind.Attack, actor, id, defender.Id));
         }
 
         var minions = MinionCount(state, actor);
@@ -278,6 +283,14 @@ public sealed partial class GameSimulator
                 TransformMinionEffect transform => maySelect && TargetsOnlyMinions(card.Target) &&
                     GetCard(transform.CardId).Definition.Kind == EntityKind.Minion,
                 ResurrectFriendlyMinionEffect => true,
+                FreezeEffect freeze => freeze.Target switch
+                {
+                    FreezeTarget.Selected => maySelect && card.Target != TargetRequirement.None,
+                    FreezeTarget.TriggerSubject => hasCharacterSubject,
+                    FreezeTarget.EnemyMinions => true,
+                    _ => false
+                },
+                UnlockOverloadEffect => true,
                 SummonEffect summon => Enum.IsDefined(summon.Placement) && GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
                 TakeControlEffect => maySelect && card.Definition.Kind == EntityKind.Spell &&
                     card.Target == TargetRequirement.EnemyMinion,

@@ -44,11 +44,12 @@ public sealed partial class GameSimulator
             if (_state.Outcome != MatchOutcome.InProgress)
                 return;
 
+            ThawAtTurnEnd(outgoing);
             ExpireTurnEnchantments();
             _state = _state.PassTurn();
             var next = _state.Players[_state.ActivePlayer];
             var crystals = Math.Min(next.ManaCrystals + 1, 10);
-            _state = _state.SetResources(next.Id, crystals, crystals, next.Fatigue);
+            _state = _state.SetMana(next.Id, Math.Max(0, crystals - next.OverloadOwed), crystals, 0, next.OverloadOwed);
             _state = _state.SetHeroPowerUses(next.Id, 0);
             foreach (var id in next.In(GameZone.Play))
             {
@@ -108,6 +109,7 @@ public sealed partial class GameSimulator
             {
                 var weapon = _state.Entities[source];
                 _state = _state.UpdateEntity(weapon with { Weapon = card.CreateWeapon() });
+                AddOverload(playerId, source, card.Overload);
                 if (card.Target == TargetRequirement.None || target is not null)
                     ResolveEffects(new(source, playerId, target), card.OnPlay);
                 MarkEquippedWeaponForDestruction(playerId);
@@ -125,6 +127,7 @@ public sealed partial class GameSimulator
 
             var before = isMinion ? TriggerTiming.WhenMinionSummoned : TriggerTiming.BeforeSpellResolved;
             RunTriggers(new(before, playerId, source), listeners);
+            AddOverload(playerId, source, card.Overload);
             ResolveDeaths();
 
             if (card.Target == TargetRequirement.None || target is not null)
@@ -212,6 +215,29 @@ public sealed partial class GameSimulator
             _events.Add(new(SimulationEventKind.ArmorGained, context.Controller, context.Source, hero, amount));
         }
 
+        private void AddOverload(PlayerId player, EntityId source, int amount)
+        {
+            if (amount == 0)
+                return;
+
+            var resources = _state.Players[player];
+            var owed = checked(resources.OverloadOwed + amount);
+            _state = _state.SetMana(player, resources.Mana, resources.ManaCrystals, owed, resources.OverloadLocked);
+            _events.Add(new(SimulationEventKind.OverloadScheduled, player, source, Amount: amount));
+        }
+
+        private void UnlockOverload(EffectContext context)
+        {
+            var before = _state.Players[context.Controller];
+            if (before is { OverloadLocked: 0, OverloadOwed: 0 })
+                return;
+
+            var restored = Math.Min(before.ManaCrystals, before.OverloadLocked);
+            var mana = Math.Min(10, before.Mana + restored);
+            _state = _state.SetMana(before.Id, mana, before.ManaCrystals, 0, 0);
+            _events.Add(new(SimulationEventKind.OverloadUnlocked, context.Controller, context.Source, Amount: mana - before.Mana));
+        }
+
         private void ExecuteEffect(Stack<Work> work, EffectContext context, CardEffect effect)
         {
             switch (effect)
@@ -278,6 +304,12 @@ public sealed partial class GameSimulator
                     break;
                 case ResurrectFriendlyMinionEffect:
                     ResurrectFriendlyMinion(work, context.Controller);
+                    break;
+                case FreezeEffect freeze:
+                    Freeze(context, freeze);
+                    break;
+                case UnlockOverloadEffect:
+                    UnlockOverload(context);
                     break;
             }
         }

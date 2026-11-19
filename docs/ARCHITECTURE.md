@@ -14,7 +14,7 @@ The replay command starts from a fully specified offline scenario. Its rules cov
 
 `samples/simulation-triggers.json` exercises spell and death timing through the normal replay command. Damage subscriptions can match the damaged entity or the source. Each fixed area or combat batch applies all hits before opening its damage queues. Armor loss produces a damage event, while a shield that absorbs the hit has a separate event. Each successful draw resolves the drawn card's intrinsic effects and other draw listeners before the next attempt. Fatigue dispatches damage, and a burned card never joins the draw queue.
 
-`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The catalogue defines 39 cards, powers, and tokens using the November 2026 data baseline.
+`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The catalogue defines 54 cards, powers, and tokens using the November 2026 data baseline.
 
 Characters keep base attack and maximum health when modifiers first apply. The simulator applies direct enchantments in application order, then adds positional and friendly-board aura grants. Individual grants record their source entity. The simulator refreshes auras when a minion enters play and at resolution checkpoints, including after a death wave removes its minions. Silence clears direct enchantments and the minion's own abilities. Other minions can still provide it with aura grants. Maximum-health changes update current health without dispatching damage or healing events.
 
@@ -28,7 +28,11 @@ Returning a minion clears its battlefield state and puts the same entity in its 
 
 `minionDeaths` records the entity, card, controller, and turn at each death. It supplies resurrection candidates independently of the graveyard zone. A resurrection summons a fresh entity from the selected printed card. `randomState` can seed a replay, and the simulator stores the advanced state in each resulting branch. The planner evaluates those seeded outcomes. `samples/simulation-lifecycle.json` replays Shadowstep, Polymorph, and Resurrect.
 
-Alternative weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, advanced summon placements, hidden information modelling, and probabilistic search remain future work.
+Rush bypasses summoning sickness for attacks against minions. Windfury grants two attack slots and an equipped Windfury weapon uses the hero's existing attack count. A Frozen character still retaliates in combat. It thaws as its controller ends a turn in which it had an eligible attack slot, even if its Attack was zero. Silence clears Freeze. Direct Freeze effects can continue after damage is absorbed by a shield. Damage-triggered Freeze requires damage to be dealt.
+
+Overload is charged during the use phase and stays pending until its controller next starts a turn. It then locks mana for that turn. An unlock effect restores the locked portion and clears pending Overload. `samples/simulation-combat-keywords.json` exercises Rush, a Windfury weapon, Freeze, and mana locked on the next turn.
+
+Secrets, forced attacks, temporary mana generation, alternative weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, advanced summon placements, hidden information modelling, and probabilistic search remain future work.
 
 ## Components
 
