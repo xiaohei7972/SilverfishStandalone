@@ -124,6 +124,48 @@ public static class StarterCardCatalog
         {
             OnPlay = [new EnchantStatsEffect(StatTarget.FriendlyHero, new(StatModifierMode.Add, Attack: 4),
                 EnchantmentDuration.CurrentTurn)]
+        },
+        new SimulationCard(new("EX1_581", EntityKind.Spell, 2))
+        {
+            Target = TargetRequirement.EnemyMinion,
+            OnPlay = [new ReturnMinionEffect()]
+        },
+        new SimulationCard(new("EX1_144", EntityKind.Spell, 0))
+        {
+            Target = TargetRequirement.FriendlyMinion,
+            OnPlay = [new ReturnMinionEffect(CostDelta: -2)]
+        },
+        new SimulationCard(new("EX1_049", EntityKind.Minion, 2, 3, 2))
+        {
+            Target = TargetRequirement.FriendlyMinion,
+            OnPlay = [new ReturnMinionEffect()]
+        },
+        new SimulationCard(new("CS2_022", EntityKind.Spell, 4))
+        {
+            Target = TargetRequirement.Minion,
+            OnPlay = [new TransformMinionEffect("CS2_tk1")]
+        },
+        new(new("CS2_tk1", EntityKind.Minion, 1, 1, 1)),
+        new SimulationCard(new("EX1_246", EntityKind.Spell, 3))
+        {
+            Target = TargetRequirement.Minion,
+            OnPlay = [new TransformMinionEffect("hexfrog")]
+        },
+        new SimulationCard(new("hexfrog", EntityKind.Minion, 0, 0, 1)) { Keywords = CardKeywords.Taunt },
+        new SimulationCard(new("CS2_076", EntityKind.Spell, 4))
+        {
+            Target = TargetRequirement.EnemyMinion,
+            OnPlay = [new DestroyMinionEffect()]
+        },
+        new SimulationCard(new("CS1_113", EntityKind.Spell, 9))
+        {
+            Target = TargetRequirement.EnemyMinion,
+            OnPlay = [new TakeControlEffect()]
+        },
+        new SimulationCard(new("BRM_017", EntityKind.Spell, 2))
+        {
+            Requirements = PlayRequirements.BoardSpace | PlayRequirements.FriendlyMinionDeath,
+            OnPlay = [new ResurrectFriendlyMinionEffect()]
         }
     ];
 }

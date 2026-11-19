@@ -148,7 +148,7 @@ public sealed partial class GameSimulator
 
         private bool IsLivingCharacter(EntityId? id) => id is EntityId entity &&
             _state.LocationOf(entity).Zone == GameZone.Play &&
-            _state.Entities[entity].Character is { Health: > 0 };
+            _state.Entities[entity].Character is { Health: > 0 } && !_pendingDestruction.Contains(entity);
 
         private static void PushTriggers(Stack<Work> work, IEnumerable<Activate> queue)
         {

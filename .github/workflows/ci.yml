@@ -90,5 +90,19 @@ jobs:
               $attack -ne 'attack,damage,damage,weaponDurabilityLost,weaponDestroyed,died,deathrattle,damage,died') {
               throw 'Unexpected equipment or hero power replay.'
           }
+      - name: Replay return, transform, and resurrection
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate samples/simulation-lifecycle.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $replayed = $replay.entities | Where-Object { $_.id.value -eq 11 }
+          $sheep = $replay.entities | Where-Object { $_.id.value -eq 21 }
+          $resurrection = $replay.steps[4].events | Where-Object { $_.kind -eq 'resurrected' }
+          if ($replay.players[0].mana -ne 0 -or $replayed.character.health -ne 2 -or $replayed.costModifiers.Count -ne 0 -or
+              $sheep.cardId -ne 'CS2_tk1' -or $sheep.playOrder -ne 5 -or $replay.minionDeaths.Count -ne 1 -or
+              $replay.minionDeaths[0].entity.value -ne 15 -or $resurrection.source.value -ne 15 -or $resurrection.target.value -ne 22) {
+              throw 'Unexpected return, transform, or resurrection replay.'
+          }
       - name: Libmem.NET integration build (Windows x64)
         run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo

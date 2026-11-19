@@ -48,6 +48,7 @@ public sealed record CombatStats(
     bool Ready = false);
 
 public sealed record ManaCost(int PrintedCost, int CurrentCost);
+public sealed record ManaCostModifier(EntityId Source, int Delta);
 
 public sealed record HandStatModifiers(int AttackDelta = 0, int HealthDelta = 0);
 

@@ -29,8 +29,8 @@ try
     {
         var scenario = await JsonSerializer.DeserializeAsync<SimulationScenario>(stream, options)
             ?? throw new InvalidDataException("Input JSON must contain a simulation scenario.");
-        if (scenario.Cards is null || scenario.Players is null || scenario.Entities is null || scenario.Actions is null)
-            throw new InvalidDataException("Cards, players, entities and actions must be arrays.");
+        if (scenario.Cards is null || scenario.Players is null || scenario.Entities is null || scenario.Actions is null || scenario.MinionDeaths is null)
+            throw new InvalidDataException("Cards, players, entities, actions and minion deaths must be arrays.");
         IEnumerable<SimulationCard> cards = scenario.CardSet switch
         {
             null => scenario.Cards,
@@ -38,7 +38,8 @@ try
             _ => throw new InvalidDataException($"Unknown card set '{scenario.CardSet}'.")
         };
         var simulator = new GameSimulator(cards);
-        var state = simulator.CreateGame(scenario.Players, scenario.Entities, scenario.ActivePlayer, scenario.Turn);
+        var state = simulator.CreateGame(scenario.Players, scenario.Entities, scenario.ActivePlayer, scenario.Turn,
+            scenario.MinionDeaths, scenario.RandomState);
         var steps = new List<SimulationStep>();
         foreach (var action in scenario.Actions)
         {
@@ -50,6 +51,7 @@ try
         Console.WriteLine(JsonSerializer.Serialize(new
         {
             state.Turn, state.ActivePlayer, state.Outcome, state.Winner,
+            state.MinionDeaths, state.RandomState,
             Players = state.Players.Values.OrderBy(player => player.Id.Value).ToArray(),
             Entities = state.Entities.Values.OrderBy(entity => entity.Id.Value).ToArray(),
             Steps = steps,
@@ -81,6 +83,8 @@ internal sealed record SimulationScenario
     public required GameEntity[] Entities { get; init; }
     public required PlayerId ActivePlayer { get; init; }
     public int Turn { get; init; } = 1;
+    public MinionDeath[] MinionDeaths { get; init; } = [];
+    public ulong RandomState { get; init; }
     public required SimulationAction[] Actions { get; init; }
 }
 

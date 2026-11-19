@@ -21,8 +21,6 @@ public sealed partial class GameSimulator
 
     private sealed partial class Resolution
     {
-        private readonly HashSet<EntityId> _pendingWeaponDestruction = [];
-
         private void UseHeroPower(PlayerId playerId, EntityId source, EntityId? target)
         {
             var power = _rules.Card(_state.Entities[source]);
@@ -52,7 +50,7 @@ public sealed partial class GameSimulator
         private void MarkEquippedWeaponForDestruction(PlayerId player)
         {
             if (_state.Players[player].EquippedWeapon is EntityId oldWeapon)
-                _pendingWeaponDestruction.Add(oldWeapon);
+                _pendingDestruction.Add(oldWeapon);
         }
 
         private void SetEquippedWeapon(PlayerId player, EntityId id)

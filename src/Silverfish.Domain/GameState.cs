@@ -38,6 +38,7 @@ public sealed record GameEntity(EntityId Id, string CardId, PlayerId Owner, Play
     public bool Silenced { get; init; }
     public ImmutableArray<StatEnchantment> Enchantments { get; init; } = [];
     public ImmutableArray<StatAuraGrant> AuraGrants { get; init; } = [];
+    public ImmutableArray<ManaCostModifier> CostModifiers { get; init; } = [];
 }
 
 public enum MatchOutcome { InProgress, Draw, Won }
@@ -50,7 +51,8 @@ public sealed class GameState
     private GameState(ImmutableDictionary<PlayerId, PlayerState> players,
         ImmutableDictionary<EntityId, GameEntity> entities,
         ImmutableDictionary<EntityId, EntityLocation> locations, PlayerId activePlayer,
-        int turn, int nextEntity, long nextPlayOrder, MatchOutcome outcome, PlayerId? winner)
+        int turn, int nextEntity, long nextPlayOrder, MatchOutcome outcome, PlayerId? winner,
+        ImmutableList<MinionDeath> minionDeaths, ulong randomState)
     {
         Players = players;
         Entities = entities;
@@ -61,6 +63,8 @@ public sealed class GameState
         NextPlayOrder = nextPlayOrder;
         Outcome = outcome;
         Winner = winner;
+        MinionDeaths = minionDeaths;
+        RandomState = randomState;
     }
 
     public ImmutableDictionary<PlayerId, PlayerState> Players { get; }
@@ -71,9 +75,11 @@ public sealed class GameState
     public PlayerId? Winner { get; }
     public int NextEntity { get; }
     public long NextPlayOrder { get; }
+    public ImmutableList<MinionDeath> MinionDeaths { get; }
+    public ulong RandomState { get; }
 
     internal static GameState Create(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
-        PlayerId activePlayer, int turn = 1)
+        PlayerId activePlayer, int turn, IEnumerable<MinionDeath>? minionDeaths, ulong randomState)
     {
         var byPlayer = players.ToImmutableDictionary(p => (p ?? throw new ArgumentException("Null player.")).Id);
         var byEntity = entities.ToImmutableDictionary(e => (e ?? throw new ArgumentException("Null entity.")).Id);
@@ -117,9 +123,19 @@ public sealed class GameState
         if (locations.Count != byEntity.Count)
             throw new ArgumentException("Every registered entity must have a zone.");
 
+        var deaths = minionDeaths?.ToImmutableList() ?? ImmutableList<MinionDeath>.Empty;
+        var deathTurn = 1;
+        foreach (var death in deaths)
+        {
+            if (death is null || death.Turn < deathTurn || death.Turn > turn || string.IsNullOrWhiteSpace(death.CardId) ||
+                !byEntity.ContainsKey(death.Entity) || !byPlayer.ContainsKey(death.Controller))
+                throw new ArgumentException("Invalid minion death history.", nameof(minionDeaths));
+            deathTurn = death.Turn;
+        }
+
         return new GameState(byPlayer, byEntity, locations.ToImmutable(), activePlayer, turn,
             checked(byEntity.Keys.Max(id => id.Value) + 1),
-            checked(byEntity.Values.Max(e => e.PlayOrder ?? 0) + 1), MatchOutcome.InProgress, null);
+            checked(byEntity.Values.Max(e => e.PlayOrder ?? 0) + 1), MatchOutcome.InProgress, null, deaths, randomState);
     }
 
     public EntityLocation LocationOf(EntityId id) => _locations[id];
@@ -152,10 +168,11 @@ public sealed class GameState
             Controller = destination.Player,
             PlayOrder = entersPlay ? NextPlayOrder : entity.PlayOrder,
             AuraGrants = destination.Zone == GameZone.Play ? entity.AuraGrants : [],
-            Enchantments = destination.Zone == GameZone.Play ? entity.Enchantments : []
+            Enchantments = destination.Zone == GameZone.Play ? entity.Enchantments : [],
+            CostModifiers = destination.Zone == GameZone.Hand ? entity.CostModifiers : []
         };
         return new GameState(players.SetItem(to.Id, to), Entities.SetItem(id, entity), _locations.SetItem(id, destination),
-            ActivePlayer, Turn, NextEntity, entersPlay ? checked(NextPlayOrder + 1) : NextPlayOrder, Outcome, Winner);
+            ActivePlayer, Turn, NextEntity, entersPlay ? checked(NextPlayOrder + 1) : NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
     }
 
     internal GameState UpdateCharacter(EntityId id, CharacterState character) =>
@@ -168,7 +185,7 @@ public sealed class GameState
             throw new ArgumentException("Entity identity and location can only change through structural edits.", nameof(entity));
         ValidateEntity(entity, Players);
         return new GameState(Players, Entities.SetItem(entity.Id, entity), _locations,
-            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner);
+            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
     }
 
     internal GameState AddToPlay(GameEntity entity, int index)
@@ -181,7 +198,7 @@ public sealed class GameState
         return new GameState(Players.SetItem(player.Id, player),
             Entities.Add(entity.Id, entity with { PlayOrder = NextPlayOrder }),
             _locations.Add(entity.Id, new(player.Id, GameZone.Play)), ActivePlayer, Turn,
-            checked(NextEntity + 1), checked(NextPlayOrder + 1), Outcome, Winner);
+            checked(NextEntity + 1), checked(NextPlayOrder + 1), Outcome, Winner, MinionDeaths, RandomState);
     }
 
     internal GameState SetResources(PlayerId id, int mana, int manaCrystals, int fatigue)
@@ -203,17 +220,23 @@ public sealed class GameState
 
     private GameState UpdatePlayer(PlayerState player) =>
         new(Players.SetItem(player.Id, player), Entities, _locations,
-            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner);
+            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
+
+    internal GameState RecordMinionDeath(GameEntity minion) => new(Players, Entities, _locations, ActivePlayer, Turn,
+        NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths.Add(new(minion.Id, minion.CardId, minion.Controller, Turn)), RandomState);
+
+    internal GameState SetRandomState(ulong randomState) => new(Players, Entities, _locations, ActivePlayer, Turn,
+        NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, randomState);
 
     internal GameState PassTurn() => new(Players, Entities, _locations, OpponentOf(ActivePlayer),
-        checked(Turn + 1), NextEntity, NextPlayOrder, Outcome, Winner);
+        checked(Turn + 1), NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
 
     internal GameState Finish(PlayerId? winner)
     {
         if (winner is PlayerId id && !Players.ContainsKey(id))
             throw new ArgumentException("The winner must be a player in this match.", nameof(winner));
         return new GameState(Players, Entities, _locations, ActivePlayer, Turn, NextEntity, NextPlayOrder,
-            winner is null ? MatchOutcome.Draw : MatchOutcome.Won, winner);
+            winner is null ? MatchOutcome.Draw : MatchOutcome.Won, winner, MinionDeaths, RandomState);
     }
 
     private static PlayerState SetZone(PlayerState player, GameZone zone, ImmutableArray<EntityId> contents)
@@ -234,7 +257,7 @@ public sealed class GameState
     {
         if (entity.Id.Value < 0 || string.IsNullOrWhiteSpace(entity.CardId) ||
             !players.ContainsKey(entity.Owner) || !players.ContainsKey(entity.Controller) || entity.PlayOrder is < 1 ||
-            entity.Enchantments.IsDefault || entity.AuraGrants.IsDefault)
+            entity.Enchantments.IsDefault || entity.AuraGrants.IsDefault || entity.CostModifiers.IsDefault)
             throw new ArgumentException("Invalid entity identity, owner, controller, or entry order.");
         if (entity.Character is { } character)
             ValidateCharacter(character);

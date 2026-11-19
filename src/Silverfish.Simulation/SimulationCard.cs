@@ -8,6 +8,10 @@ namespace Silverfish.Simulation;
 public enum CardKeywords { None = 0, Taunt = 1, Charge = 2, DivineShield = 4 }
 
 public enum TargetRequirement { None, Character, EnemyCharacter, EnemyMinion, FriendlyMinion, Minion }
+
+[Flags]
+public enum PlayRequirements { None = 0, BoardSpace = 1, FriendlyMinionDeath = 2 }
+
 public enum DamageTarget { Selected, EnemyHero, AllMinions, Source, TriggerSubject, FriendlyHero, EnemyMinions }
 public enum SummonPlacement { Default, Rightmost }
 public enum StatTarget { Selected, Source, FriendlyMinions, AllMinions, FriendlyHero }
@@ -45,6 +49,10 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(SilenceEffect), "silence")]
 [JsonDerivedType(typeof(SummonEffect), "summon")]
 [JsonDerivedType(typeof(TakeControlEffect), "takeControl")]
+[JsonDerivedType(typeof(ReturnMinionEffect), "returnMinion")]
+[JsonDerivedType(typeof(TransformMinionEffect), "transformMinion")]
+[JsonDerivedType(typeof(DestroyMinionEffect), "destroyMinion")]
+[JsonDerivedType(typeof(ResurrectFriendlyMinionEffect), "resurrectFriendlyMinion")]
 public abstract record CardEffect;
 
 public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect;
@@ -59,11 +67,16 @@ public sealed record SilenceEffect : CardEffect;
 /// <summary>Uses the death position during a deathrattle and the right edge otherwise.</summary>
 public sealed record SummonEffect(string CardId, SummonPlacement Placement = SummonPlacement.Default) : CardEffect;
 public sealed record TakeControlEffect : CardEffect;
+public sealed record ReturnMinionEffect(int CostDelta = 0) : CardEffect;
+public sealed record TransformMinionEffect(string CardId) : CardEffect;
+public sealed record DestroyMinionEffect : CardEffect;
+public sealed record ResurrectFriendlyMinionEffect : CardEffect;
 
 public sealed record SimulationCard(CardDefinition Definition)
 {
     public CardKeywords Keywords { get; init; }
     public TargetRequirement Target { get; init; }
+    public PlayRequirements Requirements { get; init; }
     public ImmutableArray<CardEffect> OnPlay { get; init; } = [];
     public ImmutableArray<CardEffect> Deathrattle { get; init; } = [];
     public ImmutableArray<CardEffect> WhenDrawn { get; init; } = [];

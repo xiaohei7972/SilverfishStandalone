@@ -6,6 +6,7 @@
 dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-combat.json
 dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-stats.json
 dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-equipment.json
+dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-lifecycle.json
 dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-combat.json
 ```
 
@@ -19,7 +20,7 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-co
 - 受限 `GameSnapshot JSON → BoardTester → 经典 Ai → BotDecision` 离线端到端回归已通过，相关 ClassicBridge 测试 9/9 通过。见 [Actions #43531545029](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43531545029)。
 - 新增 `Silverfish.Domain`：实体中心的不可变局面模型，分离卡牌基础定义、战斗属性、费用、武器属性、关键词与扩展标签。对应基础模型单元测试已通过 [Actions #43566986229](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43566986229)。
 - 新增 `Silverfish.ClassicModelAdapter`：旧 `Minion`、`Handcard`、`Weapon` 到新模型的**只读状态投影**，用于迁移前差异验证，不再直接把可变旧对象暴露给新状态层。它与经典 AI 同源编译的测试由独立 Actions 工作流运行。
-- 新模拟器已支持基础战斗、抽牌、亡语、附魔、位置光环和沉默，以及武器装备、耐久结算和基础英雄技能。`starter` 的 29 项卡牌、衍生物和技能用新的通用结算操作实现。
+- 新模拟器已支持基础战斗、抽牌、亡语、附魔、位置光环、沉默、武器和基础英雄技能，也能结算回手、变形、消灭与复活。`starter` 的 39 项卡牌、衍生物和技能用新的通用结算操作实现。
 
 ## 后续重构路线
 

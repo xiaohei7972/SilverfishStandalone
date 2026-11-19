@@ -32,6 +32,7 @@ public sealed partial class GameSimulator
                 (IsCharacter(definition.Kind) && definition.PrintedHealth < 1) ||
                 (definition.Kind == EntityKind.Weapon && definition.PrintedDurability <= 0) ||
                 !Enum.IsDefined(card.Target) ||
+                (card.Requirements & ~(PlayRequirements.BoardSpace | PlayRequirements.FriendlyMinionDeath)) != 0 ||
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield)) != 0 ||
                 card.Triggers.IsDefault || card.Auras.IsDefault ||
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && !card.Deathrattle.IsEmpty) ||
@@ -67,9 +68,15 @@ public sealed partial class GameSimulator
     }
 
     public GameState CreateGame(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
-        PlayerId activePlayer, int turn = 1)
+        PlayerId activePlayer, int turn = 1, IEnumerable<MinionDeath>? minionDeaths = null, ulong randomState = 0)
     {
-        var state = GameState.Create(players, entities, activePlayer, turn);
+        var state = GameState.Create(players, entities, activePlayer, turn, minionDeaths, randomState);
+        foreach (var death in state.MinionDeaths)
+        {
+            if (GetCard(death.CardId).Definition.Kind != EntityKind.Minion ||
+                Card(state.Entities[death.Entity]).Definition.Kind != EntityKind.Minion)
+                throw new ArgumentException("Death history must reference minions.", nameof(minionDeaths));
+        }
         foreach (var player in state.Players.Values)
         {
             if (player.In(GameZone.Hand).Length > HandLimit || MinionCount(state, player.Id) > BoardLimit)
@@ -89,9 +96,12 @@ public sealed partial class GameSimulator
                 ((location.Zone == GameZone.HeroPower) != (kind == EntityKind.HeroPower)) ||
                 (entity.Character is not null && !IsCharacter(kind)) ||
                 (entity.Weapon is not null && (kind != EntityKind.Weapon || location.Zone is not (GameZone.Play or GameZone.Graveyard))) ||
+                (location.Zone != GameZone.Hand && !entity.CostModifiers.IsEmpty) ||
                 ((location.Zone != GameZone.Play || entity.Character is null) &&
                     (!entity.Enchantments.IsEmpty || !entity.AuraGrants.IsEmpty)))
                 throw new ArgumentException($"Entity {entity.Id} is incompatible with its card definition or zone.");
+            if (entity.CostModifiers.Any(cost => cost is null || !state.Entities.ContainsKey(cost.Source) || cost.Delta == 0))
+                throw new ArgumentException($"Entity {entity.Id} has an invalid mana cost modifier.");
             ValidateStatLayers(state, entity);
         }
         return RefreshAuras(state);
@@ -124,10 +134,12 @@ public sealed partial class GameSimulator
         var minions = MinionCount(state, actor);
         foreach (var id in player.In(GameZone.Hand))
         {
-            var card = Card(state.Entities[id]);
+            var entity = state.Entities[id];
+            var card = Card(entity);
             var createsMinion = card.Definition.Kind == EntityKind.Minion;
-            if (card.Definition.PrintedCost > player.Mana ||
-                (minions >= BoardLimit && (createsMinion || card.OnPlay.Any(effect => effect is TakeControlEffect))))
+            if (EffectiveCost(entity) > player.Mana ||
+                (minions >= BoardLimit && (createsMinion || card.OnPlay.Any(effect => effect is TakeControlEffect))) ||
+                !MeetsPlayRequirements(state, card, minions))
                 continue;
 
             var targets = PlayTargets(state, card.Target).ToArray();
@@ -151,7 +163,7 @@ public sealed partial class GameSimulator
         if (player.HeroPowerUsesThisTurn == 0 && player.In(GameZone.HeroPower) is [var powerId])
         {
             var power = Card(state.Entities[powerId]);
-            if (power.Definition.PrintedCost <= player.Mana)
+            if (power.Definition.PrintedCost <= player.Mana && MeetsPlayRequirements(state, power, minions))
                 foreach (var target in PlayTargets(state, power.Target))
                     actions.Add(new(SimulationActionKind.UseHeroPower, actor, powerId, target));
         }
@@ -200,6 +212,20 @@ public sealed partial class GameSimulator
         requirement is TargetRequirement.Minion or TargetRequirement.FriendlyMinion or TargetRequirement.EnemyMinion;
 
     private static bool IsCharacter(EntityKind kind) => kind is EntityKind.Hero or EntityKind.Minion;
+
+    private static bool MeetsPlayRequirements(GameState state, SimulationCard card, int minions) =>
+        (!card.Requirements.HasFlag(PlayRequirements.BoardSpace) || minions < BoardLimit) &&
+        (!card.Requirements.HasFlag(PlayRequirements.FriendlyMinionDeath) ||
+            state.MinionDeaths.Any(death => death.Controller == state.ActivePlayer));
+
+    private int EffectiveCost(GameEntity entity)
+    {
+        long cost = Card(entity).Definition.PrintedCost;
+        foreach (var modifier in entity.CostModifiers)
+            cost += modifier.Delta;
+        return (int)Math.Clamp(cost, 0, int.MaxValue);
+    }
+
     private SimulationCard Card(GameEntity entity) => GetCard(entity.CardId);
     private SimulationCard GetCard(string cardId) => _cards.TryGetValue(cardId, out var card)
         ? card
@@ -248,7 +274,10 @@ public sealed partial class GameSimulator
                     IsValidModifier(enchant.Modifier) &&
                     (enchant.Target != StatTarget.Selected || (maySelect && card.Target != TargetRequirement.None)) &&
                     (enchant.Target != StatTarget.Source || hasInPlaySource || (maySelect && IsCharacter(card.Definition.Kind))),
-                SilenceEffect => maySelect && TargetsOnlyMinions(card.Target),
+                SilenceEffect or ReturnMinionEffect or DestroyMinionEffect => maySelect && TargetsOnlyMinions(card.Target),
+                TransformMinionEffect transform => maySelect && TargetsOnlyMinions(card.Target) &&
+                    GetCard(transform.CardId).Definition.Kind == EntityKind.Minion,
+                ResurrectFriendlyMinionEffect => true,
                 SummonEffect summon => Enum.IsDefined(summon.Placement) && GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
                 TakeControlEffect => maySelect && card.Definition.Kind == EntityKind.Spell &&
                     card.Target == TargetRequirement.EnemyMinion,

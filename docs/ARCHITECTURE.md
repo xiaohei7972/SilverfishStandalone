@@ -14,7 +14,7 @@ The replay command starts from a fully specified offline scenario. Its rules cov
 
 `samples/simulation-triggers.json` exercises spell and death timing through the normal replay command. Damage subscriptions can match the damaged entity or the source. Each fixed area or combat batch applies all hits before opening its damage queues. Armor loss produces a damage event, while a shield that absorbs the hit has a separate event. Each successful draw resolves the drawn card's intrinsic effects and other draw listeners before the next attempt. Fatigue dispatches damage, and a burned card never joins the draw queue.
 
-`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The catalogue defines 29 cards, powers, and tokens using the November 2026 data baseline.
+`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The catalogue defines 39 cards, powers, and tokens using the November 2026 data baseline.
 
 Characters keep base attack and maximum health when modifiers first apply. The simulator applies direct enchantments in application order, then adds positional and friendly-board aura grants. Individual grants record their source entity. The simulator refreshes auras when a minion enters play and at resolution checkpoints, including after a death wave removes its minions. Silence clears direct enchantments and the minion's own abilities. Other minions can still provide it with aura grants. Maximum-health changes update current health without dispatching damage or healing events.
 
@@ -22,7 +22,13 @@ Characters keep base attack and maximum health when modifiers first apply. The s
 
 Weapons occupy the `Play` zone with their own entity IDs and durability. A player refers to its currently equipped weapon by ID. When a weapon is played, its battlecry runs before the equip reference changes. A swing applies both combat hits, resolves their damage events, then spends durability. Weapons and minions removed by the same death check resolve their deathrattles in entry order. Hero attack is derived from its own attack and the equipped weapon during its turn.
 
-Hero powers occupy a dedicated single-entity zone. They pay mana and consume one use, refreshed when their controller's turn starts. `samples/simulation-equipment.json` replays Death's Bite, Dagger Mastery, and Fireblast. Alternative weapon durability rules, extra hero power uses, hero replacement, cost modifiers, conditional auras, automatic spell consumption and replacement draws, advanced summon placements, and hidden information modelling remain future work.
+Hero powers occupy a dedicated single-entity zone. They pay mana and consume one use, refreshed when their controller's turn starts. `samples/simulation-equipment.json` replays Death's Bite, Dagger Mastery, and Fireblast.
+
+Returning a minion clears its battlefield state and puts the same entity in its controller's hand. A full destination hand causes death and schedules deathrattles for the death phase. Hand cost changes record their source and expire when the card is played. Transformation sets a new card form on the same entity and retains its board position. A later death records the transformed card.
+
+`minionDeaths` records the entity, card, controller, and turn at each death. It supplies resurrection candidates independently of the graveyard zone. A resurrection summons a fresh entity from the selected printed card. `randomState` can seed a replay, and the simulator stores the advanced state in each resulting branch. The planner evaluates those seeded outcomes. `samples/simulation-lifecycle.json` replays Shadowstep, Polymorph, and Resurrect.
+
+Alternative weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, advanced summon placements, hidden information modelling, and probabilistic search remain future work.
 
 ## Components
 

@@ -99,7 +99,7 @@ public sealed partial class GameSimulator
             var card = _rules.Card(_state.Entities[source]);
             var kind = card.Definition.Kind;
             var listeners = CaptureListeners();
-            PayMana(playerId, card.Definition.PrintedCost);
+            PayMana(playerId, _rules.EffectiveCost(_state.Entities[source]));
             var index = position is int slot ? _rules.BoardIndex(_state, playerId, slot) : (int?)null;
             _state = _state.Move(source, new(playerId, GameZone.Play), index);
             _events.Add(new(SimulationEventKind.CardPlayed, playerId, source, target));
@@ -262,13 +262,22 @@ public sealed partial class GameSimulator
                 case SummonEffect summon:
                     var position = summon.Placement == SummonPlacement.Rightmost ? null : context.DeathPosition;
                     if (Summon(context.Controller, summon.CardId, position) is EntityId summoned)
-                    {
-                        work.Push(new Dispatch(new(TriggerTiming.AfterMinionSummoned, context.Controller, summoned)));
-                        work.Push(new Dispatch(new(TriggerTiming.WhenMinionSummoned, context.Controller, summoned)));
-                    }
+                        PushSummonTriggers(work, context.Controller, summoned);
                     break;
                 case TakeControlEffect:
                     TakeControl(context.Source, context.Selected!.Value, context.Controller);
+                    break;
+                case ReturnMinionEffect returned:
+                    ReturnMinion(context, returned);
+                    break;
+                case TransformMinionEffect transform:
+                    TransformMinion(context, transform.CardId);
+                    break;
+                case DestroyMinionEffect:
+                    DestroyMinion(context.Selected!.Value);
+                    break;
+                case ResurrectFriendlyMinionEffect:
+                    ResurrectFriendlyMinion(work, context.Controller);
                     break;
             }
         }
@@ -289,9 +298,13 @@ public sealed partial class GameSimulator
         private void TakeControl(EntityId source, EntityId target, PlayerId controller)
         {
             var entity = _state.Entities[target];
-            if (_state.LocationOf(target).Zone != GameZone.Play ||
-                entity.Controller == controller || _rules.MinionCount(_state, controller) >= BoardLimit)
+            if (!IsLivingCharacter(target) || entity.Controller == controller)
                 return;
+            if (_rules.MinionCount(_state, controller) >= BoardLimit)
+            {
+                _immediateDeaths.Add(RemoveDeadEntity(entity));
+                return;
+            }
             _state = _state.Move(target, new(controller, GameZone.Play));
             _state = _state.UpdateCharacter(target, entity.Character! with { Exhausted = true });
             _events.Add(new(SimulationEventKind.ControlChanged, controller, source, target));
@@ -304,40 +317,30 @@ public sealed partial class GameSimulator
                 var dead = _state.Players.Values.SelectMany(player => player.In(GameZone.Play))
                     .Select(id => _state.Entities[id])
                     .Where(entity => entity.Character is { Health: <= 0 } || entity.Weapon is { Durability: 0 } ||
-                        _pendingWeaponDestruction.Contains(entity.Id))
+                        _pendingDestruction.Contains(entity.Id))
                     .OrderBy(entity => entity.PlayOrder).ToArray();
-                if (dead.Length == 0)
+                if (dead.Length == 0 && _immediateDeaths.Count == 0)
                 {
                     _state = _rules.RefreshAuras(_state);
                     return;
                 }
 
                 var listeners = CaptureListeners();
-                var positions = new Dictionary<EntityId, int>();
+                var wave = new List<Death>(_immediateDeaths);
+                _immediateDeaths.Clear();
                 foreach (var entity in dead)
-                {
-                    SpendResolutionStep();
-                    if (_rules.Card(entity).Definition.Kind == EntityKind.Minion)
-                        positions.Add(entity.Id, _rules.BoardMinions(_state, entity.Controller).TakeWhile(id => id != entity.Id).Count());
-                    if (!entity.AuraGrants.IsEmpty || !entity.Enchantments.IsEmpty)
-                        _state = _state.UpdateEntity(RecalculateStats(entity with { Enchantments = [] }, []));
-                    _state = _state.Move(entity.Id, new(entity.Controller, GameZone.Graveyard));
-                    _pendingWeaponDestruction.Remove(entity.Id);
-                    var kind = entity.Weapon is null ? SimulationEventKind.Died : SimulationEventKind.WeaponDestroyed;
-                    _events.Add(new(kind, entity.Controller, entity.Id));
-                }
+                    wave.Add(RemoveDeadEntity(entity));
 
                 _state = _rules.RefreshAuras(_state);
-                foreach (var entity in dead)
+                foreach (var (entity, position) in wave.OrderBy(death => death.Entity.PlayOrder))
                 {
-                    var isMinion = positions.TryGetValue(entity.Id, out var position);
-                    if (!isMinion && entity.Weapon is null)
+                    if (position is null && entity.Weapon is null)
                         continue;
-                    var timing = isMinion ? TriggerTiming.MinionDied : TriggerTiming.WeaponDestroyed;
+                    var timing = position is not null ? TriggerTiming.MinionDied : TriggerTiming.WeaponDestroyed;
                     var queue = Queue(new(timing, entity.Controller, entity.Id), listeners);
                     var effects = entity.Silenced ? [] : _rules.Card(entity).Deathrattle;
                     if (!effects.IsEmpty)
-                        queue = queue.Append(new(new(entity.Id, entity.Controller, DeathPosition: isMinion ? position : null),
+                        queue = queue.Append(new(new(entity.Id, entity.Controller, DeathPosition: position),
                             entity.PlayOrder!.Value, effects));
                     RunQueue(queue.OrderBy(trigger => trigger.PlayOrder));
                 }
