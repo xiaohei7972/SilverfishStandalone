@@ -74,5 +74,21 @@ jobs:
               $endTurn -ne 'turnEnded,enchantmentExpired,enchantmentExpired,turnStarted,cardDrawn') {
               throw 'Unexpected stat enchantment or aura replay result.'
           }
+      - name: Replay equipment and hero powers
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate samples/simulation-equipment.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+          $weaponId = $replay.players[0].equippedWeapon.value
+          $weapon = $replay.entities | Where-Object { $_.id.value -eq $weaponId }
+          $attack = $replay.steps[0].events.kind -join ','
+          $ready = $replay.legalActions | Where-Object { $_.kind -eq 'attack' -and $_.source.value -eq 10 -and $_.target.value -eq 20 }
+          if ($hero.character.health -ne 26 -or $weapon.cardId -ne 'CS2_082' -or $weapon.weapon.durability -ne 2 -or
+              $replay.players[0].heroPowerUsesThisTurn -ne 0 -or !$ready -or
+              $attack -ne 'attack,damage,damage,weaponDurabilityLost,weaponDestroyed,died,deathrattle,damage,died') {
+              throw 'Unexpected equipment or hero power replay.'
+          }
       - name: Libmem.NET integration build (Windows x64)
         run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo

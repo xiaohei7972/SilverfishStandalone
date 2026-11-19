@@ -7,6 +7,25 @@ namespace Silverfish.Domain.Tests;
 public sealed partial class GameSimulationTests
 {
     [Fact]
+    public void EqualityClearsDamageBeforeTheHealthAuraAndLaterDamageIsPreserved()
+    {
+        var simulator = new GameSimulator(StarterCardCatalog.Cards.Add(Hero));
+        var target = new EntityId(11);
+        var root = Create(simulator, First,
+            Player(First, FirstHero) with { Mana = 4, ManaCrystals = 4,
+                Zones = Zones((GameZone.Play, [10, 11, 12]), (GameZone.Hand, [13]), (GameZone.HeroPower, [14])) },
+            Player(Second, SecondHero), InPlay(11, "CS2_172", First, 3, 3, 2) with { Character = new(3, 2, Damage: 1) },
+            InPlay(12, "CS2_222", First, 4, 7, 7), Card(13, "EX1_619", First), Card(14, "HERO_08bp", First));
+
+        var equalized = simulator.Apply(root, new(SimulationActionKind.PlayCard, First, new EntityId(13))).State;
+        Assert.Equal(2, equalized.Entities[target].Character!.Health);
+        Assert.Equal(0, equalized.Entities[target].Character!.Damage);
+        var damaged = simulator.Apply(equalized, new(SimulationActionKind.UseHeroPower, First, new EntityId(14), target)).State;
+        Assert.Equal(1, damaged.Entities[target].Character!.Health);
+        Assert.Equal(1, damaged.Entities[target].Character!.Damage);
+    }
+
+    [Fact]
     public void AnAttackSettingEnchantmentUsesBaseAndEarlierBuffsBeforeAuras()
     {
         var simulator = new GameSimulator(StarterCardCatalog.Cards.Add(Hero));

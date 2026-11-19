@@ -7,7 +7,8 @@ public enum SimulationEventKind
 {
     TurnEnded, TurnStarted, CardDrawn, CardBurned, Fatigue, CardPlayed, Summoned, ControlChanged,
     Attack, Damage, ShieldBroken, Died, Deathrattle, MatchEnded, Triggered, ArmorGained, DrawnEffect,
-    EnchantmentApplied, EnchantmentExpired, Silenced
+    EnchantmentApplied, EnchantmentExpired, Silenced, WeaponEquipped, WeaponDurabilityLost,
+    WeaponDestroyed, HeroPowerUsed, Healed
 }
 
 public sealed record SimulationEvent(SimulationEventKind Kind, PlayerId? Player = null,

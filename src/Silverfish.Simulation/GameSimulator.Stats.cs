@@ -130,6 +130,7 @@ public sealed partial class GameSimulator
             {
                 StatTarget.Selected => [context.Selected!.Value],
                 StatTarget.Source => [context.Source],
+                StatTarget.FriendlyHero => [_state.Players[context.Controller].Hero],
                 StatTarget.FriendlyMinions => _rules.BoardMinions(_state, context.Controller),
                 StatTarget.AllMinions => _state.Players.Values.SelectMany(player => _rules.BoardMinions(_state, player.Id))
                     .OrderBy(id => _state.Entities[id].PlayOrder),
@@ -142,6 +143,9 @@ public sealed partial class GameSimulator
                     continue;
                 var entity = _state.Entities[id];
                 var enchantment = new StatEnchantment(context.Source, effect.Modifier, expires);
+                // Setting Health clears existing damage once, when the effect is applied.
+                if (effect.Modifier is { Mode: StatModifierMode.Set, MaximumHealth: not null })
+                    entity = entity with { Character = entity.Character! with { Damage = 0 } };
                 _state = _state.UpdateEntity(RecalculateStats(entity with
                 {
                     Enchantments = entity.Enchantments.Add(enchantment)

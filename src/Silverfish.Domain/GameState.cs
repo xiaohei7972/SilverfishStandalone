@@ -6,13 +6,15 @@ public readonly record struct PlayerId(int Value);
 
 public enum GameZone
 {
-    Deck, Hand, Play, Graveyard, Secret, SetAside, Removed
+    Deck, Hand, Play, Graveyard, Secret, SetAside, Removed, HeroPower
 }
 
 public readonly record struct EntityLocation(PlayerId Player, GameZone Zone);
 
 public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int ManaCrystals = 0, int Fatigue = 0)
 {
+    public EntityId? EquippedWeapon { get; init; }
+    public int HeroPowerUsesThisTurn { get; init; }
     public ImmutableDictionary<GameZone, ImmutableArray<EntityId>> Zones { get; init; } =
         ImmutableDictionary<GameZone, ImmutableArray<EntityId>>.Empty;
 
@@ -31,6 +33,7 @@ public sealed record CharacterState(int Attack, int MaximumHealth, int Damage = 
 public sealed record GameEntity(EntityId Id, string CardId, PlayerId Owner, PlayerId Controller)
 {
     public CharacterState? Character { get; init; }
+    public WeaponStats? Weapon { get; init; }
     public long? PlayOrder { get; init; }
     public bool Silenced { get; init; }
     public ImmutableArray<StatEnchantment> Enchantments { get; init; } = [];
@@ -85,6 +88,12 @@ public sealed class GameState
             if (!player.In(GameZone.Play).Contains(player.Hero) ||
                 !byEntity.TryGetValue(player.Hero, out var hero) || hero.Character is null)
                 throw new ArgumentException($"Player {player.Id.Value} must have a hero in play.");
+            if (player.EquippedWeapon is EntityId equipped && (!player.In(GameZone.Play).Contains(equipped) ||
+                !byEntity.TryGetValue(equipped, out var weapon) || weapon.Weapon is not { Durability: > 0 }))
+                throw new ArgumentException($"Player {player.Id.Value} has an invalid equipped weapon.");
+            if (player.In(GameZone.HeroPower).Length > 1 ||
+                (player.In(GameZone.HeroPower).IsEmpty && player.HeroPowerUsesThisTurn != 0))
+                throw new ArgumentException($"Player {player.Id.Value} has an invalid hero power slot.");
 
             foreach (var zone in player.Zones)
             {
@@ -99,9 +108,9 @@ public sealed class GameState
                     if (entity.Controller != player.Id || !locations.TryAdd(id, new(player.Id, zone.Key)))
                         throw new ArgumentException($"Entity {id} needs exactly one zone for its controller.");
 
-                    if (zone.Key == GameZone.Play && entity.Character is not null &&
+                    if (zone.Key == GameZone.Play && (entity.Character is not null || entity.Weapon is not null) &&
                         (entity.PlayOrder is not > 0 || !playOrders.Add(entity.PlayOrder.Value)))
-                        throw new ArgumentException($"In-play character {id} needs a unique positive entry order.");
+                        throw new ArgumentException($"In-play entity {id} needs a unique positive entry order.");
                 }
             }
         }
@@ -130,8 +139,10 @@ public sealed class GameState
         if (Players[origin.Player].Hero == id && destination.Player != origin.Player)
             throw new InvalidOperationException("The hero slot cannot be transferred as a card.");
 
-        var from = Players[origin.Player];
-        var players = Players.SetItem(from.Id, SetZone(from, origin.Zone, from.In(origin.Zone).Remove(id)));
+        var sourcePlayer = Players[origin.Player];
+        if (sourcePlayer.EquippedWeapon == id && origin != destination)
+            sourcePlayer = sourcePlayer with { EquippedWeapon = null };
+        var players = Players.SetItem(sourcePlayer.Id, SetZone(sourcePlayer, origin.Zone, sourcePlayer.In(origin.Zone).Remove(id)));
         var to = players[destination.Player];
         var zone = to.In(destination.Zone);
         to = SetZone(to, destination.Zone, zone.Insert(index ?? zone.Length, id));
@@ -163,8 +174,8 @@ public sealed class GameState
     internal GameState AddToPlay(GameEntity entity, int index)
     {
         ValidateEntity(entity, Players);
-        if (entity.Id.Value != NextEntity || entity.Character is null)
-            throw new ArgumentException("A new character needs the next unused entity ID.");
+        if (entity.Id.Value != NextEntity || (entity.Character is null && entity.Weapon is null))
+            throw new ArgumentException("A new character or weapon needs the next unused entity ID.");
         var player = Players[entity.Controller];
         player = SetZone(player, GameZone.Play, player.In(GameZone.Play).Insert(index, entity.Id));
         return new GameState(Players.SetItem(player.Id, player),
@@ -177,9 +188,22 @@ public sealed class GameState
     {
         var player = Players[id] with { Mana = mana, ManaCrystals = manaCrystals, Fatigue = fatigue };
         ValidateResources(player);
-        return new GameState(Players.SetItem(id, player), Entities, _locations,
-            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner);
+        return UpdatePlayer(player);
     }
+
+    internal GameState EquipWeapon(PlayerId player, EntityId id)
+    {
+        if (LocationOf(id) != new EntityLocation(player, GameZone.Play) || Entities[id].Weapon is not { Durability: > 0 })
+            throw new ArgumentException("An equipped weapon needs positive durability and must be in play.", nameof(id));
+        return UpdatePlayer(Players[player] with { EquippedWeapon = id });
+    }
+
+    internal GameState SetHeroPowerUses(PlayerId player, int uses) =>
+        UpdatePlayer(Players[player] with { HeroPowerUsesThisTurn = uses });
+
+    private GameState UpdatePlayer(PlayerState player) =>
+        new(Players.SetItem(player.Id, player), Entities, _locations,
+            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner);
 
     internal GameState PassTurn() => new(Players, Entities, _locations, OpponentOf(ActivePlayer),
         checked(Turn + 1), NextEntity, NextPlayOrder, Outcome, Winner);
@@ -202,7 +226,7 @@ public sealed class GameState
     private static void ValidateResources(PlayerState player)
     {
         if (player.Zones is null || player.Id.Value < 1 || player.Mana < 0 || player.ManaCrystals is < 0 or > 10 ||
-            player.Mana > 10 || player.Fatigue < 0)
+            player.Mana > 10 || player.Fatigue < 0 || player.HeroPowerUsesThisTurn is < 0 or > 1)
             throw new ArgumentException("Invalid player ID or resource values.");
     }
 
@@ -214,6 +238,9 @@ public sealed class GameState
             throw new ArgumentException("Invalid entity identity, owner, controller, or entry order.");
         if (entity.Character is { } character)
             ValidateCharacter(character);
+        if (entity.Weapon is { } weapon && (entity.Character is not null || weapon.Attack < 0 || weapon.Durability < 0 ||
+            weapon.MaximumDurability < 1 || weapon.Durability > weapon.MaximumDurability || weapon.AttacksThisTurn < 0))
+            throw new ArgumentException("Invalid weapon stats.");
     }
 
     private static void ValidateCharacter(CharacterState character)

@@ -115,6 +115,9 @@ public sealed partial class GameSimulator
                         if (trigger.Listener is { } listener)
                         {
                             if (!IsCurrent(listener) ||
+                                (listener.Trigger.Timing == TriggerTiming.HeroAttacking &&
+                                    _state.Entities[listener.Id.Entity].Weapon is not null &&
+                                    _state.Players[listener.Controller].EquippedWeapon != listener.Id.Entity) ||
                                 (trigger.LivingEntity is EntityId living && !IsLivingCharacter(living)) ||
                                 !_activeTriggers.Add(listener.Id))
                                 break;

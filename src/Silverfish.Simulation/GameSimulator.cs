@@ -27,15 +27,16 @@ public sealed partial class GameSimulator
         foreach (var card in _cards.Values)
         {
             var definition = card.Definition;
-            if (definition.Kind is not (EntityKind.Hero or EntityKind.Minion or EntityKind.Spell) ||
+            if (definition.Kind is not (EntityKind.Hero or EntityKind.Minion or EntityKind.Spell or EntityKind.Weapon or EntityKind.HeroPower) ||
                 definition.PrintedCost < 0 || definition.PrintedAttack < 0 ||
                 (IsCharacter(definition.Kind) && definition.PrintedHealth < 1) ||
+                (definition.Kind == EntityKind.Weapon && definition.PrintedDurability <= 0) ||
                 !Enum.IsDefined(card.Target) ||
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield)) != 0 ||
                 card.Triggers.IsDefault || card.Auras.IsDefault ||
-                (definition.Kind != EntityKind.Minion && !card.Deathrattle.IsEmpty) ||
+                (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && !card.Deathrattle.IsEmpty) ||
                 (definition.Kind != EntityKind.Minion && !card.Auras.IsEmpty) ||
-                (!IsCharacter(definition.Kind) && !card.Triggers.IsEmpty))
+                (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.Triggers.IsEmpty))
                 throw new ArgumentException($"Invalid simulation card '{definition.CardId}'.", nameof(cards));
 
             ValidateEffects(card, card.OnPlay, maySelect: true);
@@ -58,8 +59,9 @@ public sealed partial class GameSimulator
                     trigger.Effects.IsDefaultOrEmpty)
                     throw new ArgumentException($"Invalid trigger on '{definition.CardId}'.", nameof(cards));
                 ValidateEffects(card, trigger.Effects, maySelect: false,
-                    hasSubject: trigger.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or TriggerTiming.Damage,
-                    hasInPlaySource: true);
+                    hasCharacterSubject: trigger.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
+                        TriggerTiming.Damage or TriggerTiming.HeroAttacking,
+                    hasInPlaySource: IsCharacter(definition.Kind));
             }
         }
     }
@@ -78,11 +80,17 @@ public sealed partial class GameSimulator
         {
             var kind = Card(entity).Definition.Kind;
             var location = state.LocationOf(entity.Id);
-            var isHeroSlot = state.Players[entity.Controller].Hero == entity.Id;
+            var player = state.Players[entity.Controller];
+            var isHeroSlot = player.Hero == entity.Id;
+            var isEquippedSlot = player.EquippedWeapon == entity.Id;
             if (isHeroSlot != (kind == EntityKind.Hero) ||
-                (location.Zone == GameZone.Play && (!IsCharacter(kind) || entity.Character is not { Health: > 0 })) ||
+                (location.Zone == GameZone.Play && (kind == EntityKind.Weapon ? !isEquippedSlot :
+                    !IsCharacter(kind) || entity.Character is not { Health: > 0 })) ||
+                ((location.Zone == GameZone.HeroPower) != (kind == EntityKind.HeroPower)) ||
                 (entity.Character is not null && !IsCharacter(kind)) ||
-                (location.Zone != GameZone.Play && (!entity.Enchantments.IsEmpty || !entity.AuraGrants.IsEmpty)))
+                (entity.Weapon is not null && (kind != EntityKind.Weapon || location.Zone is not (GameZone.Play or GameZone.Graveyard))) ||
+                ((location.Zone != GameZone.Play || entity.Character is null) &&
+                    (!entity.Enchantments.IsEmpty || !entity.AuraGrants.IsEmpty)))
                 throw new ArgumentException($"Entity {entity.Id} is incompatible with its card definition or zone.");
             ValidateStatLayers(state, entity);
         }
@@ -99,14 +107,15 @@ public sealed partial class GameSimulator
         var actor = state.ActivePlayer;
         var player = state.Players[actor];
         var enemy = state.OpponentOf(actor);
-        var enemyBoard = state.Players[enemy].In(GameZone.Play).Select(id => state.Entities[id]).ToArray();
+        var enemyBoard = state.Players[enemy].In(GameZone.Play).Select(id => state.Entities[id])
+            .Where(entity => entity.Character is { Health: > 0 }).ToArray();
         var taunts = enemyBoard.Where(IsTaunt).ToArray();
 
         foreach (var id in player.In(GameZone.Play))
         {
             var attacker = state.Entities[id];
-            if (attacker.Character is not { Attack: > 0, Health: > 0, AttacksThisTurn: 0 } character ||
-                (character.Exhausted && !HasKeyword(attacker, CardKeywords.Charge)))
+            if (attacker.Character is not { Health: > 0, AttacksThisTurn: 0 } character ||
+                (character.Exhausted && !HasKeyword(attacker, CardKeywords.Charge)) || EffectiveAttack(state, attacker) <= 0)
                 continue;
             foreach (var defender in taunts.Length == 0 ? enemyBoard : taunts)
                 actions.Add(new(SimulationActionKind.Attack, actor, id, defender.Id));
@@ -122,7 +131,7 @@ public sealed partial class GameSimulator
                 continue;
 
             var targets = PlayTargets(state, card.Target).ToArray();
-            if (createsMinion && targets.Length == 0)
+            if (card.Definition.Kind is EntityKind.Minion or EntityKind.Weapon && targets.Length == 0)
                 targets = [null];
 
             foreach (var target in targets)
@@ -137,6 +146,14 @@ public sealed partial class GameSimulator
                     actions.Add(new(SimulationActionKind.PlayCard, actor, id, target));
                 }
             }
+        }
+
+        if (player.HeroPowerUsesThisTurn == 0 && player.In(GameZone.HeroPower) is [var powerId])
+        {
+            var power = Card(state.Entities[powerId]);
+            if (power.Definition.PrintedCost <= player.Mana)
+                foreach (var target in PlayTargets(state, power.Target))
+                    actions.Add(new(SimulationActionKind.UseHeroPower, actor, powerId, target));
         }
 
         actions.Add(new(SimulationActionKind.EndTurn, actor));
@@ -167,7 +184,8 @@ public sealed partial class GameSimulator
                 player.Id == state.ActivePlayer)
                 continue;
             foreach (var id in player.In(GameZone.Play))
-                if (!TargetsOnlyMinions(requirement) || Card(state.Entities[id]).Definition.Kind == EntityKind.Minion)
+                if (state.Entities[id].Character is { Health: > 0 } &&
+                    (!TargetsOnlyMinions(requirement) || Card(state.Entities[id]).Definition.Kind == EntityKind.Minion))
                     yield return id;
         }
     }
@@ -205,7 +223,7 @@ public sealed partial class GameSimulator
     }
 
     private void ValidateEffects(SimulationCard card, ImmutableArray<CardEffect> effects, bool maySelect,
-        bool hasSubject = false, bool hasInPlaySource = false)
+        bool hasCharacterSubject = false, bool hasInPlaySource = false)
     {
         if (effects.IsDefault)
             throw new ArgumentException("Effect arrays must be initialized.");
@@ -217,12 +235,15 @@ public sealed partial class GameSimulator
                 {
                     DamageTarget.Selected => maySelect && card.Target != TargetRequirement.None,
                     DamageTarget.Source => hasInPlaySource || (maySelect && IsCharacter(card.Definition.Kind)),
-                    DamageTarget.TriggerSubject => hasSubject,
+                    DamageTarget.TriggerSubject => hasCharacterSubject,
                     DamageTarget.EnemyHero or DamageTarget.FriendlyHero or DamageTarget.AllMinions or DamageTarget.EnemyMinions => true,
                     _ => false
                 }),
                 DrawEffect draw => draw.Count > 0,
                 GainArmorEffect armor => armor.Amount > 0,
+                HealFriendlyHeroEffect heal => heal.Amount > 0,
+                EquipWeaponEffect equip => GetCard(equip.CardId).Definition.Kind == EntityKind.Weapon,
+                DestroyEnemyWeaponEffect => true,
                 EnchantStatsEffect enchant => Enum.IsDefined(enchant.Target) && Enum.IsDefined(enchant.Duration) &&
                     IsValidModifier(enchant.Modifier) &&
                     (enchant.Target != StatTarget.Selected || (maySelect && card.Target != TargetRequirement.None)) &&

@@ -25,6 +25,9 @@ public sealed partial class GameSimulator
                 case SimulationActionKind.Attack:
                     Attack(action.Actor, action.Source!.Value, action.Target!.Value);
                     break;
+                case SimulationActionKind.UseHeroPower:
+                    UseHeroPower(action.Actor, action.Source!.Value, action.Target);
+                    break;
             }
 
             ResolveDeaths();
@@ -46,10 +49,11 @@ public sealed partial class GameSimulator
             var next = _state.Players[_state.ActivePlayer];
             var crystals = Math.Min(next.ManaCrystals + 1, 10);
             _state = _state.SetResources(next.Id, crystals, crystals, next.Fatigue);
+            _state = _state.SetHeroPowerUses(next.Id, 0);
             foreach (var id in next.In(GameZone.Play))
             {
-                var character = _state.Entities[id].Character!;
-                _state = _state.UpdateCharacter(id, character with { AttacksThisTurn = 0, Exhausted = false });
+                if (_state.Entities[id].Character is { } character)
+                    _state = _state.UpdateCharacter(id, character with { AttacksThisTurn = 0, Exhausted = false });
             }
 
             _events.Add(new(SimulationEventKind.TurnStarted, next.Id));
@@ -93,14 +97,25 @@ public sealed partial class GameSimulator
         private void Play(PlayerId playerId, EntityId source, EntityId? target, int? position)
         {
             var card = _rules.Card(_state.Entities[source]);
-            var isMinion = card.Definition.Kind == EntityKind.Minion;
+            var kind = card.Definition.Kind;
             var listeners = CaptureListeners();
-            var player = _state.Players[playerId];
-            _state = _state.SetResources(playerId, player.Mana - card.Definition.PrintedCost, player.ManaCrystals, player.Fatigue);
+            PayMana(playerId, card.Definition.PrintedCost);
             var index = position is int slot ? _rules.BoardIndex(_state, playerId, slot) : (int?)null;
             _state = _state.Move(source, new(playerId, GameZone.Play), index);
             _events.Add(new(SimulationEventKind.CardPlayed, playerId, source, target));
 
+            if (kind == EntityKind.Weapon)
+            {
+                var weapon = _state.Entities[source];
+                _state = _state.UpdateEntity(weapon with { Weapon = card.CreateWeapon() });
+                if (card.Target == TargetRequirement.None || target is not null)
+                    ResolveEffects(new(source, playerId, target), card.OnPlay);
+                MarkEquippedWeaponForDestruction(playerId);
+                SetEquippedWeapon(playerId, source);
+                return;
+            }
+
+            var isMinion = kind == EntityKind.Minion;
             if (isMinion)
             {
                 _state = _state.UpdateCharacter(source, card.CreateCharacter());
@@ -127,12 +142,24 @@ public sealed partial class GameSimulator
 
         private void Attack(PlayerId player, EntityId source, EntityId target)
         {
-            var attacker = _state.Entities[source].Character!;
-            var defender = _state.Entities[target];
-            var retaliation = _rules.Card(defender).Definition.Kind == EntityKind.Minion ? defender.Character!.Attack : 0;
-            _state = _state.UpdateCharacter(source, attacker with { AttacksThisTurn = attacker.AttacksThisTurn + 1 });
             _events.Add(new(SimulationEventKind.Attack, player, source, target));
-            var hit = Damage(source, target, attacker.Attack);
+            var isHero = source == _state.Players[player].Hero;
+            if (isHero)
+                RunTriggers(new(TriggerTiming.HeroAttacking, player, source), CaptureListeners());
+
+            var attacker = _state.Entities[source];
+            var character = attacker.Character!;
+            var combatCanProceed = IsLivingCharacter(source) && IsLivingCharacter(target) &&
+                _state.Players.Values.All(combatant => IsLivingCharacter(combatant.Hero));
+            if (!combatCanProceed)
+            {
+                _state = _state.UpdateCharacter(source, character with { AttacksThisTurn = character.AttacksThisTurn + 1 });
+                return;
+            }
+
+            var weapon = isHero ? _state.Players[player].EquippedWeapon : null;
+            var retaliation = _rules.EffectiveAttack(_state, _state.Entities[target]);
+            var hit = Damage(source, target, _rules.EffectiveAttack(_state, attacker));
             var counter = Damage(target, source, retaliation);
 
             // Commit both hits before either damage event can start its queue.
@@ -140,6 +167,9 @@ public sealed partial class GameSimulator
             PushOccurrence(work, counter);
             PushOccurrence(work, hit);
             RunWork(work);
+            var afterDamage = _state.Entities[source].Character!;
+            _state = _state.UpdateCharacter(source, afterDamage with { AttacksThisTurn = character.AttacksThisTurn + 1 });
+            SpendWeaponDurability(weapon);
         }
 
         private Occurrence? Damage(EntityId? source, EntityId target, int amount)
@@ -214,6 +244,15 @@ public sealed partial class GameSimulator
                 case GainArmorEffect armor:
                     GainArmor(context, armor.Amount);
                     break;
+                case HealFriendlyHeroEffect heal:
+                    HealFriendlyHero(context, heal.Amount);
+                    break;
+                case EquipWeaponEffect equip:
+                    CreateAndEquipWeapon(context.Controller, equip.CardId);
+                    break;
+                case DestroyEnemyWeaponEffect:
+                    MarkEquippedWeaponForDestruction(_state.OpponentOf(context.Controller));
+                    break;
                 case EnchantStatsEffect enchant:
                     EnchantStats(context, enchant);
                     break;
@@ -264,7 +303,8 @@ public sealed partial class GameSimulator
             {
                 var dead = _state.Players.Values.SelectMany(player => player.In(GameZone.Play))
                     .Select(id => _state.Entities[id])
-                    .Where(entity => entity.Character is { Health: <= 0 })
+                    .Where(entity => entity.Character is { Health: <= 0 } || entity.Weapon is { Durability: 0 } ||
+                        _pendingWeaponDestruction.Contains(entity.Id))
                     .OrderBy(entity => entity.PlayOrder).ToArray();
                 if (dead.Length == 0)
                 {
@@ -282,18 +322,22 @@ public sealed partial class GameSimulator
                     if (!entity.AuraGrants.IsEmpty || !entity.Enchantments.IsEmpty)
                         _state = _state.UpdateEntity(RecalculateStats(entity with { Enchantments = [] }, []));
                     _state = _state.Move(entity.Id, new(entity.Controller, GameZone.Graveyard));
-                    _events.Add(new(SimulationEventKind.Died, entity.Controller, entity.Id));
+                    _pendingWeaponDestruction.Remove(entity.Id);
+                    var kind = entity.Weapon is null ? SimulationEventKind.Died : SimulationEventKind.WeaponDestroyed;
+                    _events.Add(new(kind, entity.Controller, entity.Id));
                 }
 
                 _state = _rules.RefreshAuras(_state);
                 foreach (var entity in dead)
                 {
-                    if (!positions.TryGetValue(entity.Id, out var position))
+                    var isMinion = positions.TryGetValue(entity.Id, out var position);
+                    if (!isMinion && entity.Weapon is null)
                         continue;
-                    var queue = Queue(new(TriggerTiming.MinionDied, entity.Controller, entity.Id), listeners);
+                    var timing = isMinion ? TriggerTiming.MinionDied : TriggerTiming.WeaponDestroyed;
+                    var queue = Queue(new(timing, entity.Controller, entity.Id), listeners);
                     var effects = entity.Silenced ? [] : _rules.Card(entity).Deathrattle;
                     if (!effects.IsEmpty)
-                        queue = queue.Append(new(new(entity.Id, entity.Controller, DeathPosition: position),
+                        queue = queue.Append(new(new(entity.Id, entity.Controller, DeathPosition: isMinion ? position : null),
                             entity.PlayOrder!.Value, effects));
                     RunQueue(queue.OrderBy(trigger => trigger.PlayOrder));
                 }

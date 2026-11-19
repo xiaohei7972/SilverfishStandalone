@@ -66,6 +66,8 @@ public static class SimulationMaterialEvaluator
     {
         var player = state.Players[id];
         var score = 0.25 * player.In(GameZone.Hand).Length;
+        if (player.EquippedWeapon is EntityId weaponId && state.Entities[weaponId].Weapon is { } weapon)
+            score += 1.5 * weapon.Attack * weapon.Durability;
         foreach (var entity in player.In(GameZone.Play))
         {
             if (state.Entities[entity].Character is not { } character)

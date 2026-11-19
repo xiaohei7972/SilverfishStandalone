@@ -85,6 +85,45 @@ public static class StarterCardCatalog
                 new(TriggerTiming.CardDrawn, TriggerRelation.Opponent,
                     [new EnchantStatsEffect(StatTarget.Source, new(StatModifierMode.Add, Attack: 1, MaximumHealth: 1))])
             ]
+        },
+        new(new("CS2_106", EntityKind.Weapon, 2, 3, PrintedDurability: 2)),
+        new(new("CS2_091", EntityKind.Weapon, 1, 1, PrintedDurability: 4)),
+        new(new("CS2_112", EntityKind.Weapon, 5, 5, PrintedDurability: 2)),
+        new(new("CS2_082", EntityKind.Weapon, 1, 1, PrintedDurability: 2)),
+        new SimulationCard(new("CS2_097", EntityKind.Weapon, 4, 4, PrintedDurability: 2))
+        {
+            Triggers = [new(TriggerTiming.HeroAttacking, TriggerRelation.Friendly, [new HealFriendlyHeroEffect(3)])]
+        },
+        new SimulationCard(new("FP1_021", EntityKind.Weapon, 4, 4, PrintedDurability: 2))
+        {
+            Deathrattle = [new DamageEffect(DamageTarget.AllMinions, 1)]
+        },
+        new SimulationCard(new("EX1_066", EntityKind.Minion, 2, 3, 2))
+        {
+            OnPlay = [new DestroyEnemyWeaponEffect()]
+        },
+        new SimulationCard(new("HERO_01bp", EntityKind.HeroPower, 2))
+        {
+            OnPlay = [new GainArmorEffect(2)]
+        },
+        new SimulationCard(new("HERO_03bp", EntityKind.HeroPower, 2))
+        {
+            OnPlay = [new EquipWeaponEffect("CS2_082")]
+        },
+        new SimulationCard(new("HERO_08bp", EntityKind.HeroPower, 2))
+        {
+            Target = TargetRequirement.Character,
+            OnPlay = [new DamageEffect(DamageTarget.Selected, 1)]
+        },
+        new SimulationCard(new("HERO_06bp", EntityKind.HeroPower, 2))
+        {
+            OnPlay = [new EnchantStatsEffect(StatTarget.FriendlyHero, new(StatModifierMode.Add, Attack: 1),
+                EnchantmentDuration.CurrentTurn), new GainArmorEffect(1)]
+        },
+        new SimulationCard(new("CS2_105", EntityKind.Spell, 2))
+        {
+            OnPlay = [new EnchantStatsEffect(StatTarget.FriendlyHero, new(StatModifierMode.Add, Attack: 4),
+                EnchantmentDuration.CurrentTurn)]
         }
     ];
 }
