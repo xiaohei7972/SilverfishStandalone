@@ -4,6 +4,7 @@
 
 ```powershell
 dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-combat.json
+dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-stats.json
 dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-combat.json
 ```
 
@@ -17,6 +18,7 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-co
 - 受限 `GameSnapshot JSON → BoardTester → 经典 Ai → BotDecision` 离线端到端回归已通过，相关 ClassicBridge 测试 9/9 通过。见 [Actions #43531545029](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43531545029)。
 - 新增 `Silverfish.Domain`：实体中心的不可变局面模型，分离卡牌基础定义、战斗属性、费用、武器属性、关键词与扩展标签。对应基础模型单元测试已通过 [Actions #43566986229](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43566986229)。
 - 新增 `Silverfish.ClassicModelAdapter`：旧 `Minion`、`Handcard`、`Weapon` 到新模型的**只读状态投影**，用于迁移前差异验证，不再直接把可变旧对象暴露给新状态层。它与经典 AI 同源编译的测试由独立 Actions 工作流运行。
+- 新模拟器已支持基础战斗、抽牌、亡语、附魔、位置光环和沉默。`starter` 的 17 张牌用新的通用结算操作实现。
 
 ## 后续重构路线
 
@@ -29,14 +31,17 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-co
 
 ## 工程结构
 
-- `src/Silverfish.Domain`：实验性的不可变实体模型，供后续迁移使用。
+- `src/Silverfish.Domain`：新模拟器的不可变局面与实体模型。
+- `src/Silverfish.Simulation`：合法动作生成、规则结算和卡牌定义。
 - `tests/Silverfish.Domain.Tests`：新模型的分支隔离、状态不变量和基础功能测试。
 - `src/Silverfish.Classic`：按 SHA/选择规则从旧源归档导入的经典银鱼源码编译项目。
 - `src/Silverfish.ClassicModelAdapter`：实验性的只读旧模型投影。
 - `tests/Silverfish.ClassicModelAdapter.Tests`：对实际编译的旧 Minion/Handcard/Weapon 的映射回归。
 - `src/Silverfish.Classic.Smoke`：原版 AI 和 CardDB 离线回归程序。
 - `src/Silverfish.ClassicBridge`：原版动作到合法候选动作 ID 的映射。
-- `src/Silverfish.Contracts/Core/Cli`：先前的离线接口与基础评分演示（**并非**新重构模型或经典 AI 替代品）。
+- `src/Silverfish.Contracts`：离线输入与决策接口。
+- `src/Silverfish.Core`：基础决策接口实现和新模拟器的独立搜索与评分。
+- `src/Silverfish.Cli`：离线决策、模拟回放和回合搜索入口。
 - `src/Silverfish.Integrations.Libmem`：早期独立的进程探测模块，当前重构阶段**暂不投入进一步开发**。
 
 ## 最新 2026-11-05 版在 GitHub Actions 构建

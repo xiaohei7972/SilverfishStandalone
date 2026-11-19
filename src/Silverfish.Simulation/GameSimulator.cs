@@ -32,14 +32,21 @@ public sealed partial class GameSimulator
                 (IsCharacter(definition.Kind) && definition.PrintedHealth < 1) ||
                 !Enum.IsDefined(card.Target) ||
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield)) != 0 ||
-                card.Triggers.IsDefault ||
+                card.Triggers.IsDefault || card.Auras.IsDefault ||
                 (definition.Kind != EntityKind.Minion && !card.Deathrattle.IsEmpty) ||
+                (definition.Kind != EntityKind.Minion && !card.Auras.IsEmpty) ||
                 (!IsCharacter(definition.Kind) && !card.Triggers.IsEmpty))
                 throw new ArgumentException($"Invalid simulation card '{definition.CardId}'.", nameof(cards));
 
             ValidateEffects(card, card.OnPlay, maySelect: true);
             ValidateEffects(card, card.Deathrattle, maySelect: false);
             ValidateEffects(card, card.WhenDrawn, maySelect: false);
+            foreach (var aura in card.Auras)
+            {
+                if (aura is null || !Enum.IsDefined(aura.Recipients) ||
+                    aura.Modifier?.Mode != StatModifierMode.Add || !IsValidModifier(aura.Modifier))
+                    throw new ArgumentException($"Invalid stat aura on '{definition.CardId}'.", nameof(cards));
+            }
             foreach (var trigger in card.Triggers)
             {
                 if (trigger is null || !Enum.IsDefined(trigger.Timing) || !Enum.IsDefined(trigger.Relation) ||
@@ -74,10 +81,12 @@ public sealed partial class GameSimulator
             var isHeroSlot = state.Players[entity.Controller].Hero == entity.Id;
             if (isHeroSlot != (kind == EntityKind.Hero) ||
                 (location.Zone == GameZone.Play && (!IsCharacter(kind) || entity.Character is not { Health: > 0 })) ||
-                (entity.Character is not null && !IsCharacter(kind)))
+                (entity.Character is not null && !IsCharacter(kind)) ||
+                (location.Zone != GameZone.Play && (!entity.Enchantments.IsEmpty || !entity.AuraGrants.IsEmpty)))
                 throw new ArgumentException($"Entity {entity.Id} is incompatible with its card definition or zone.");
+            ValidateStatLayers(state, entity);
         }
-        return state;
+        return RefreshAuras(state);
     }
 
     public ImmutableArray<SimulationAction> LegalActions(GameState state)
@@ -96,7 +105,8 @@ public sealed partial class GameSimulator
         foreach (var id in player.In(GameZone.Play))
         {
             var attacker = state.Entities[id];
-            if (attacker.Character is not { Attack: > 0, Health: > 0, AttacksThisTurn: 0, Exhausted: false })
+            if (attacker.Character is not { Attack: > 0, Health: > 0, AttacksThisTurn: 0 } character ||
+                (character.Exhausted && !HasKeyword(attacker, CardKeywords.Charge)))
                 continue;
             foreach (var defender in taunts.Length == 0 ? enemyBoard : taunts)
                 actions.Add(new(SimulationActionKind.Attack, actor, id, defender.Id));
@@ -151,16 +161,25 @@ public sealed partial class GameSimulator
 
         foreach (var player in state.Players.Values.OrderBy(player => player.Id.Value))
         {
-            if (player.Id == state.ActivePlayer && requirement != TargetRequirement.Character)
+            if (requirement == TargetRequirement.FriendlyMinion && player.Id != state.ActivePlayer)
+                continue;
+            if ((requirement is TargetRequirement.EnemyCharacter or TargetRequirement.EnemyMinion) &&
+                player.Id == state.ActivePlayer)
                 continue;
             foreach (var id in player.In(GameZone.Play))
-                if (requirement != TargetRequirement.EnemyMinion || Card(state.Entities[id]).Definition.Kind == EntityKind.Minion)
+                if (!TargetsOnlyMinions(requirement) || Card(state.Entities[id]).Definition.Kind == EntityKind.Minion)
                     yield return id;
         }
     }
 
     private bool IsTaunt(GameEntity entity) =>
-        Card(entity) is { Definition.Kind: EntityKind.Minion } card && card.Keywords.HasFlag(CardKeywords.Taunt);
+        Card(entity).Definition.Kind == EntityKind.Minion && HasKeyword(entity, CardKeywords.Taunt);
+
+    private bool HasKeyword(GameEntity entity, CardKeywords keyword) =>
+        !entity.Silenced && Card(entity).Keywords.HasFlag(keyword);
+
+    private static bool TargetsOnlyMinions(TargetRequirement requirement) =>
+        requirement is TargetRequirement.Minion or TargetRequirement.FriendlyMinion or TargetRequirement.EnemyMinion;
 
     private static bool IsCharacter(EntityKind kind) => kind is EntityKind.Hero or EntityKind.Minion;
     private SimulationCard Card(GameEntity entity) => GetCard(entity.CardId);
@@ -204,6 +223,11 @@ public sealed partial class GameSimulator
                 }),
                 DrawEffect draw => draw.Count > 0,
                 GainArmorEffect armor => armor.Amount > 0,
+                EnchantStatsEffect enchant => Enum.IsDefined(enchant.Target) && Enum.IsDefined(enchant.Duration) &&
+                    IsValidModifier(enchant.Modifier) &&
+                    (enchant.Target != StatTarget.Selected || (maySelect && card.Target != TargetRequirement.None)) &&
+                    (enchant.Target != StatTarget.Source || hasInPlaySource || (maySelect && IsCharacter(card.Definition.Kind))),
+                SilenceEffect => maySelect && TargetsOnlyMinions(card.Target),
                 SummonEffect summon => Enum.IsDefined(summon.Placement) && GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
                 TakeControlEffect => maySelect && card.Definition.Kind == EntityKind.Spell &&
                     card.Target == TargetRequirement.EnemyMinion,

@@ -36,6 +36,8 @@ public sealed partial class GameSimulator
                 .Select(id => _state.Entities[id]).OrderBy(entity => entity.PlayOrder);
             foreach (var entity in sources)
             {
+                if (entity.Silenced)
+                    continue;
                 var triggers = _rules.Card(entity).Triggers;
                 for (var index = 0; index < triggers.Length; index++)
                     listeners.Add(new(new(entity.Id, index), entity.CardId, entity.Controller, entity.PlayOrder!.Value, triggers[index]));
@@ -136,7 +138,7 @@ public sealed partial class GameSimulator
         private bool IsCurrent(Listener listener)
         {
             var entity = _state.Entities[listener.Id.Entity];
-            return _state.LocationOf(entity.Id).Zone == GameZone.Play &&
+            return !entity.Silenced && _state.LocationOf(entity.Id).Zone == GameZone.Play &&
                 entity.Controller == listener.Controller && entity.PlayOrder == listener.PlayOrder &&
                 entity.CardId == listener.CardId;
         }

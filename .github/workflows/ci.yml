@@ -59,5 +59,20 @@ jobs:
               $attack -ne 'attack,damage,damage,triggered,cardDrawn,triggered,armorGained') {
               throw 'Unexpected damage-and-draw replay.'
           }
+      - name: Replay stat enchantments and auras
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate samples/simulation-stats.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $wisp = $replay.entities | Where-Object { $_.id.value -eq 11 }
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 20 }
+          $endTurn = $replay.steps[3].events.kind -join ','
+          if ($hero.character.health -ne 25 -or $wisp.character.attack -ne 2 -or
+              $wisp.character.baseAttack -ne 1 -or $wisp.auraGrants.source.value -ne 12 -or
+              $wisp.enchantments.Count -ne 0 -or
+              $endTurn -ne 'turnEnded,enchantmentExpired,enchantmentExpired,turnStarted,cardDrawn') {
+              throw 'Unexpected stat enchantment or aura replay result.'
+          }
       - name: Libmem.NET integration build (Windows x64)
         run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo

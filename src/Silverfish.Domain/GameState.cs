@@ -23,6 +23,8 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
 public sealed record CharacterState(int Attack, int MaximumHealth, int Damage = 0, int Armor = 0,
     int AttacksThisTurn = 0, bool Exhausted = false, bool DivineShield = false)
 {
+    public int? BaseAttack { get; init; }
+    public int? BaseMaximumHealth { get; init; }
     public int Health => MaximumHealth - Damage;
 }
 
@@ -30,6 +32,9 @@ public sealed record GameEntity(EntityId Id, string CardId, PlayerId Owner, Play
 {
     public CharacterState? Character { get; init; }
     public long? PlayOrder { get; init; }
+    public bool Silenced { get; init; }
+    public ImmutableArray<StatEnchantment> Enchantments { get; init; } = [];
+    public ImmutableArray<StatAuraGrant> AuraGrants { get; init; } = [];
 }
 
 public enum MatchOutcome { InProgress, Draw, Won }
@@ -134,16 +139,24 @@ public sealed class GameState
         entity = entity with
         {
             Controller = destination.Player,
-            PlayOrder = entersPlay ? NextPlayOrder : entity.PlayOrder
+            PlayOrder = entersPlay ? NextPlayOrder : entity.PlayOrder,
+            AuraGrants = destination.Zone == GameZone.Play ? entity.AuraGrants : [],
+            Enchantments = destination.Zone == GameZone.Play ? entity.Enchantments : []
         };
         return new GameState(players.SetItem(to.Id, to), Entities.SetItem(id, entity), _locations.SetItem(id, destination),
             ActivePlayer, Turn, NextEntity, entersPlay ? checked(NextPlayOrder + 1) : NextPlayOrder, Outcome, Winner);
     }
 
-    internal GameState UpdateCharacter(EntityId id, CharacterState character)
+    internal GameState UpdateCharacter(EntityId id, CharacterState character) =>
+        UpdateEntity(Entities[id] with { Character = character });
+
+    internal GameState UpdateEntity(GameEntity entity)
     {
-        ValidateCharacter(character);
-        return new GameState(Players, Entities.SetItem(id, Entities[id] with { Character = character }), _locations,
+        if (!Entities.TryGetValue(entity.Id, out var current) || entity.Owner != current.Owner ||
+            entity.Controller != current.Controller || entity.PlayOrder != current.PlayOrder)
+            throw new ArgumentException("Entity identity and location can only change through structural edits.", nameof(entity));
+        ValidateEntity(entity, Players);
+        return new GameState(Players, Entities.SetItem(entity.Id, entity), _locations,
             ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner);
     }
 
@@ -196,7 +209,8 @@ public sealed class GameState
     private static void ValidateEntity(GameEntity entity, IReadOnlyDictionary<PlayerId, PlayerState> players)
     {
         if (entity.Id.Value < 0 || string.IsNullOrWhiteSpace(entity.CardId) ||
-            !players.ContainsKey(entity.Owner) || !players.ContainsKey(entity.Controller) || entity.PlayOrder is < 1)
+            !players.ContainsKey(entity.Owner) || !players.ContainsKey(entity.Controller) || entity.PlayOrder is < 1 ||
+            entity.Enchantments.IsDefault || entity.AuraGrants.IsDefault)
             throw new ArgumentException("Invalid entity identity, owner, controller, or entry order.");
         if (entity.Character is { } character)
             ValidateCharacter(character);
@@ -205,7 +219,8 @@ public sealed class GameState
     private static void ValidateCharacter(CharacterState character)
     {
         if (character.Attack < 0 || character.MaximumHealth < 1 || character.Damage < 0 ||
-            character.Armor < 0 || character.AttacksThisTurn < 0)
+            character.Armor < 0 || character.AttacksThisTurn < 0 ||
+            character.BaseAttack is < 0 || character.BaseMaximumHealth is < 1)
             throw new ArgumentException("Invalid character stats.");
     }
 }

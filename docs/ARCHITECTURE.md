@@ -4,6 +4,8 @@
 
 `Silverfish.Domain.GameState` stores stable player and entity IDs. Each player owns ordered zone indexes. The entity table stores the card reference, owner, controller and character state. An inverse index provides zone lookup. A structural edit replaces the related indexes together. Changing control preserves the entity ID and entrance order.
 
+The October 2026 client source provides a reference for identity, ownership and ordering. Its `GameState` looks up entities by ID, `Player` reaches its zones through `ZoneMgr`, and `Zone` maintains an ordered collection. The simulator keeps those relationships in immutable values so search branches can share unchanged state. Card resolution lives in `Silverfish.Simulation` and evaluation lives in `Silverfish.Core`.
+
 `Silverfish.Simulation.GameSimulator` generates supported legal actions and resolves one action into a new immutable state and an ordered event trace. Card definitions compose typed effects. The existing classic snapshots and the classic engine provide historical fixtures for comparison.
 
 `Silverfish.Core.SimulationTurnPlanner` searches branches up to a depth and transition budget. It applies each candidate through the new simulator and evaluates the resulting state through a separate scoring function. The `plan` command runs it after the fixture's scripted actions.
@@ -12,7 +14,11 @@ The replay command starts from a fully specified offline scenario. Its rules cov
 
 `samples/simulation-triggers.json` exercises spell and death timing through the normal replay command. Damage subscriptions can match the damaged entity or the source. Each fixed area or combat batch applies all hits before opening its damage queues. Armor loss produces a damage event, while a shield that absorbs the hit has a separate event. Each successful draw resolves the drawn card's intrinsic effects and other draw listeners before the next attempt. Fatigue dispatches damage, and a burned card never joins the draw queue.
 
-`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The six supported card definitions use the November 2026 data baseline. Automatic spell consumption and replacement draws, card-specific timing exceptions, advanced summon placements, enchantments, and hidden information modelling remain future work.
+`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The starter catalogue defines 17 cards using the November 2026 data baseline.
+
+Characters keep base attack and maximum health when modifiers first apply. The simulator applies direct enchantments in application order, then adds positional and friendly-board aura grants. Individual grants record their source entity. The simulator refreshes auras when a minion enters play and at resolution checkpoints, including after a death wave removes its minions. Silence clears direct enchantments and the minion's own abilities. Other minions can still provide it with aura grants. Maximum-health changes update current health without dispatching damage or healing events.
+
+`samples/simulation-stats.json` replays Raid Leader and Bloodlust, then checks damage, turn-end expiration, and the remaining aura. Cost modifiers, conditional auras, automatic spell consumption and replacement draws, advanced summon placements, and hidden information modelling remain future work.
 
 ## Components
 
@@ -60,4 +66,4 @@ The optional Libmem.NET project uses 2.5.0 and explicit Windows x64. At present,
 
 The existing StandaloneGameMod has an authenticated localhost TCP envelope (protocolVersion=2) with state.snapshot event messages. A consumer should re-use that authenticated transport, select the correct process instance and session, verify sequence continuity, map game state into the model and record regression fixtures. Do not add game-specific or bot-specific dependencies to Libmem.NET.
 
-The historical Silverfish AI uses its own Hrtprozis/Playfield structures. A mapper should transform verified GameSnapshot data into that model, then map the engine output back to CandidateAction identity. This must never be done by directly passing game process objects into Silverfish.Core.
+The new simulator needs an adapter from verified snapshot data to its players, ordered zones, and entities. Historical replay through ClassicBridge has its own adapter for the Hrtprozis and Playfield model. Strategy code receives immutable simulation state and candidate IDs from the applicable adapter.

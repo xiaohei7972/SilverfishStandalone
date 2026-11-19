@@ -41,6 +41,7 @@ public sealed partial class GameSimulator
             if (_state.Outcome != MatchOutcome.InProgress)
                 return;
 
+            ExpireTurnEnchantments();
             _state = _state.PassTurn();
             var next = _state.Players[_state.ActivePlayer];
             var crystals = Math.Min(next.ManaCrystals + 1, 10);
@@ -103,6 +104,7 @@ public sealed partial class GameSimulator
             if (isMinion)
             {
                 _state = _state.UpdateCharacter(source, card.CreateCharacter());
+                _state = _rules.RefreshAuras(_state);
                 _events.Add(new(SimulationEventKind.Summoned, playerId, source));
             }
 
@@ -212,6 +214,12 @@ public sealed partial class GameSimulator
                 case GainArmorEffect armor:
                     GainArmor(context, armor.Amount);
                     break;
+                case EnchantStatsEffect enchant:
+                    EnchantStats(context, enchant);
+                    break;
+                case SilenceEffect:
+                    Silence(context);
+                    break;
                 case SummonEffect summon:
                     var position = summon.Placement == SummonPlacement.Rightmost ? null : context.DeathPosition;
                     if (Summon(context.Controller, summon.CardId, position) is EntityId summoned)
@@ -234,6 +242,7 @@ public sealed partial class GameSimulator
             var entity = new GameEntity(id, cardId, player, player) { Character = _rules.GetCard(cardId).CreateCharacter() };
             var index = position is int slot ? _rules.BoardIndex(_state, player, slot) : _state.Players[player].In(GameZone.Play).Length;
             _state = _state.AddToPlay(entity, index);
+            _state = _rules.RefreshAuras(_state);
             _events.Add(new(SimulationEventKind.Summoned, player, id));
             return id;
         }
@@ -245,8 +254,7 @@ public sealed partial class GameSimulator
                 entity.Controller == controller || _rules.MinionCount(_state, controller) >= BoardLimit)
                 return;
             _state = _state.Move(target, new(controller, GameZone.Play));
-            var hasCharge = _rules.Card(entity).Keywords.HasFlag(CardKeywords.Charge);
-            _state = _state.UpdateCharacter(target, entity.Character! with { Exhausted = !hasCharge });
+            _state = _state.UpdateCharacter(target, entity.Character! with { Exhausted = true });
             _events.Add(new(SimulationEventKind.ControlChanged, controller, source, target));
         }
 
@@ -259,7 +267,10 @@ public sealed partial class GameSimulator
                     .Where(entity => entity.Character is { Health: <= 0 })
                     .OrderBy(entity => entity.PlayOrder).ToArray();
                 if (dead.Length == 0)
+                {
+                    _state = _rules.RefreshAuras(_state);
                     return;
+                }
 
                 var listeners = CaptureListeners();
                 var positions = new Dictionary<EntityId, int>();
@@ -268,16 +279,19 @@ public sealed partial class GameSimulator
                     SpendResolutionStep();
                     if (_rules.Card(entity).Definition.Kind == EntityKind.Minion)
                         positions.Add(entity.Id, _rules.BoardMinions(_state, entity.Controller).TakeWhile(id => id != entity.Id).Count());
+                    if (!entity.AuraGrants.IsEmpty || !entity.Enchantments.IsEmpty)
+                        _state = _state.UpdateEntity(RecalculateStats(entity with { Enchantments = [] }, []));
                     _state = _state.Move(entity.Id, new(entity.Controller, GameZone.Graveyard));
                     _events.Add(new(SimulationEventKind.Died, entity.Controller, entity.Id));
                 }
 
+                _state = _rules.RefreshAuras(_state);
                 foreach (var entity in dead)
                 {
                     if (!positions.TryGetValue(entity.Id, out var position))
                         continue;
                     var queue = Queue(new(TriggerTiming.MinionDied, entity.Controller, entity.Id), listeners);
-                    var effects = _rules.Card(entity).Deathrattle;
+                    var effects = entity.Silenced ? [] : _rules.Card(entity).Deathrattle;
                     if (!effects.IsEmpty)
                         queue = queue.Append(new(new(entity.Id, entity.Controller, DeathPosition: position),
                             entity.PlayOrder!.Value, effects));
