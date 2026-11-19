@@ -10,7 +10,9 @@
 
 The replay command starts from a fully specified offline scenario. Its rules cover turn start and draw, fatigue, burning cards, basic minion and spell play, basic combat, control transfer, and deathrattle waves. Card definitions can subscribe to turn boundaries, summoning, spell resolution, and minion death. A queue records eligible listeners and runs nested events before returning to the parent listener. Minion-death listeners share the wave's eligibility snapshot and act in entry order alongside deathrattles. The normal single-token deathrattle uses the slot recorded when the minion was removed.
 
-`samples/simulation-triggers.json` exercises spell and death timing through the normal replay command. The replay includes the triggering entity, event subject when present, and checkpoint, so differences can be identified at the first differing transition. The current rules catalogue still needs damage and draw subscriptions, card-specific timing exceptions, advanced summon placements, enchantment layers, and hidden information modelling.
+`samples/simulation-triggers.json` exercises spell and death timing through the normal replay command. Damage subscriptions can match the damaged entity or the source. Each fixed area or combat batch applies all hits before opening its damage queues. Armor loss produces a damage event, while a shield that absorbs the hit has a separate event. Each successful draw resolves the drawn card's intrinsic effects and other draw listeners before the next attempt. Fatigue dispatches damage, and a burned card never joins the draw queue.
+
+`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The six supported card definitions use the November 2026 data baseline. Automatic spell consumption and replacement draws, card-specific timing exceptions, advanced summon placements, enchantments, and hidden information modelling remain future work.
 
 ## Components
 

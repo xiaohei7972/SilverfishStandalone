@@ -5,7 +5,7 @@ using Xunit;
 
 namespace Silverfish.Domain.Tests;
 
-public sealed class GameSimulationTests
+public sealed partial class GameSimulationTests
 {
     private static readonly PlayerId First = new(1);
     private static readonly PlayerId Second = new(2);

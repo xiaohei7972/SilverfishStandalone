@@ -56,10 +56,10 @@ public sealed partial class GameSimulator
             ResolveDeaths();
             FinishIfHeroesDied();
             if (_state.Outcome == MatchOutcome.InProgress)
-                Draw(next.Id);
+                RunWork(new Stack<Work>([new DrawCards(next.Id, 1)]));
         }
 
-        private void Draw(PlayerId playerId)
+        private void Draw(Stack<Work> work, PlayerId playerId)
         {
             SpendResolutionStep();
             var player = _state.Players[playerId];
@@ -69,7 +69,7 @@ public sealed partial class GameSimulator
                 var fatigue = checked(player.Fatigue + 1);
                 _state = _state.SetResources(playerId, player.Mana, player.ManaCrystals, fatigue);
                 _events.Add(new(SimulationEventKind.Fatigue, playerId, Target: player.Hero, Amount: fatigue));
-                Damage(null, player.Hero, fatigue);
+                PushOccurrence(work, Damage(null, player.Hero, fatigue));
                 return;
             }
 
@@ -77,6 +77,16 @@ public sealed partial class GameSimulator
             var burned = player.In(GameZone.Hand).Length >= HandLimit;
             _state = _state.Move(drawn, new(playerId, burned ? GameZone.Graveyard : GameZone.Hand));
             _events.Add(new(burned ? SimulationEventKind.CardBurned : SimulationEventKind.CardDrawn, playerId, drawn));
+            if (burned)
+                return;
+
+            PushTriggers(work, Queue(new(TriggerTiming.CardDrawn, playerId, drawn), CaptureListeners()));
+            var drawEffects = _rules.Card(_state.Entities[drawn]).WhenDrawn;
+            if (!drawEffects.IsEmpty)
+            {
+                _events.Add(new(SimulationEventKind.DrawnEffect, playerId, drawn));
+                PushEffects(work, new(drawn, playerId), drawEffects);
+            }
         }
 
         private void Play(PlayerId playerId, EntityId source, EntityId? target, int? position)
@@ -120,21 +130,27 @@ public sealed partial class GameSimulator
             var retaliation = _rules.Card(defender).Definition.Kind == EntityKind.Minion ? defender.Character!.Attack : 0;
             _state = _state.UpdateCharacter(source, attacker with { AttacksThisTurn = attacker.AttacksThisTurn + 1 });
             _events.Add(new(SimulationEventKind.Attack, player, source, target));
-            Damage(source, target, attacker.Attack);
-            Damage(target, source, retaliation);
+            var hit = Damage(source, target, attacker.Attack);
+            var counter = Damage(target, source, retaliation);
+
+            // Commit both hits before either damage event can start its queue.
+            var work = new Stack<Work>();
+            PushOccurrence(work, counter);
+            PushOccurrence(work, hit);
+            RunWork(work);
         }
 
-        private void Damage(EntityId? source, EntityId target, int amount)
+        private Occurrence? Damage(EntityId? source, EntityId target, int amount)
         {
             if (amount == 0 || _state.LocationOf(target).Zone != GameZone.Play)
-                return;
+                return null;
             var entity = _state.Entities[target];
             var character = entity.Character!;
             if (character.DivineShield)
             {
                 _state = _state.UpdateCharacter(target, character with { DivineShield = false });
                 _events.Add(new(SimulationEventKind.ShieldBroken, entity.Controller, source, target));
-                return;
+                return null;
             }
 
             var absorbed = Math.Min(character.Armor, amount);
@@ -144,17 +160,39 @@ public sealed partial class GameSimulator
                 Damage = checked(character.Damage + (amount - absorbed))
             });
             _events.Add(new(SimulationEventKind.Damage, entity.Controller, source, target, amount));
+            return new(TriggerTiming.Damage, entity.Controller, target,
+                source is EntityId sourceId ? new(sourceId, _state.Entities[sourceId].Controller) : null, amount);
+        }
+
+        private static void PushOccurrence(Stack<Work> work, Occurrence? occurrence)
+        {
+            if (occurrence is { } happened)
+                work.Push(new Dispatch(happened));
+        }
+
+        private void GainArmor(EffectContext context, int amount)
+        {
+            var hero = _state.Players[context.Controller].Hero;
+            if (_state.LocationOf(hero).Zone != GameZone.Play)
+                return;
+            var character = _state.Entities[hero].Character!;
+            _state = _state.UpdateCharacter(hero, character with { Armor = checked(character.Armor + amount) });
+            _events.Add(new(SimulationEventKind.ArmorGained, context.Controller, context.Source, hero, amount));
         }
 
         private void ExecuteEffect(Stack<Work> work, EffectContext context, CardEffect effect)
         {
             switch (effect)
             {
-                case DamageEffect { Target: DamageTarget.AllMinions } damage:
-                    var minions = _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player))
-                        .OrderBy(id => _state.Entities[id].PlayOrder).ToArray();
-                    foreach (var id in minions)
-                        Damage(context.Source, id, damage.Amount);
+                case DamageEffect { Target: DamageTarget.AllMinions or DamageTarget.EnemyMinions } damage:
+                    var targets = damage.Target == DamageTarget.EnemyMinions
+                        ? _rules.BoardMinions(_state, _state.OpponentOf(context.Controller))
+                        : _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player));
+                    var hits = targets
+                        .OrderBy(id => _state.Entities[id].PlayOrder)
+                        .Select(id => Damage(context.Source, id, damage.Amount)).ToArray();
+                    for (var index = hits.Length - 1; index >= 0; index--)
+                        PushOccurrence(work, hits[index]);
                     break;
                 case DamageEffect damage:
                     var target = damage.Target switch
@@ -166,11 +204,13 @@ public sealed partial class GameSimulator
                         DamageTarget.EnemyHero => _state.Players[_state.OpponentOf(context.Controller)].Hero,
                         _ => throw new InvalidOperationException("Unknown damage target.")
                     };
-                    Damage(context.Source, target, damage.Amount);
+                    PushOccurrence(work, Damage(context.Source, target, damage.Amount));
                     break;
                 case DrawEffect draw:
-                    for (var i = 0; i < draw.Count; i++)
-                        Draw(context.Controller);
+                    work.Push(new DrawCards(context.Controller, draw.Count));
+                    break;
+                case GainArmorEffect armor:
+                    GainArmor(context, armor.Amount);
                     break;
                 case SummonEffect summon:
                     var position = summon.Placement == SummonPlacement.Rightmost ? null : context.DeathPosition;

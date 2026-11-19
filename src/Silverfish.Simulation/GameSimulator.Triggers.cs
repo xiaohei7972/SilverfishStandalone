@@ -12,7 +12,10 @@ public sealed partial class GameSimulator
         private readonly record struct EffectContext(EntityId Source, PlayerId Controller,
             EntityId? Selected = null, EntityId? Subject = null, int? DeathPosition = null);
 
-        private readonly record struct Occurrence(TriggerTiming Timing, PlayerId Player, EntityId? Subject = null);
+        private readonly record struct DamageSource(EntityId Id, PlayerId Controller);
+
+        private readonly record struct Occurrence(TriggerTiming Timing, PlayerId Player, EntityId? Subject = null,
+            DamageSource? Source = null, int? Amount = null);
 
         private readonly record struct ListenerId(EntityId Entity, int Index);
 
@@ -20,9 +23,10 @@ public sealed partial class GameSimulator
 
         private abstract record Work;
         private sealed record ApplyEffect(EffectContext Context, CardEffect Effect) : Work;
+        private sealed record DrawCards(PlayerId Player, int Remaining) : Work;
         private sealed record Dispatch(Occurrence Occurrence) : Work;
         private sealed record Activate(EffectContext Context, long PlayOrder, ImmutableArray<CardEffect> Effects,
-            Listener? Listener = null) : Work;
+            Listener? Listener = null, EntityId? LivingEntity = null, int? Amount = null) : Work;
         private sealed record Complete(ListenerId Listener) : Work;
 
         private ImmutableArray<Listener> CaptureListeners()
@@ -39,17 +43,37 @@ public sealed partial class GameSimulator
             return listeners.ToImmutable();
         }
 
-        private static IEnumerable<Activate> Queue(Occurrence occurrence, ImmutableArray<Listener> listeners)
+        private IEnumerable<Activate> Queue(Occurrence occurrence, ImmutableArray<Listener> listeners)
         {
             foreach (var listener in listeners)
             {
-                if (listener.Trigger.Timing != occurrence.Timing || listener.Id.Entity == occurrence.Subject ||
-                    (listener.Trigger.Relation == TriggerRelation.Friendly && listener.Controller != occurrence.Player) ||
-                    (listener.Trigger.Relation == TriggerRelation.Opponent && listener.Controller == occurrence.Player))
+                var trigger = listener.Trigger;
+                if (trigger.Timing != occurrence.Timing ||
+                    (trigger.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned &&
+                        listener.Id.Entity == occurrence.Subject))
+                    continue;
+
+                var entityId = occurrence.Subject;
+                var player = occurrence.Player;
+                if (trigger.Focus == TriggerFocus.DamageSource)
+                {
+                    if (occurrence.Source is not { } source)
+                        continue;
+                    entityId = source.Id;
+                    player = source.Controller;
+                }
+
+                if ((trigger.Relation == TriggerRelation.Friendly && listener.Controller != player) ||
+                    (trigger.Relation == TriggerRelation.Opponent && listener.Controller == player) ||
+                    (trigger.EntityMatch == TriggerEntityMatch.Self && listener.Id.Entity != entityId) ||
+                    (trigger.EntityMatch == TriggerEntityMatch.Other && listener.Id.Entity == entityId) ||
+                    (trigger.EntityKind is EntityKind kind &&
+                        (entityId is not EntityId id || _rules.Card(_state.Entities[id]).Definition.Kind != kind)) ||
+                    (trigger.RequireLivingEntity && !IsLivingCharacter(entityId)))
                     continue;
 
                 yield return new(new(listener.Id.Entity, listener.Controller, Subject: occurrence.Subject),
-                    listener.PlayOrder, listener.Trigger.Effects, listener);
+                    listener.PlayOrder, trigger.Effects, listener, trigger.RequireLivingEntity ? entityId : null, occurrence.Amount);
             }
         }
 
@@ -76,19 +100,25 @@ public sealed partial class GameSimulator
                         SpendResolutionStep();
                         ExecuteEffect(work, effect.Context, effect.Effect);
                         break;
+                    case DrawCards draw:
+                        if (draw.Remaining > 1)
+                            work.Push(new DrawCards(draw.Player, draw.Remaining - 1));
+                        Draw(work, draw.Player);
+                        break;
                     case Dispatch dispatch:
-                        foreach (var trigger in Queue(dispatch.Occurrence, CaptureListeners()).Reverse())
-                            work.Push(trigger);
+                        PushTriggers(work, Queue(dispatch.Occurrence, CaptureListeners()));
                         break;
                     case Activate trigger:
                         SpendResolutionStep();
                         if (trigger.Listener is { } listener)
                         {
-                            if (!IsCurrent(listener) || !_activeTriggers.Add(listener.Id))
+                            if (!IsCurrent(listener) ||
+                                (trigger.LivingEntity is EntityId living && !IsLivingCharacter(living)) ||
+                                !_activeTriggers.Add(listener.Id))
                                 break;
                             work.Push(new Complete(listener.Id));
                             _events.Add(new(SimulationEventKind.Triggered, listener.Controller, listener.Id.Entity,
-                                trigger.Context.Subject, Timing: listener.Trigger.Timing));
+                                trigger.Context.Subject, trigger.Amount, listener.Trigger.Timing));
                         }
                         else
                         {
@@ -109,6 +139,16 @@ public sealed partial class GameSimulator
             return _state.LocationOf(entity.Id).Zone == GameZone.Play &&
                 entity.Controller == listener.Controller && entity.PlayOrder == listener.PlayOrder &&
                 entity.CardId == listener.CardId;
+        }
+
+        private bool IsLivingCharacter(EntityId? id) => id is EntityId entity &&
+            _state.LocationOf(entity).Zone == GameZone.Play &&
+            _state.Entities[entity].Character is { Health: > 0 };
+
+        private static void PushTriggers(Stack<Work> work, IEnumerable<Activate> queue)
+        {
+            foreach (var trigger in queue.Reverse())
+                work.Push(trigger);
         }
 
         private static void PushEffects(Stack<Work> work, EffectContext context, ImmutableArray<CardEffect> effects)

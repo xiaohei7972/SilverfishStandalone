@@ -46,5 +46,18 @@ jobs:
           if (($timing -join ',') -ne 'beforeSpellResolved,minionDied,afterSpellResolved' -or $board -ne '10,11,21,13') {
               throw 'Unexpected trigger or board order.'
           }
+      - name: Replay starter cards with damage and draw triggers
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate samples/simulation-damage-draw.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+          $attack = $replay.steps[2].events.kind -join ','
+          $draws = ($replay.steps.events | Where-Object { $_.kind -eq 'cardDrawn' }).source.value -join ','
+          if ($hero.character.armor -ne 1 -or $draws -ne '14,15,22,16' -or
+              $attack -ne 'attack,damage,damage,triggered,cardDrawn,triggered,armorGained') {
+              throw 'Unexpected damage-and-draw replay.'
+          }
       - name: Libmem.NET integration build (Windows x64)
         run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo

@@ -39,13 +39,19 @@ public sealed partial class GameSimulator
 
             ValidateEffects(card, card.OnPlay, maySelect: true);
             ValidateEffects(card, card.Deathrattle, maySelect: false);
+            ValidateEffects(card, card.WhenDrawn, maySelect: false);
             foreach (var trigger in card.Triggers)
             {
                 if (trigger is null || !Enum.IsDefined(trigger.Timing) || !Enum.IsDefined(trigger.Relation) ||
+                    !Enum.IsDefined(trigger.Focus) || !Enum.IsDefined(trigger.EntityMatch) ||
+                    (trigger.EntityKind is EntityKind kind && (kind == EntityKind.Unknown || !Enum.IsDefined(kind))) ||
+                    (trigger.Focus == TriggerFocus.DamageSource && trigger.Timing != TriggerTiming.Damage) ||
+                    (trigger.Timing is TriggerTiming.TurnStarted or TriggerTiming.TurnEnded &&
+                        (trigger.EntityMatch != TriggerEntityMatch.Any || trigger.EntityKind is not null || trigger.RequireLivingEntity)) ||
                     trigger.Effects.IsDefaultOrEmpty)
                     throw new ArgumentException($"Invalid trigger on '{definition.CardId}'.", nameof(cards));
                 ValidateEffects(card, trigger.Effects, maySelect: false,
-                    hasSubject: trigger.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned,
+                    hasSubject: trigger.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or TriggerTiming.Damage,
                     hasInPlaySource: true);
             }
         }
@@ -193,10 +199,11 @@ public sealed partial class GameSimulator
                     DamageTarget.Selected => maySelect && card.Target != TargetRequirement.None,
                     DamageTarget.Source => hasInPlaySource || (maySelect && IsCharacter(card.Definition.Kind)),
                     DamageTarget.TriggerSubject => hasSubject,
-                    DamageTarget.EnemyHero or DamageTarget.FriendlyHero or DamageTarget.AllMinions => true,
+                    DamageTarget.EnemyHero or DamageTarget.FriendlyHero or DamageTarget.AllMinions or DamageTarget.EnemyMinions => true,
                     _ => false
                 }),
                 DrawEffect draw => draw.Count > 0,
+                GainArmorEffect armor => armor.Amount > 0,
                 SummonEffect summon => Enum.IsDefined(summon.Placement) && GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
                 TakeControlEffect => maySelect && card.Definition.Kind == EntityKind.Spell &&
                     card.Target == TargetRequirement.EnemyMinion,

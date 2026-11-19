@@ -31,7 +31,13 @@ try
             ?? throw new InvalidDataException("Input JSON must contain a simulation scenario.");
         if (scenario.Cards is null || scenario.Players is null || scenario.Entities is null || scenario.Actions is null)
             throw new InvalidDataException("Cards, players, entities and actions must be arrays.");
-        var simulator = new GameSimulator(scenario.Cards);
+        IEnumerable<SimulationCard> cards = scenario.CardSet switch
+        {
+            null => scenario.Cards,
+            "starter" => StarterCardCatalog.Cards.Concat(scenario.Cards),
+            _ => throw new InvalidDataException($"Unknown card set '{scenario.CardSet}'.")
+        };
+        var simulator = new GameSimulator(cards);
         var state = simulator.CreateGame(scenario.Players, scenario.Entities, scenario.ActivePlayer, scenario.Turn);
         var steps = new List<SimulationStep>();
         foreach (var action in scenario.Actions)
@@ -69,7 +75,8 @@ catch (Exception ex) when (ex is IOException or JsonException or ArgumentExcepti
 
 internal sealed record SimulationScenario
 {
-    public required SimulationCard[] Cards { get; init; }
+    public string? CardSet { get; init; }
+    public SimulationCard[] Cards { get; init; } = [];
     public required PlayerState[] Players { get; init; }
     public required GameEntity[] Entities { get; init; }
     public required PlayerId ActivePlayer { get; init; }
