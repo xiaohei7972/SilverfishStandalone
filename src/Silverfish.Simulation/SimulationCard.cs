@@ -8,7 +8,18 @@ namespace Silverfish.Simulation;
 public enum CardKeywords { None = 0, Taunt = 1, Charge = 2, DivineShield = 4 }
 
 public enum TargetRequirement { None, Character, EnemyCharacter, EnemyMinion }
-public enum DamageTarget { Selected, EnemyHero, AllMinions }
+public enum DamageTarget { Selected, EnemyHero, AllMinions, Source, TriggerSubject, FriendlyHero }
+public enum SummonPlacement { Default, Rightmost }
+
+public enum TriggerTiming
+{
+    TurnStarted, TurnEnded, WhenMinionSummoned, AfterMinionSummoned,
+    BeforeSpellResolved, AfterSpellResolved, MinionDied
+}
+
+public enum TriggerRelation { Friendly, Opponent, Any }
+
+public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation, ImmutableArray<CardEffect> Effects);
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(DamageEffect), "damage")]
@@ -19,8 +30,8 @@ public abstract record CardEffect;
 
 public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect;
 public sealed record DrawEffect(int Count) : CardEffect;
-/// <summary>Summons on the right edge of the controlling player's battlefield.</summary>
-public sealed record SummonEffect(string CardId) : CardEffect;
+/// <summary>Uses the death position during a deathrattle and the right edge otherwise.</summary>
+public sealed record SummonEffect(string CardId, SummonPlacement Placement = SummonPlacement.Default) : CardEffect;
 public sealed record TakeControlEffect : CardEffect;
 
 public sealed record SimulationCard(CardDefinition Definition)
@@ -29,6 +40,7 @@ public sealed record SimulationCard(CardDefinition Definition)
     public TargetRequirement Target { get; init; }
     public ImmutableArray<CardEffect> OnPlay { get; init; } = [];
     public ImmutableArray<CardEffect> Deathrattle { get; init; } = [];
+    public ImmutableArray<CardTrigger> Triggers { get; init; } = [];
 
     internal CharacterState CreateCharacter() => new(Definition.PrintedAttack, Definition.PrintedHealth,
         Exhausted: Definition.Kind == EntityKind.Minion && !Keywords.HasFlag(CardKeywords.Charge),

@@ -32,11 +32,22 @@ public sealed partial class GameSimulator
                 (IsCharacter(definition.Kind) && definition.PrintedHealth < 1) ||
                 !Enum.IsDefined(card.Target) ||
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield)) != 0 ||
-                (definition.Kind != EntityKind.Minion && !card.Deathrattle.IsEmpty))
+                card.Triggers.IsDefault ||
+                (definition.Kind != EntityKind.Minion && !card.Deathrattle.IsEmpty) ||
+                (!IsCharacter(definition.Kind) && !card.Triggers.IsEmpty))
                 throw new ArgumentException($"Invalid simulation card '{definition.CardId}'.", nameof(cards));
 
             ValidateEffects(card, card.OnPlay, maySelect: true);
             ValidateEffects(card, card.Deathrattle, maySelect: false);
+            foreach (var trigger in card.Triggers)
+            {
+                if (trigger is null || !Enum.IsDefined(trigger.Timing) || !Enum.IsDefined(trigger.Relation) ||
+                    trigger.Effects.IsDefaultOrEmpty)
+                    throw new ArgumentException($"Invalid trigger on '{definition.CardId}'.", nameof(cards));
+                ValidateEffects(card, trigger.Effects, maySelect: false,
+                    hasSubject: trigger.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned,
+                    hasInPlaySource: true);
+            }
         }
     }
 
@@ -94,7 +105,11 @@ public sealed partial class GameSimulator
                 (minions >= BoardLimit && (createsMinion || card.OnPlay.Any(effect => effect is TakeControlEffect))))
                 continue;
 
-            foreach (var target in PlayTargets(state, card.Target))
+            var targets = PlayTargets(state, card.Target).ToArray();
+            if (createsMinion && targets.Length == 0)
+                targets = [null];
+
+            foreach (var target in targets)
             {
                 if (createsMinion)
                 {
@@ -164,7 +179,8 @@ public sealed partial class GameSimulator
         return zone.Length;
     }
 
-    private void ValidateEffects(SimulationCard card, ImmutableArray<CardEffect> effects, bool maySelect)
+    private void ValidateEffects(SimulationCard card, ImmutableArray<CardEffect> effects, bool maySelect,
+        bool hasSubject = false, bool hasInPlaySource = false)
     {
         if (effects.IsDefault)
             throw new ArgumentException("Effect arrays must be initialized.");
@@ -172,10 +188,16 @@ public sealed partial class GameSimulator
         {
             var valid = effect switch
             {
-                DamageEffect damage => damage.Amount > 0 && Enum.IsDefined(damage.Target) &&
-                    (damage.Target != DamageTarget.Selected || (maySelect && card.Target != TargetRequirement.None)),
+                DamageEffect damage => damage.Amount > 0 && (damage.Target switch
+                {
+                    DamageTarget.Selected => maySelect && card.Target != TargetRequirement.None,
+                    DamageTarget.Source => hasInPlaySource || (maySelect && IsCharacter(card.Definition.Kind)),
+                    DamageTarget.TriggerSubject => hasSubject,
+                    DamageTarget.EnemyHero or DamageTarget.FriendlyHero or DamageTarget.AllMinions => true,
+                    _ => false
+                }),
                 DrawEffect draw => draw.Count > 0,
-                SummonEffect summon => GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
+                SummonEffect summon => Enum.IsDefined(summon.Placement) && GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
                 TakeControlEffect => maySelect && card.Definition.Kind == EntityKind.Spell &&
                     card.Target == TargetRequirement.EnemyMinion,
                 _ => false

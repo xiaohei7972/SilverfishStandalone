@@ -5,9 +5,10 @@ namespace Silverfish.Simulation;
 
 public sealed partial class GameSimulator
 {
-    private sealed class Resolution(GameSimulator rules, GameState state)
+    private sealed partial class Resolution(GameSimulator rules, GameState state)
     {
         private readonly ImmutableArray<SimulationEvent>.Builder _events = ImmutableArray.CreateBuilder<SimulationEvent>();
+        private readonly GameSimulator _rules = rules;
         private GameState _state = state;
         private int _remainingSteps = rules._resolutionLimit;
 
@@ -34,6 +35,12 @@ public sealed partial class GameSimulator
         private void EndTurn(PlayerId outgoing)
         {
             _events.Add(new(SimulationEventKind.TurnEnded, outgoing));
+            RunTriggers(new(TriggerTiming.TurnEnded, outgoing), CaptureListeners());
+            ResolveDeaths();
+            FinishIfHeroesDied();
+            if (_state.Outcome != MatchOutcome.InProgress)
+                return;
+
             _state = _state.PassTurn();
             var next = _state.Players[_state.ActivePlayer];
             var crystals = Math.Min(next.ManaCrystals + 1, 10);
@@ -45,7 +52,11 @@ public sealed partial class GameSimulator
             }
 
             _events.Add(new(SimulationEventKind.TurnStarted, next.Id));
-            Draw(next.Id);
+            RunTriggers(new(TriggerTiming.TurnStarted, next.Id), CaptureListeners());
+            ResolveDeaths();
+            FinishIfHeroesDied();
+            if (_state.Outcome == MatchOutcome.InProgress)
+                Draw(next.Id);
         }
 
         private void Draw(PlayerId playerId)
@@ -70,29 +81,43 @@ public sealed partial class GameSimulator
 
         private void Play(PlayerId playerId, EntityId source, EntityId? target, int? position)
         {
-            var card = rules.Card(_state.Entities[source]);
+            var card = _rules.Card(_state.Entities[source]);
+            var isMinion = card.Definition.Kind == EntityKind.Minion;
+            var listeners = CaptureListeners();
             var player = _state.Players[playerId];
             _state = _state.SetResources(playerId, player.Mana - card.Definition.PrintedCost, player.ManaCrystals, player.Fatigue);
-            var index = position is int slot ? rules.BoardIndex(_state, playerId, slot) : (int?)null;
+            var index = position is int slot ? _rules.BoardIndex(_state, playerId, slot) : (int?)null;
             _state = _state.Move(source, new(playerId, GameZone.Play), index);
             _events.Add(new(SimulationEventKind.CardPlayed, playerId, source, target));
 
-            if (card.Definition.Kind == EntityKind.Minion)
+            if (isMinion)
             {
                 _state = _state.UpdateCharacter(source, card.CreateCharacter());
                 _events.Add(new(SimulationEventKind.Summoned, playerId, source));
             }
 
-            ResolveEffects(source, playerId, target, card.OnPlay);
-            if (card.Definition.Kind == EntityKind.Spell)
+            var before = isMinion ? TriggerTiming.WhenMinionSummoned : TriggerTiming.BeforeSpellResolved;
+            RunTriggers(new(before, playerId, source), listeners);
+            ResolveDeaths();
+
+            if (card.Target == TargetRequirement.None || target is not null)
+                ResolveEffects(new(source, playerId, target), card.OnPlay);
+            if (!isMinion)
                 _state = _state.Move(source, new(playerId, GameZone.Graveyard));
+            ResolveDeaths();
+
+            if (!isMinion || _state.LocationOf(source).Zone == GameZone.Play)
+            {
+                var after = isMinion ? TriggerTiming.AfterMinionSummoned : TriggerTiming.AfterSpellResolved;
+                RunTriggers(new(after, _state.Entities[source].Controller, source), listeners);
+            }
         }
 
         private void Attack(PlayerId player, EntityId source, EntityId target)
         {
             var attacker = _state.Entities[source].Character!;
             var defender = _state.Entities[target];
-            var retaliation = rules.Card(defender).Definition.Kind == EntityKind.Minion ? defender.Character!.Attack : 0;
+            var retaliation = _rules.Card(defender).Definition.Kind == EntityKind.Minion ? defender.Character!.Attack : 0;
             _state = _state.UpdateCharacter(source, attacker with { AttacksThisTurn = attacker.AttacksThisTurn + 1 });
             _events.Add(new(SimulationEventKind.Attack, player, source, target));
             Damage(source, target, attacker.Attack);
@@ -121,56 +146,66 @@ public sealed partial class GameSimulator
             _events.Add(new(SimulationEventKind.Damage, entity.Controller, source, target, amount));
         }
 
-        private void ResolveEffects(EntityId source, PlayerId controller, EntityId? target, ImmutableArray<CardEffect> effects)
+        private void ExecuteEffect(Stack<Work> work, EffectContext context, CardEffect effect)
         {
-            foreach (var effect in effects)
+            switch (effect)
             {
-                SpendResolutionStep();
-                switch (effect)
-                {
-                    case DamageEffect { Target: DamageTarget.Selected } damage:
-                        Damage(source, target!.Value, damage.Amount);
-                        break;
-                    case DamageEffect { Target: DamageTarget.EnemyHero } damage:
-                        Damage(source, _state.Players[_state.OpponentOf(controller)].Hero, damage.Amount);
-                        break;
-                    case DamageEffect damage:
-                        var minions = _state.Players.Keys.SelectMany(player => rules.BoardMinions(_state, player))
-                            .OrderBy(id => _state.Entities[id].PlayOrder).ToArray();
-                        foreach (var id in minions)
-                            Damage(source, id, damage.Amount);
-                        break;
-                    case DrawEffect draw:
-                        for (var i = 0; i < draw.Count; i++)
-                            Draw(controller);
-                        break;
-                    case SummonEffect summon:
-                        Summon(controller, summon.CardId);
-                        break;
-                    case TakeControlEffect:
-                        TakeControl(source, target!.Value, controller);
-                        break;
-                }
+                case DamageEffect { Target: DamageTarget.AllMinions } damage:
+                    var minions = _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player))
+                        .OrderBy(id => _state.Entities[id].PlayOrder).ToArray();
+                    foreach (var id in minions)
+                        Damage(context.Source, id, damage.Amount);
+                    break;
+                case DamageEffect damage:
+                    var target = damage.Target switch
+                    {
+                        DamageTarget.Selected => context.Selected!.Value,
+                        DamageTarget.Source => context.Source,
+                        DamageTarget.TriggerSubject => context.Subject!.Value,
+                        DamageTarget.FriendlyHero => _state.Players[context.Controller].Hero,
+                        DamageTarget.EnemyHero => _state.Players[_state.OpponentOf(context.Controller)].Hero,
+                        _ => throw new InvalidOperationException("Unknown damage target.")
+                    };
+                    Damage(context.Source, target, damage.Amount);
+                    break;
+                case DrawEffect draw:
+                    for (var i = 0; i < draw.Count; i++)
+                        Draw(context.Controller);
+                    break;
+                case SummonEffect summon:
+                    var position = summon.Placement == SummonPlacement.Rightmost ? null : context.DeathPosition;
+                    if (Summon(context.Controller, summon.CardId, position) is EntityId summoned)
+                    {
+                        work.Push(new Dispatch(new(TriggerTiming.AfterMinionSummoned, context.Controller, summoned)));
+                        work.Push(new Dispatch(new(TriggerTiming.WhenMinionSummoned, context.Controller, summoned)));
+                    }
+                    break;
+                case TakeControlEffect:
+                    TakeControl(context.Source, context.Selected!.Value, context.Controller);
+                    break;
             }
         }
 
-        private void Summon(PlayerId player, string cardId)
+        private EntityId? Summon(PlayerId player, string cardId, int? position)
         {
-            if (rules.MinionCount(_state, player) >= BoardLimit)
-                return;
+            if (_rules.MinionCount(_state, player) >= BoardLimit)
+                return null;
             var id = new EntityId(_state.NextEntity);
-            var entity = new GameEntity(id, cardId, player, player) { Character = rules.GetCard(cardId).CreateCharacter() };
-            _state = _state.AddToPlay(entity, _state.Players[player].In(GameZone.Play).Length);
+            var entity = new GameEntity(id, cardId, player, player) { Character = _rules.GetCard(cardId).CreateCharacter() };
+            var index = position is int slot ? _rules.BoardIndex(_state, player, slot) : _state.Players[player].In(GameZone.Play).Length;
+            _state = _state.AddToPlay(entity, index);
             _events.Add(new(SimulationEventKind.Summoned, player, id));
+            return id;
         }
 
         private void TakeControl(EntityId source, EntityId target, PlayerId controller)
         {
             var entity = _state.Entities[target];
-            if (entity.Controller == controller || rules.MinionCount(_state, controller) >= BoardLimit)
+            if (_state.LocationOf(target).Zone != GameZone.Play ||
+                entity.Controller == controller || _rules.MinionCount(_state, controller) >= BoardLimit)
                 return;
             _state = _state.Move(target, new(controller, GameZone.Play));
-            var hasCharge = rules.Card(entity).Keywords.HasFlag(CardKeywords.Charge);
+            var hasCharge = _rules.Card(entity).Keywords.HasFlag(CardKeywords.Charge);
             _state = _state.UpdateCharacter(target, entity.Character! with { Exhausted = !hasCharge });
             _events.Add(new(SimulationEventKind.ControlChanged, controller, source, target));
         }
@@ -186,26 +221,35 @@ public sealed partial class GameSimulator
                 if (dead.Length == 0)
                     return;
 
+                var listeners = CaptureListeners();
+                var positions = new Dictionary<EntityId, int>();
                 foreach (var entity in dead)
                 {
                     SpendResolutionStep();
+                    if (_rules.Card(entity).Definition.Kind == EntityKind.Minion)
+                        positions.Add(entity.Id, _rules.BoardMinions(_state, entity.Controller).TakeWhile(id => id != entity.Id).Count());
                     _state = _state.Move(entity.Id, new(entity.Controller, GameZone.Graveyard));
                     _events.Add(new(SimulationEventKind.Died, entity.Controller, entity.Id));
                 }
 
                 foreach (var entity in dead)
                 {
-                    var effects = rules.Card(entity).Deathrattle;
-                    if (effects.IsEmpty)
+                    if (!positions.TryGetValue(entity.Id, out var position))
                         continue;
-                    _events.Add(new(SimulationEventKind.Deathrattle, entity.Controller, entity.Id));
-                    ResolveEffects(entity.Id, entity.Controller, null, effects);
+                    var queue = Queue(new(TriggerTiming.MinionDied, entity.Controller, entity.Id), listeners);
+                    var effects = _rules.Card(entity).Deathrattle;
+                    if (!effects.IsEmpty)
+                        queue = queue.Append(new(new(entity.Id, entity.Controller, DeathPosition: position),
+                            entity.PlayOrder!.Value, effects));
+                    RunQueue(queue.OrderBy(trigger => trigger.PlayOrder));
                 }
             }
         }
 
         private void FinishIfHeroesDied()
         {
+            if (_state.Outcome != MatchOutcome.InProgress)
+                return;
             var survivors = _state.Players.Values
                 .Where(player => _state.LocationOf(player.Hero).Zone == GameZone.Play).ToArray();
             if (survivors.Length == _state.Players.Count)

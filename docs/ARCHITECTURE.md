@@ -8,7 +8,9 @@
 
 `Silverfish.Core.SimulationTurnPlanner` searches branches up to a depth and transition budget. It applies each candidate through the new simulator and evaluates the resulting state through a separate scoring function. The `plan` command runs it after the fixture's scripted actions.
 
-The replay command starts from a fully specified offline scenario. Its current rules cover turn start and draw, fatigue, burning cards, basic minion and spell play, basic combat, control transfer, and deathrattle waves. The fixture's summon effect places tokens at the right edge. Card mechanics that depend on a particular death slot, general trigger subscriptions, enchantment layers, and hidden information modelling are future work. The replay prints states and events, so differences can be identified at the first differing transition.
+The replay command starts from a fully specified offline scenario. Its rules cover turn start and draw, fatigue, burning cards, basic minion and spell play, basic combat, control transfer, and deathrattle waves. Card definitions can subscribe to turn boundaries, summoning, spell resolution, and minion death. A queue records eligible listeners and runs nested events before returning to the parent listener. Minion-death listeners share the wave's eligibility snapshot and act in entry order alongside deathrattles. The normal single-token deathrattle uses the slot recorded when the minion was removed.
+
+`samples/simulation-triggers.json` exercises spell and death timing through the normal replay command. The replay includes the triggering entity, event subject when present, and checkpoint, so differences can be identified at the first differing transition. The current rules catalogue still needs damage and draw subscriptions, card-specific timing exceptions, advanced summon placements, enchantment layers, and hidden information modelling.
 
 ## Components
 

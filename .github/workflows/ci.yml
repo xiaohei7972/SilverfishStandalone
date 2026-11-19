@@ -35,5 +35,16 @@ jobs:
           if ($hero.character.health -ne 28 -or $replay.steps[2].events[-2].kind -ne 'deathrattle') {
               throw 'Unexpected combat replay result.'
           }
+      - name: Replay spell timing and death position
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate samples/simulation-triggers.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $timing = $replay.steps[0].events | Where-Object { $_.kind -eq 'triggered' } | ForEach-Object { $_.timing }
+          $board = $replay.players[0].zones.play.value -join ','
+          if (($timing -join ',') -ne 'beforeSpellResolved,minionDied,afterSpellResolved' -or $board -ne '10,11,21,13') {
+              throw 'Unexpected trigger or board order.'
+          }
       - name: Libmem.NET integration build (Windows x64)
         run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo
