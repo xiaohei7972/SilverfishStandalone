@@ -8,6 +8,7 @@ public sealed partial class GameSimulator
 {
     private const int BoardLimit = 7;
     private const int HandLimit = 10;
+    private const int SecretLimit = 5;
     private readonly ImmutableDictionary<string, SimulationCard> _cards;
     private readonly int _resolutionLimit;
 
@@ -39,7 +40,9 @@ public sealed partial class GameSimulator
                 card.Triggers.IsDefault || card.Auras.IsDefault ||
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && !card.Deathrattle.IsEmpty) ||
                 (definition.Kind != EntityKind.Minion && !card.Auras.IsEmpty) ||
-                (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.Triggers.IsEmpty))
+                (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.IsSecret && !card.Triggers.IsEmpty) ||
+                (card.IsSecret && (definition.Kind != EntityKind.Spell || card.Target != TargetRequirement.None ||
+                    !card.OnPlay.IsDefaultOrEmpty || card.Triggers.Length != 1)))
                 throw new ArgumentException($"Invalid simulation card '{definition.CardId}'.", nameof(cards));
 
             ValidateEffects(card, card.OnPlay, maySelect: true);
@@ -57,13 +60,13 @@ public sealed partial class GameSimulator
                     !Enum.IsDefined(trigger.Focus) || !Enum.IsDefined(trigger.EntityMatch) ||
                     (trigger.EntityKind is EntityKind kind && (kind == EntityKind.Unknown || !Enum.IsDefined(kind))) ||
                     (trigger.Focus == TriggerFocus.DamageSource && trigger.Timing != TriggerTiming.Damage) ||
+                    (trigger.Focus == TriggerFocus.AttackDefender && trigger.Timing != TriggerTiming.AttackProposed) ||
+                    (trigger.Timing is TriggerTiming.SpellCounterWindow or TriggerTiming.AttackProposed && !card.IsSecret) ||
                     (trigger.Timing is TriggerTiming.TurnStarted or TriggerTiming.TurnEnded &&
                         (trigger.EntityMatch != TriggerEntityMatch.Any || trigger.EntityKind is not null || trigger.RequireLivingEntity)) ||
                     trigger.Effects.IsDefaultOrEmpty)
                     throw new ArgumentException($"Invalid trigger on '{definition.CardId}'.", nameof(cards));
-                ValidateEffects(card, trigger.Effects, maySelect: false,
-                    hasCharacterSubject: trigger.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
-                        TriggerTiming.Damage or TriggerTiming.HeroAttacking,
+                ValidateEffects(card, trigger.Effects, maySelect: false, timing: trigger.Timing,
                     hasInPlaySource: IsCharacter(definition.Kind));
             }
         }
@@ -83,6 +86,9 @@ public sealed partial class GameSimulator
         {
             if (player.In(GameZone.Hand).Length > HandLimit || MinionCount(state, player.Id) > BoardLimit)
                 throw new ArgumentException("An initial zone exceeds its capacity.");
+            var secrets = player.In(GameZone.Secret);
+            if (secrets.Length > SecretLimit || secrets.Select(id => state.Entities[id].CardId).Distinct(StringComparer.Ordinal).Count() != secrets.Length)
+                throw new ArgumentException("An initial secret zone exceeds its capacity or contains a duplicate.");
         }
 
         foreach (var entity in state.Entities.Values)
@@ -96,6 +102,7 @@ public sealed partial class GameSimulator
                 (location.Zone == GameZone.Play && (kind == EntityKind.Weapon ? !isEquippedSlot :
                     !IsCharacter(kind) || entity.Character is not { Health: > 0 })) ||
                 ((location.Zone == GameZone.HeroPower) != (kind == EntityKind.HeroPower)) ||
+                (location.Zone == GameZone.Secret && !Card(entity).IsSecret) ||
                 (entity.Character is not null && !IsCharacter(kind)) ||
                 (entity.Weapon is not null && (kind != EntityKind.Weapon || location.Zone is not (GameZone.Play or GameZone.Graveyard))) ||
                 (location.Zone != GameZone.Hand && !entity.CostModifiers.IsEmpty) ||
@@ -144,6 +151,7 @@ public sealed partial class GameSimulator
             var createsMinion = card.Definition.Kind == EntityKind.Minion;
             if (EffectiveCost(entity) > player.Mana ||
                 (minions >= BoardLimit && (createsMinion || card.OnPlay.Any(effect => effect is TakeControlEffect))) ||
+                (card.IsSecret && !CanArmSecret(state, player, entity.CardId)) ||
                 !MeetsPlayRequirements(state, card, minions))
                 continue;
 
@@ -218,6 +226,9 @@ public sealed partial class GameSimulator
 
     private static bool IsCharacter(EntityKind kind) => kind is EntityKind.Hero or EntityKind.Minion;
 
+    private static bool CanArmSecret(GameState state, PlayerState player, string cardId) =>
+        player.In(GameZone.Secret).Length < SecretLimit && !player.In(GameZone.Secret).Any(id => state.Entities[id].CardId == cardId);
+
     private static bool MeetsPlayRequirements(GameState state, SimulationCard card, int minions) =>
         (!card.Requirements.HasFlag(PlayRequirements.BoardSpace) || minions < BoardLimit) &&
         (!card.Requirements.HasFlag(PlayRequirements.FriendlyMinionDeath) ||
@@ -254,10 +265,12 @@ public sealed partial class GameSimulator
     }
 
     private void ValidateEffects(SimulationCard card, ImmutableArray<CardEffect> effects, bool maySelect,
-        bool hasCharacterSubject = false, bool hasInPlaySource = false)
+        TriggerTiming? timing = null, bool hasInPlaySource = false)
     {
         if (effects.IsDefault)
             throw new ArgumentException("Effect arrays must be initialized.");
+        var hasCharacterSubject = timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
+            TriggerTiming.AfterMinionPlayed or TriggerTiming.Damage or TriggerTiming.HeroAttacking or TriggerTiming.AttackProposed;
         foreach (var effect in effects)
         {
             var valid = effect switch
@@ -267,7 +280,8 @@ public sealed partial class GameSimulator
                     DamageTarget.Selected => maySelect && card.Target != TargetRequirement.None,
                     DamageTarget.Source => hasInPlaySource || (maySelect && IsCharacter(card.Definition.Kind)),
                     DamageTarget.TriggerSubject => hasCharacterSubject,
-                    DamageTarget.EnemyHero or DamageTarget.FriendlyHero or DamageTarget.AllMinions or DamageTarget.EnemyMinions => true,
+                    DamageTarget.EnemyHero or DamageTarget.FriendlyHero or DamageTarget.AllMinions or
+                        DamageTarget.EnemyMinions or DamageTarget.AllEnemies => true,
                     _ => false
                 }),
                 DrawEffect draw => draw.Count > 0,
@@ -279,7 +293,13 @@ public sealed partial class GameSimulator
                     IsValidModifier(enchant.Modifier) &&
                     (enchant.Target != StatTarget.Selected || (maySelect && card.Target != TargetRequirement.None)) &&
                     (enchant.Target != StatTarget.Source || hasInPlaySource || (maySelect && IsCharacter(card.Definition.Kind))),
-                SilenceEffect or ReturnMinionEffect or DestroyMinionEffect => maySelect && TargetsOnlyMinions(card.Target),
+                SilenceEffect or DestroyMinionEffect => maySelect && TargetsOnlyMinions(card.Target),
+                ReturnMinionEffect returned => returned.Target switch
+                {
+                    EffectTarget.Selected => maySelect && TargetsOnlyMinions(card.Target),
+                    EffectTarget.TriggerSubject => hasCharacterSubject,
+                    _ => false
+                },
                 TransformMinionEffect transform => maySelect && TargetsOnlyMinions(card.Target) &&
                     GetCard(transform.CardId).Definition.Kind == EntityKind.Minion,
                 ResurrectFriendlyMinionEffect => true,
@@ -291,6 +311,9 @@ public sealed partial class GameSimulator
                     _ => false
                 },
                 UnlockOverloadEffect => true,
+                CounterSpellEffect => card.IsSecret && timing == TriggerTiming.SpellCounterWindow,
+                SummonAttackDefenderEffect redirect => card.IsSecret && timing == TriggerTiming.AttackProposed &&
+                    GetCard(redirect.CardId).Definition.Kind == EntityKind.Minion,
                 SummonEffect summon => Enum.IsDefined(summon.Placement) && GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
                 TakeControlEffect => maySelect && card.Definition.Kind == EntityKind.Spell &&
                     card.Target == TargetRequirement.EnemyMinion,

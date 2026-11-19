@@ -14,7 +14,7 @@ The replay command starts from a fully specified offline scenario. Its rules cov
 
 `samples/simulation-triggers.json` exercises spell and death timing through the normal replay command. Damage subscriptions can match the damaged entity or the source. Each fixed area or combat batch applies all hits before opening its damage queues. Armor loss produces a damage event, while a shield that absorbs the hit has a separate event. Each successful draw resolves the drawn card's intrinsic effects and other draw listeners before the next attempt. Fatigue dispatches damage, and a burned card never joins the draw queue.
 
-`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The catalogue defines 54 cards, powers, and tokens using the November 2026 data baseline.
+`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The catalogue defines 63 cards, powers, and tokens using the November 2026 data baseline.
 
 Characters keep base attack and maximum health when modifiers first apply. The simulator applies direct enchantments in application order, then adds positional and friendly-board aura grants. Individual grants record their source entity. The simulator refreshes auras when a minion enters play and at resolution checkpoints, including after a death wave removes its minions. Silence clears direct enchantments and the minion's own abilities. Other minions can still provide it with aura grants. Maximum-health changes update current health without dispatching damage or healing events.
 
@@ -32,7 +32,11 @@ Rush bypasses summoning sickness for attacks against minions. Windfury grants tw
 
 Overload is charged during the use phase and stays pending until its controller next starts a turn. It then locks mana for that turn. An unlock effect restores the locked portion and clears pending Overload. `samples/simulation-combat-keywords.json` exercises Rush, a Windfury weapon, Freeze, and mana locked on the next turn.
 
-Secrets, forced attacks, temporary mana generation, alternative weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, advanced summon placements, hidden information modelling, and probabilistic search remain future work.
+Each player can arm up to five distinct secrets in the `Secret` zone. The supported secrets react on the opponent's turn and share entry ordering with battlefield listeners. Revealing a secret moves its entity to the graveyard. Counterspell runs before other spell-use triggers and Overload. Snipe runs after the played minion's battlecry. Effect summons skip the play-specific event.
+
+Attack proposal listeners use the defender at the start of that proposal. Redirecting the attack starts another proposal after the current listeners finish. Freezing Trap rechecks whether the attacker can be returned. Explosive Trap can resolve after the attacker has already returned to hand. Combat needs a living attacker, defender, and both heroes after preparation. `samples/simulation-secrets.json` replays an armed Counterspell and both traps.
+
+The offline replay and planner take a fully specified scenario, including both players' secrets. Hidden information modelling, forced attacks, temporary mana generation, alternative weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, advanced summon placements, and probabilistic search remain future work.
 
 ## Components
 

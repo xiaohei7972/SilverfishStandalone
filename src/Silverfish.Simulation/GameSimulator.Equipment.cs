@@ -73,7 +73,7 @@ public sealed partial class GameSimulator
         private void HealFriendlyHero(EffectContext context, int amount)
         {
             var hero = _state.Players[context.Controller].Hero;
-            if (!IsLivingCharacter(hero))
+            if (_state.LocationOf(hero).Zone != GameZone.Play)
                 return;
 
             var character = _state.Entities[hero].Character!;

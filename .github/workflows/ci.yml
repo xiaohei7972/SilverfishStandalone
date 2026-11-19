@@ -120,5 +120,22 @@ jobs:
               $player.overloadOwed -ne 0 -or $replay.minionDeaths[0].entity.value -ne 21) {
               throw 'Unexpected combat keyword or overload replay.'
           }
+      - name: Replay secrets, counters, and attack cancellation
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate samples/simulation-secrets.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+          $wisp = $replay.entities | Where-Object { $_.id.value -eq 11 }
+          $armed = ($replay.steps.events | Where-Object { $_.kind -eq 'secretArmed' }).source.value -join ','
+          $counter = $replay.steps[4].events.kind -join ','
+          $attack = $replay.steps[5].events.kind -join ','
+          if ($armed -ne '21,22,23' -or $replay.players[1].zones.secret.Count -ne 0 -or
+              $hero.character.health -ne 28 -or $wisp.costModifiers.delta -ne 2 -or $replay.players[0].overloadOwed -ne 0 -or
+              $counter -ne 'cardPlayed,secretRevealed,spellCountered' -or
+              $attack -ne 'attack,secretRevealed,returnedToHand,secretRevealed,damage,attackCancelled') {
+              throw 'Unexpected counter or trap order.'
+          }
       - name: Libmem.NET integration build (Windows x64)
         run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo

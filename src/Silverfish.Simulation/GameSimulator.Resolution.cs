@@ -102,8 +102,17 @@ public sealed partial class GameSimulator
             var listeners = CaptureListeners();
             PayMana(playerId, _rules.EffectiveCost(_state.Entities[source]));
             var index = position is int slot ? _rules.BoardIndex(_state, playerId, slot) : (int?)null;
-            _state = _state.Move(source, new(playerId, GameZone.Play), index);
+            _state = _state.Move(source, new(playerId, card.IsSecret ? GameZone.Secret : GameZone.Play), index);
             _events.Add(new(SimulationEventKind.CardPlayed, playerId, source, target));
+
+            if (kind == EntityKind.Spell && !_state.Players[_state.OpponentOf(playerId)].In(GameZone.Secret).IsEmpty)
+            {
+                RunTriggers(new(TriggerTiming.SpellCounterWindow, playerId, source), listeners);
+                if (!CanCounterSpell(source))
+                    return;
+            }
+            if (card.IsSecret)
+                _events.Add(new(SimulationEventKind.SecretArmed, playerId, source));
 
             if (kind == EntityKind.Weapon)
             {
@@ -132,13 +141,13 @@ public sealed partial class GameSimulator
 
             if (card.Target == TargetRequirement.None || target is not null)
                 ResolveEffects(new(source, playerId, target), card.OnPlay);
-            if (!isMinion)
+            if (!isMinion && !card.IsSecret)
                 _state = _state.Move(source, new(playerId, GameZone.Graveyard));
             ResolveDeaths();
 
             if (!isMinion || _state.LocationOf(source).Zone == GameZone.Play)
             {
-                var after = isMinion ? TriggerTiming.AfterMinionSummoned : TriggerTiming.AfterSpellResolved;
+                var after = isMinion ? TriggerTiming.AfterMinionPlayed : TriggerTiming.AfterSpellResolved;
                 RunTriggers(new(after, _state.Entities[source].Controller, source), listeners);
             }
         }
@@ -146,17 +155,19 @@ public sealed partial class GameSimulator
         private void Attack(PlayerId player, EntityId source, EntityId target)
         {
             _events.Add(new(SimulationEventKind.Attack, player, source, target));
+            if (!_state.Players[_state.OpponentOf(player)].In(GameZone.Secret).IsEmpty)
+                target = ResolveAttackProposal(player, source, target);
             var isHero = source == _state.Players[player].Hero;
             if (isHero)
                 RunTriggers(new(TriggerTiming.HeroAttacking, player, source), CaptureListeners());
 
             var attacker = _state.Entities[source];
-            var character = attacker.Character!;
-            var combatCanProceed = IsLivingCharacter(source) && IsLivingCharacter(target) &&
-                _state.Players.Values.All(combatant => IsLivingCharacter(combatant.Hero));
-            if (!combatCanProceed)
+            if (attacker.Character is not { } character || !IsLivingCharacter(source) || !IsLivingCharacter(target) ||
+                _state.Players.Values.Any(combatant => !IsLivingCharacter(combatant.Hero)))
             {
-                _state = _state.UpdateCharacter(source, character with { AttacksThisTurn = character.AttacksThisTurn + 1 });
+                if (attacker.Character is { } spent)
+                    _state = _state.UpdateCharacter(source, spent with { AttacksThisTurn = spent.AttacksThisTurn + 1 });
+                _events.Add(new(SimulationEventKind.AttackCancelled, player, source, target));
                 return;
             }
 
@@ -242,10 +253,14 @@ public sealed partial class GameSimulator
         {
             switch (effect)
             {
-                case DamageEffect { Target: DamageTarget.AllMinions or DamageTarget.EnemyMinions } damage:
-                    var targets = damage.Target == DamageTarget.EnemyMinions
-                        ? _rules.BoardMinions(_state, _state.OpponentOf(context.Controller))
-                        : _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player));
+                case DamageEffect { Target: DamageTarget.AllMinions or DamageTarget.EnemyMinions or DamageTarget.AllEnemies } damage:
+                    var enemy = _state.OpponentOf(context.Controller);
+                    var targets = damage.Target switch
+                    {
+                        DamageTarget.AllEnemies => _state.Players[enemy].In(GameZone.Play).Where(id => _state.Entities[id].Character is not null),
+                        DamageTarget.EnemyMinions => _rules.BoardMinions(_state, enemy),
+                        _ => _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player))
+                    };
                     var hits = targets
                         .OrderBy(id => _state.Entities[id].PlayOrder)
                         .Select(id => Damage(context.Source, id, damage.Amount)).ToArray();
@@ -310,6 +325,12 @@ public sealed partial class GameSimulator
                     break;
                 case UnlockOverloadEffect:
                     UnlockOverload(context);
+                    break;
+                case CounterSpellEffect:
+                    CounterSpell(context);
+                    break;
+                case SummonAttackDefenderEffect redirect:
+                    SummonAttackDefender(work, context, redirect.CardId);
                     break;
             }
         }

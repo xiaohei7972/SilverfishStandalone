@@ -9,7 +9,8 @@ public enum SimulationEventKind
     Attack, Damage, ShieldBroken, Died, Deathrattle, MatchEnded, Triggered, ArmorGained, DrawnEffect,
     EnchantmentApplied, EnchantmentExpired, Silenced, WeaponEquipped, WeaponDurabilityLost,
     WeaponDestroyed, HeroPowerUsed, Healed, ReturnedToHand, Transformed, Resurrected,
-    Frozen, Thawed, OverloadScheduled, OverloadUnlocked
+    Frozen, Thawed, OverloadScheduled, OverloadUnlocked, SecretArmed, SecretRevealed, SpellCountered, AttackRedirected,
+    AttackCancelled
 }
 
 public sealed record SimulationEvent(SimulationEventKind Kind, PlayerId? Player = null,

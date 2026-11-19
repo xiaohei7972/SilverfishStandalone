@@ -226,6 +226,38 @@ public static class StarterCardCatalog
         new SimulationCard(new("OG_026", EntityKind.Minion, 2, 3, 2))
         {
             OnPlay = [new UnlockOverloadEffect()]
-        }
+        },
+        Secret("EX1_287", 3, new(TriggerTiming.SpellCounterWindow, TriggerRelation.Opponent, [new CounterSpellEffect()])),
+        Secret("EX1_610", 2, new(TriggerTiming.AttackProposed, TriggerRelation.Friendly, [new DamageEffect(DamageTarget.AllEnemies, 2)])
+        {
+            Focus = TriggerFocus.AttackDefender, EntityKind = EntityKind.Hero
+        }),
+        Secret("EX1_611", 2, new(TriggerTiming.AttackProposed, TriggerRelation.Opponent,
+            [new ReturnMinionEffect(CostDelta: 2, Target: EffectTarget.TriggerSubject)])
+        {
+            EntityKind = EntityKind.Minion, RequireLivingEntity = true
+        }),
+        Secret("EX1_609", 2, new(TriggerTiming.AfterMinionPlayed, TriggerRelation.Opponent, [new DamageEffect(DamageTarget.TriggerSubject, 6)])
+        {
+            EntityKind = EntityKind.Minion, RequireLivingEntity = true
+        }),
+        Secret("EX1_130", 1, new(TriggerTiming.AttackProposed, TriggerRelation.Friendly, [new SummonAttackDefenderEffect("EX1_130a")])
+        {
+            Focus = TriggerFocus.AttackDefender, RequiresBoardSpace = true
+        }),
+        new(new("EX1_130a", EntityKind.Minion, 1, 2, 1)),
+        Secret("EX1_289", 3, new(TriggerTiming.AttackProposed, TriggerRelation.Friendly, [new GainArmorEffect(8)])
+        {
+            Focus = TriggerFocus.AttackDefender, EntityKind = EntityKind.Hero
+        }),
+        Secret("EX1_554", 2, new(TriggerTiming.AttackProposed, TriggerRelation.Friendly,
+            [new SummonEffect("EX1_554t"), new SummonEffect("EX1_554t"), new SummonEffect("EX1_554t")])
+        {
+            Focus = TriggerFocus.AttackDefender, EntityKind = EntityKind.Minion, RequiresBoardSpace = true
+        }),
+        new(new("EX1_554t", EntityKind.Minion, 1, 1, 1))
     ];
+
+    private static SimulationCard Secret(string cardId, int cost, CardTrigger trigger) =>
+        new(new(cardId, EntityKind.Spell, cost)) { IsSecret = true, Triggers = [trigger] };
 }

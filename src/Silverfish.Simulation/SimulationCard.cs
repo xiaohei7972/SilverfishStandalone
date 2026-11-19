@@ -12,8 +12,9 @@ public enum TargetRequirement { None, Character, EnemyCharacter, EnemyMinion, Fr
 [Flags]
 public enum PlayRequirements { None = 0, BoardSpace = 1, FriendlyMinionDeath = 2 }
 
-public enum DamageTarget { Selected, EnemyHero, AllMinions, Source, TriggerSubject, FriendlyHero, EnemyMinions }
+public enum DamageTarget { Selected, EnemyHero, AllMinions, Source, TriggerSubject, FriendlyHero, EnemyMinions, AllEnemies }
 public enum FreezeTarget { Selected, EnemyMinions, TriggerSubject }
+public enum EffectTarget { Selected, TriggerSubject }
 public enum SummonPlacement { Default, Rightmost }
 public enum StatTarget { Selected, Source, FriendlyMinions, AllMinions, FriendlyHero }
 public enum EnchantmentDuration { Permanent, CurrentTurn }
@@ -24,11 +25,12 @@ public sealed record StatAura(AuraRecipients Recipients, StatModifier Modifier);
 public enum TriggerTiming
 {
     TurnStarted, TurnEnded, WhenMinionSummoned, AfterMinionSummoned,
-    BeforeSpellResolved, AfterSpellResolved, MinionDied, Damage, CardDrawn, HeroAttacking, WeaponDestroyed, AfterHeroPowerUsed
+    BeforeSpellResolved, AfterSpellResolved, MinionDied, Damage, CardDrawn, HeroAttacking, WeaponDestroyed, AfterHeroPowerUsed,
+    SpellCounterWindow, AttackProposed, AfterMinionPlayed
 }
 
 public enum TriggerRelation { Friendly, Opponent, Any }
-public enum TriggerFocus { EventTarget, DamageSource }
+public enum TriggerFocus { EventTarget, DamageSource, AttackDefender }
 public enum TriggerEntityMatch { Any, Self, Other }
 
 public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation, ImmutableArray<CardEffect> Effects)
@@ -37,6 +39,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
     public TriggerEntityMatch EntityMatch { get; init; }
     public EntityKind? EntityKind { get; init; }
     public bool RequireLivingEntity { get; init; }
+    public bool RequiresBoardSpace { get; init; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
@@ -56,6 +59,8 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(ResurrectFriendlyMinionEffect), "resurrectFriendlyMinion")]
 [JsonDerivedType(typeof(FreezeEffect), "freeze")]
 [JsonDerivedType(typeof(UnlockOverloadEffect), "unlockOverload")]
+[JsonDerivedType(typeof(CounterSpellEffect), "counterSpell")]
+[JsonDerivedType(typeof(SummonAttackDefenderEffect), "summonAttackDefender")]
 public abstract record CardEffect;
 
 public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect;
@@ -70,12 +75,14 @@ public sealed record SilenceEffect : CardEffect;
 /// <summary>Uses the death position during a deathrattle and the right edge otherwise.</summary>
 public sealed record SummonEffect(string CardId, SummonPlacement Placement = SummonPlacement.Default) : CardEffect;
 public sealed record TakeControlEffect : CardEffect;
-public sealed record ReturnMinionEffect(int CostDelta = 0) : CardEffect;
+public sealed record ReturnMinionEffect(int CostDelta = 0, EffectTarget Target = EffectTarget.Selected) : CardEffect;
 public sealed record TransformMinionEffect(string CardId) : CardEffect;
 public sealed record DestroyMinionEffect : CardEffect;
 public sealed record ResurrectFriendlyMinionEffect : CardEffect;
 public sealed record FreezeEffect(FreezeTarget Target) : CardEffect;
 public sealed record UnlockOverloadEffect : CardEffect;
+public sealed record CounterSpellEffect : CardEffect;
+public sealed record SummonAttackDefenderEffect(string CardId) : CardEffect;
 
 public sealed record SimulationCard(CardDefinition Definition)
 {
@@ -83,6 +90,7 @@ public sealed record SimulationCard(CardDefinition Definition)
     public TargetRequirement Target { get; init; }
     public PlayRequirements Requirements { get; init; }
     public int Overload { get; init; }
+    public bool IsSecret { get; init; }
     public ImmutableArray<CardEffect> OnPlay { get; init; } = [];
     public ImmutableArray<CardEffect> Deathrattle { get; init; } = [];
     public ImmutableArray<CardEffect> WhenDrawn { get; init; } = [];

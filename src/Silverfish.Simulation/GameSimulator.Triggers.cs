@@ -15,11 +15,11 @@ public sealed partial class GameSimulator
         private readonly record struct DamageSource(EntityId Id, PlayerId Controller);
 
         private readonly record struct Occurrence(TriggerTiming Timing, PlayerId Player, EntityId? Subject = null,
-            DamageSource? Source = null, int? Amount = null);
+            DamageSource? Source = null, int? Amount = null, EntityId? Defender = null);
 
         private readonly record struct ListenerId(EntityId Entity, int Index);
 
-        private sealed record Listener(ListenerId Id, string CardId, PlayerId Controller, long PlayOrder, CardTrigger Trigger);
+        private sealed record Listener(ListenerId Id, string CardId, PlayerId Controller, long PlayOrder, GameZone Zone, CardTrigger Trigger);
 
         private abstract record Work;
         private sealed record ApplyEffect(EffectContext Context, CardEffect Effect) : Work;
@@ -32,15 +32,16 @@ public sealed partial class GameSimulator
         private ImmutableArray<Listener> CaptureListeners()
         {
             var listeners = ImmutableArray.CreateBuilder<Listener>();
-            var sources = _state.Players.Values.SelectMany(player => player.In(GameZone.Play))
+            var sources = _state.Players.Values.SelectMany(player => player.In(GameZone.Play).Concat(player.In(GameZone.Secret)))
                 .Select(id => _state.Entities[id]).OrderBy(entity => entity.PlayOrder);
             foreach (var entity in sources)
             {
                 if (entity.Silenced)
                     continue;
+                var zone = _state.LocationOf(entity.Id).Zone;
                 var triggers = _rules.Card(entity).Triggers;
                 for (var index = 0; index < triggers.Length; index++)
-                    listeners.Add(new(new(entity.Id, index), entity.CardId, entity.Controller, entity.PlayOrder!.Value, triggers[index]));
+                    listeners.Add(new(new(entity.Id, index), entity.CardId, entity.Controller, entity.PlayOrder!.Value, zone, triggers[index]));
             }
             return listeners.ToImmutable();
         }
@@ -50,8 +51,10 @@ public sealed partial class GameSimulator
             foreach (var listener in listeners)
             {
                 var trigger = listener.Trigger;
-                if (trigger.Timing != occurrence.Timing ||
-                    (trigger.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned &&
+                var matches = trigger.Timing == occurrence.Timing ||
+                    (occurrence.Timing == TriggerTiming.AfterMinionPlayed && trigger.Timing == TriggerTiming.AfterMinionSummoned);
+                if (!matches || (listener.Zone == GameZone.Secret && listener.Controller == _state.ActivePlayer) ||
+                    (occurrence.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or TriggerTiming.AfterMinionPlayed &&
                         listener.Id.Entity == occurrence.Subject))
                     continue;
 
@@ -63,6 +66,11 @@ public sealed partial class GameSimulator
                         continue;
                     entityId = source.Id;
                     player = source.Controller;
+                }
+                else if (trigger.Focus == TriggerFocus.AttackDefender)
+                {
+                    entityId = occurrence.Defender!.Value;
+                    player = _state.Entities[entityId.Value].Controller;
                 }
 
                 if ((trigger.Relation == TriggerRelation.Friendly && listener.Controller != player) ||
@@ -118,11 +126,17 @@ public sealed partial class GameSimulator
                                 (listener.Trigger.Timing == TriggerTiming.HeroAttacking &&
                                     _state.Entities[listener.Id.Entity].Weapon is not null &&
                                     _state.Players[listener.Controller].EquippedWeapon != listener.Id.Entity) ||
+                                (listener.Trigger.Timing == TriggerTiming.SpellCounterWindow &&
+                                    !CanCounterSpell(trigger.Context.Subject!.Value)) ||
+                                (listener.Trigger.RequiresBoardSpace && _rules.MinionCount(_state, listener.Controller) >= BoardLimit) ||
                                 (trigger.LivingEntity is EntityId living && !IsLivingCharacter(living)) ||
                                 !_activeTriggers.Add(listener.Id))
                                 break;
                             work.Push(new Complete(listener.Id));
-                            _events.Add(new(SimulationEventKind.Triggered, listener.Controller, listener.Id.Entity,
+                            var kind = listener.Zone == GameZone.Secret ? SimulationEventKind.SecretRevealed : SimulationEventKind.Triggered;
+                            if (listener.Zone == GameZone.Secret)
+                                _state = _state.Move(listener.Id.Entity, new(listener.Controller, GameZone.Graveyard));
+                            _events.Add(new(kind, listener.Controller, listener.Id.Entity,
                                 trigger.Context.Subject, trigger.Amount, listener.Trigger.Timing));
                         }
                         else
@@ -141,7 +155,7 @@ public sealed partial class GameSimulator
         private bool IsCurrent(Listener listener)
         {
             var entity = _state.Entities[listener.Id.Entity];
-            return !entity.Silenced && _state.LocationOf(entity.Id).Zone == GameZone.Play &&
+            return !entity.Silenced && _state.LocationOf(entity.Id).Zone == listener.Zone &&
                 entity.Controller == listener.Controller && entity.PlayOrder == listener.PlayOrder &&
                 entity.CardId == listener.CardId;
         }

@@ -13,8 +13,8 @@ public sealed partial class GameSimulator
 
         private void ReturnMinion(EffectContext context, ReturnMinionEffect effect)
         {
-            var id = context.Selected!.Value;
-            if (!IsLivingCharacter(id))
+            var id = (effect.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value;
+            if (!IsLivingCharacter(id) || _rules.Card(_state.Entities[id]).Definition.Kind != EntityKind.Minion)
                 return;
 
             var entity = _state.Entities[id];

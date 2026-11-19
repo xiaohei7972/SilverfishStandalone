@@ -117,7 +117,9 @@ public sealed class GameState
                     if (entity.Controller != player.Id || !locations.TryAdd(id, new(player.Id, zone.Key)))
                         throw new ArgumentException($"Entity {id} needs exactly one zone for its controller.");
 
-                    if (zone.Key == GameZone.Play && (entity.Character is not null || entity.Weapon is not null) &&
+                    var hasActiveOrder = zone.Key == GameZone.Secret ||
+                        (zone.Key == GameZone.Play && (entity.Character is not null || entity.Weapon is not null));
+                    if (hasActiveOrder &&
                         (entity.PlayOrder is not > 0 || !playOrders.Add(entity.PlayOrder.Value)))
                         throw new ArgumentException($"In-play entity {id} needs a unique positive entry order.");
                 }
@@ -165,17 +167,18 @@ public sealed class GameState
         var to = players[destination.Player];
         var zone = to.In(destination.Zone);
         to = SetZone(to, destination.Zone, zone.Insert(index ?? zone.Length, id));
-        var entersPlay = destination.Zone == GameZone.Play && origin.Zone != GameZone.Play;
+        var entersActiveZone = (destination.Zone is GameZone.Play or GameZone.Secret) && destination.Zone != origin.Zone;
         entity = entity with
         {
             Controller = destination.Player,
-            PlayOrder = entersPlay ? NextPlayOrder : entity.PlayOrder,
+            PlayOrder = entersActiveZone ? NextPlayOrder : entity.PlayOrder,
             AuraGrants = destination.Zone == GameZone.Play ? entity.AuraGrants : [],
             Enchantments = destination.Zone == GameZone.Play ? entity.Enchantments : [],
             CostModifiers = destination.Zone == GameZone.Hand ? entity.CostModifiers : []
         };
         return new GameState(players.SetItem(to.Id, to), Entities.SetItem(id, entity), _locations.SetItem(id, destination),
-            ActivePlayer, Turn, NextEntity, entersPlay ? checked(NextPlayOrder + 1) : NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
+            ActivePlayer, Turn, NextEntity, entersActiveZone ? checked(NextPlayOrder + 1) : NextPlayOrder,
+            Outcome, Winner, MinionDeaths, RandomState);
     }
 
     internal GameState UpdateCharacter(EntityId id, CharacterState character) =>
