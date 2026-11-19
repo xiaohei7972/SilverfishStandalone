@@ -1,5 +1,15 @@
 # Architecture and boundaries
 
+## Independent simulation engine
+
+`Silverfish.Domain.GameState` stores stable player and entity IDs. Each player owns ordered zone indexes. The entity table stores the card reference, owner, controller and character state. An inverse index provides zone lookup. A structural edit replaces the related indexes together. Changing control preserves the entity ID and entrance order.
+
+`Silverfish.Simulation.GameSimulator` generates supported legal actions and resolves one action into a new immutable state and an ordered event trace. Card definitions compose typed effects. The existing classic snapshots and the classic engine provide historical fixtures for comparison.
+
+`Silverfish.Core.SimulationTurnPlanner` searches branches up to a depth and transition budget. It applies each candidate through the new simulator and evaluates the resulting state through a separate scoring function. The `plan` command runs it after the fixture's scripted actions.
+
+The replay command starts from a fully specified offline scenario. Its current rules cover turn start and draw, fatigue, burning cards, basic minion and spell play, basic combat, control transfer, and deathrattle waves. The fixture's summon effect places tokens at the right edge. Card mechanics that depend on a particular death slot, general trigger subscriptions, enchantment layers, and hidden information modelling are future work. The replay prints states and events, so differences can be identified at the first differing transition.
+
 ## Components
 
     Offline JSON or StandaloneGameMod state.snapshot

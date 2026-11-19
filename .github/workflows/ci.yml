@@ -25,5 +25,15 @@ jobs:
         run: dotnet test tests/Silverfish.Domain.Tests/Silverfish.Domain.Tests.csproj -c Release --nologo
       - name: Offline sample
         run: dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- samples/lethal.json
+      - name: Replay a combat in the new simulator
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate samples/simulation-combat.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+          if ($hero.character.health -ne 28 -or $replay.steps[2].events[-2].kind -ne 'deathrattle') {
+              throw 'Unexpected combat replay result.'
+          }
       - name: Libmem.NET integration build (Windows x64)
         run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo

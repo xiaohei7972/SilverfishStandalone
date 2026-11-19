@@ -1,5 +1,12 @@
 # SilverfishStandalone
 
+新模拟器按玩家、区域和实体 ID 建模。可以用下面的命令回放从抽牌到亡语的完整样例，并查看最终局面、结算事件和可选动作。
+
+```powershell
+dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-combat.json
+dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-combat.json
+```
+
 **P0 独立化已通过验收。** 2026-11-05 经典银鱼在 Windows 下独立编译为 .NET 8，加载了原版 `CardDB`，并通过了原版 `Ai.autoTester` 固定牌面、JSON 决策和错误输入回归。可执行文件和日志已归档。[私有 Actions #44256337489](https://github.com/xiaohei7972/Hearthbuddy_Silverfish/actions/runs/44256337489)
 
 本项目不采用 Silverfish V2，也不把 StandaloneGameMod 接入作为当前开发阶段的前置条件。
@@ -14,9 +21,9 @@
 ## 后续重构路线
 
 1. 以已验收的 2026-11-05 版及固定牌面决策作为回归基线。
-2. **更新实体状态模型**：把 `Minion/Handcard/Weapon` 各自堆积的字段拆成实体、战斗、费用、装备、标签和效果组件；用不可变快照避免不同搜索分支共享可变集合。
-3. **重构 Playfield 和 Action**：局面分支复制改为显式状态变更，动作保存实体 ID 而非旧 `Minion/Handcard` 对象引用。
-4. **逐步迁移卡牌脚本、Movegenerator、MiniSimulator、PenalityManager、Ai**：对比原版黄金局面和动作、性能、模拟结果；绝不一次性删改全部卡牌脚本。
+2. 用 `GameState`、玩家区域和实体 ID 表示新局面，动作由新模拟器直接执行。
+3. 用通用结算操作重写卡牌效果，按机制扩充回放覆盖。经典引擎和脚本作为历史回归参考。
+4. 在新模拟器上扩展搜索和估值，用固定局面核对行动、结算轨迹和性能。
 
 详见 [源码实查与模型重构计划](docs/CLASSIC_MODEL_REFACTOR.md) 和 [独立源码构建说明](docs/CLASSIC_ACTIONS_BUILD.md)。
 
