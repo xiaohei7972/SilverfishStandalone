@@ -51,4 +51,4 @@ dotnet run --project src/Silverfish.Cli -c Release -- checkpoint samples/simulat
 
 ## 执行路径澄清：不通过 API 提交
 
-使用 `SimulationActionKind.ChooseOption` 是描述 AI 意图，不等于执行一次网络提交。选择真实执行时应交给 `UiChoiceInputPlanner` 构造按顺序点击实体、确认按钮检测和新状态校验的输入计划。所有实际操作只能由独立 UI 模拟输入执行器完成（例如 Windows `SendInput`），禁止直接调用游戏协议或客户端 `Network.SendChoices`。详见 [UI_INPUT_EXECUTION.md](UI_INPUT_EXECUTION.md)。
+使用 `SimulationActionKind.ChooseOption` 是描述 AI 意图，不等于执行一次网络提交。选择真实执行时应交给 `UiChoiceInputPlanner` 构造按顺序点击实体、确认按钮检测和新状态校验的输入计划。所有实际操作由游戏内 `IInput / InputCollection` 虚拟输入执行器完成（参考 Ember 的 `VirtualInput`、`VirtualPointer`），不移动 Windows 系统鼠标，禁止使用 `SendInput` 等桌面输入驱动，也禁止直接调用游戏协议或客户端 `Network.SendChoices`。详见 [UI_INPUT_EXECUTION.md](UI_INPUT_EXECUTION.md)。

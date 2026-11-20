@@ -4,8 +4,10 @@ using Silverfish.Domain;
 namespace Silverfish.Core;
 
 /// <summary>
-/// Intentions to operate the *visible game UI* with ordinary input, never
-/// protocol packets or calls to the game's network methods.
+/// Semantic instructions for a *game-internal* virtual input source. The
+/// in-client adapter should feed IInput / InputCollection (like Ember's
+/// VirtualInput and VirtualPointer), not move the Windows desktop cursor.
+/// Never call game network methods to submit the selected option.
 /// </summary>
 public enum UiChoiceStepKind
 {
@@ -18,8 +20,9 @@ public sealed record UiChoiceStep(UiChoiceStepKind Kind, EntityId? Entity = null
 
 /// <summary>
 /// The host must validate MatchId, SnapshotSequence and ChoicePacketId before
-/// and during execution. Each ClickEntity resolves its entity ID to a current
-/// on-screen hit target; no fixed screen coordinates are embedded here.
+/// and during execution. Each ClickEntity is resolved inside the Unity
+/// client to the current Card/Actor's hit area, using its active camera.
+/// No fixed screen coordinates or foreground-window requirement are embedded.
 /// </summary>
 public sealed record UiChoiceInputPlan(
     string MatchId,
@@ -28,9 +31,10 @@ public sealed record UiChoiceInputPlan(
     ImmutableArray<UiChoiceStep> Steps);
 
 /// <summary>
-/// Converts a validated CHOICE intent to visual mouse-input steps.
-/// The execution adapter owns OS input (e.g. Win32 SendInput) and must observe
-/// the actual screen/game response before marking an action complete.
+/// Converts a validated CHOICE intent into game-side virtual pointer steps.
+/// The in-client host owns a frame-driven IInput source and must observe
+/// OptionsId/ChoiceId changes before reporting success. This class neither
+/// touches Windows mouse APIs nor requires foreground focus.
 /// </summary>
 public static class UiChoiceInputPlanner
 {

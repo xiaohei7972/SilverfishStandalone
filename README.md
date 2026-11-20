@@ -1,6 +1,6 @@
 # SilverfishStandalone
 
-**执行原则**：AI 只产生行动意图，真正执行应通过鼠标/键盘模拟输入，不调用 `Network.SendOption`、`Network.SendChoices` 等接口。现已新增 `UiChoiceInputPlanner`，将有序目标映射为点击/确认/等待的语义步骤；当前尚未实现真正的 Windows 输入驱动。详见 [UI 模拟输入执行边界](docs/UI_INPUT_EXECUTION.md)。
+**执行原则**：AI 只产生行动意图，实际操作使用游戏内的 `IInput / InputCollection` 虚拟输入源（参考 Ember），**不会移动 Windows 系统鼠标，不抢占其他桌面操作**，也不调用 `Network.SendOption`、`Network.SendChoices` 等接口。现有 `UiChoiceInputPlanner` 负责将有序选择映射为点击/确认/等待步骤；游戏内输入适配器和 IPC 尚未接入。详见 [UI 模拟输入执行边界](docs/UI_INPUT_EXECUTION.md)。
 
 
 ## CHOICE 有序多目标选择（第一、二阶段）
