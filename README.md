@@ -1,5 +1,10 @@
 # SilverfishStandalone
 
+## CHOICE 有序多目标选择（第一阶段）
+
+`Silverfish.Cli choice samples/entity-choice-targets.json` 可在离线环境核验 EntityChoices 的数量范围、禁选实体、点击顺序、取消重排以及确认提交与包 ID 检查。当前仅是协议状态机，尚未接入真实游戏选择包和卡牌效果暂停/恢复；`OPTION_TARGET` 与 `CHOICE` 分离。详见 [EntityChoices 说明](docs/ENTITY_CHOICES.md)。
+
+
 ## 构建与发布
 
 使用 .NET 8 SDK 构建新模拟器和 CLI，并运行独立模拟器的测试。

@@ -19,6 +19,17 @@ jobs:
         run: dotnet build SilverfishStandalone.sln -c Release --nologo
       - name: Test standalone solution
         run: dotnet test SilverfishStandalone.sln -c Release --no-build --nologo
+      - name: Validate ordered multi-target CHOICE session
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- choice samples/entity-choice-targets.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $selection = ($json -join "`n") | ConvertFrom-Json
+          if (($selection.selectedEntityIds -join ',') -ne '11,33,22' -or
+              ($selection.submission.entityIds -join ',') -ne '11,33,22' -or
+              $selection.isSingleChoice -or !$selection.canConfirm) {
+              throw 'EntityChoices selection order or confirmation was incorrect.'
+          }
       - name: Offline sample
         run: dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- samples/lethal.json
       - name: Replay a combat in the new simulator
