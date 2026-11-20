@@ -144,6 +144,14 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan artifacts/checkpoint.
 
 需要额外奖励的卡牌将 `triggers` 定义为 `timing: "Overkill"` 或 `"HonorableKill"`，并指定 `focus: "DamageSource"` 和 `entityMatch: "Self"`；奖励效果通过现有结算工作队列执行，在统一死亡处理之前触发。支持造成伤害的随从、法术，以及英雄攻击时装备的武器。伤害事件增加 `isOverkill` 和 `isHonorableKill` 两个判定字段，便于测试及搜索回放。当前实现的是机制本身；各卡牌的超杀和荣誉消灭奖励仍需逐张接入单卡规则。
 
+## 通用治疗与过量治疗（Overheal）
+
+新模拟器支持 `HealEffect`，以卡牌和触发器规则指定 `Selected`、`Source`、`TriggerSubject`、`FriendlyHero`、`EnemyHero`、`FriendlyMinions`、`AllMinions` 和 `AllFriendlyCharacters` 等治疗目标。单次治疗根据实际缺失生命值封顶，只有**真正恢复生命**时产生 `Healed` 事件。旧的 `HealFriendlyHeroEffect` 和吸血继续复用这条治疗计算，保留原有输出。
+
+客户端 `GAME_TAG.OVERHEAL` 映射为 `CardKeywords.Overheal`。具有该关键词的随从在一次治疗中收到**超过当前缺失生命的正数治疗量**时，记录 `Overhealed` 事件并触发自身的 `TriggerTiming.Overheal` 奖励；即使当前满血也可触发。判定以当前最大生命和伤害值为准，沉默后不生效。普通随从、英雄不因为多余治疗而触发 Overheal。此类奖励定义须使用 `focus: "EventTarget"`、`entityMatch: "Self"`，并配合 `CardKeywords.Overheal`。
+
+群体治疗先完成所有目标的生命变化，再依照实体顺序处理 Overheal 触发器；治疗来源可以是敌方角色，但奖励归属于被治疗随从的控制者。现阶段覆盖通用模拟规则和固定测试，单张 Overheal 卡牌的具体奖励仍需逐张录入及校验。
+
 ## 后续重构路线
 
 1. 以已验收的 2026-11-05 版及固定牌面决策作为回归基线。

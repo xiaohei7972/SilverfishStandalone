@@ -343,6 +343,9 @@ public sealed partial class GameSimulator
                 case HealFriendlyHeroEffect heal:
                     HealFriendlyHero(context, heal.Amount);
                     break;
+                case HealEffect heal:
+                    HealCharacters(work, context, heal);
+                    break;
                 case EquipWeaponEffect equip:
                     CreateAndEquipWeapon(context.Controller, equip.CardId);
                     break;

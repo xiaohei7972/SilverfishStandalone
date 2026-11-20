@@ -45,7 +45,8 @@ public sealed partial class GameSimulator
                 card.MinimumEnemyMinions is < 0 or > BoardLimit || card.MinimumTotalMinions is < 0 or > BoardLimit * 2 ||
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield |
                     CardKeywords.Rush | CardKeywords.Windfury | CardKeywords.CastsWhenDrawn |
-                    CardKeywords.Poisonous | CardKeywords.Lifesteal)) != 0 ||
+                    CardKeywords.Poisonous | CardKeywords.Lifesteal | CardKeywords.Overheal)) != 0 ||
+                (card.Keywords.HasFlag(CardKeywords.Overheal) && definition.Kind != EntityKind.Minion) ||
                 (card.Keywords.HasFlag(CardKeywords.CastsWhenDrawn) && definition.Kind != EntityKind.Spell) ||
                 card.Overload < 0 || (card.Overload > 0 && definition.Kind is EntityKind.Hero or EntityKind.HeroPower) ||
                 card.Triggers.IsDefault || card.Auras.IsDefault || card.CostAuras.IsDefault || card.Choices.IsDefault ||
@@ -102,6 +103,9 @@ public sealed partial class GameSimulator
                     trigger.Timing is not (TriggerTiming.Damage or TriggerTiming.Overkill or TriggerTiming.HonorableKill)) ||
                 (trigger.Timing is TriggerTiming.Overkill or TriggerTiming.HonorableKill &&
                     (trigger.Focus != TriggerFocus.DamageSource || trigger.EntityMatch != TriggerEntityMatch.Self)) ||
+                (trigger.Timing == TriggerTiming.Overheal &&
+                    (definition.Kind != EntityKind.Minion || !card.Keywords.HasFlag(CardKeywords.Overheal) ||
+                        trigger.Focus != TriggerFocus.EventTarget || trigger.EntityMatch != TriggerEntityMatch.Self)) ||
                     (trigger.Focus == TriggerFocus.AttackDefender && trigger.Timing != TriggerTiming.AttackProposed) ||
                     (trigger.Timing is TriggerTiming.SpellCounterWindow or TriggerTiming.AttackProposed && !card.IsSecret) ||
                     (trigger.Timing is TriggerTiming.TurnStarted or TriggerTiming.TurnEnded &&
@@ -446,6 +450,15 @@ public sealed partial class GameSimulator
                 SummonDiscardedMinionEffect => isDiscardedCard && card.Definition.Kind == EntityKind.Minion,
                 GainArmorEffect armor => armor.Amount > 0,
                 HealFriendlyHeroEffect heal => heal.Amount > 0,
+                HealEffect heal => heal.Amount > 0 && (heal.Target switch
+                {
+                    HealTarget.Selected => target != TargetRequirement.None,
+                    HealTarget.Source => hasInPlaySource,
+                    HealTarget.TriggerSubject => hasCharacterSubject,
+                    HealTarget.FriendlyHero or HealTarget.EnemyHero or HealTarget.FriendlyMinions or
+                        HealTarget.AllMinions or HealTarget.AllFriendlyCharacters => true,
+                    _ => false
+                }),
                 EquipWeaponEffect equip => GetCard(equip.CardId).Definition.Kind == EntityKind.Weapon,
                 DestroyEnemyWeaponEffect => true,
                 EnchantStatsEffect enchant => Enum.IsDefined(enchant.Target) && Enum.IsDefined(enchant.Duration) &&
@@ -504,7 +517,7 @@ public sealed partial class GameSimulator
     private static bool HasCharacterSubject(TriggerTiming? timing) =>
         timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
             TriggerTiming.AfterMinionPlayed or TriggerTiming.Damage or TriggerTiming.Overkill or
-            TriggerTiming.HonorableKill or TriggerTiming.HeroAttacking or TriggerTiming.AttackProposed;
+            TriggerTiming.HonorableKill or TriggerTiming.Overheal or TriggerTiming.HeroAttacking or TriggerTiming.AttackProposed;
 
     private static bool IsOptionalCardIdValid(string? cardId) => cardId is null || !string.IsNullOrWhiteSpace(cardId);
 }

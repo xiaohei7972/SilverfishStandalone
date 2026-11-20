@@ -59,6 +59,7 @@ public sealed partial class GameSimulator
                 var matches = trigger.Timing == occurrence.Timing ||
                     (occurrence.Timing == TriggerTiming.AfterMinionPlayed && trigger.Timing == TriggerTiming.AfterMinionSummoned);
                 if (!matches ||
+                    (occurrence.Timing == TriggerTiming.Overheal && listener.Id.Entity != occurrence.Subject) ||
                     (occurrence.Timing is TriggerTiming.Overkill or TriggerTiming.HonorableKill &&
                         listener.Id.Entity != occurrence.Source?.Id) ||
                     (listener.Zone == GameZone.Secret && listener.Controller == _state.ActivePlayer) ||
