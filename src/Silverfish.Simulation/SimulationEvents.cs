@@ -27,6 +27,10 @@ public sealed record SimulationEvent(SimulationEventKind Kind, PlayerId? Player 
     public int? DamageToArmor { get; init; }
     /// <summary>Damage assigned to health (including lethal excess).</summary>
     public int? DamageToHealth { get; init; }
+    /// <summary>Damage exceeded the character's previous Health on the source's turn.</summary>
+    public bool IsOverkill { get; init; }
+    /// <summary>Damage equaled the character's previous Health on the source's turn.</summary>
+    public bool IsHonorableKill { get; init; }
 }
 
 public sealed record SimulationResult(GameState State, ImmutableArray<SimulationEvent> Events);

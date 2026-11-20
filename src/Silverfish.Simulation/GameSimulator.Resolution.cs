@@ -207,14 +207,31 @@ public sealed partial class GameSimulator
             }
 
             var absorbed = Math.Min(character.Armor, amount);
+            var healthDamage = amount - absorbed;
+            // Exact lethal and excess damage compare the target's Health before
+            // this hit, after Armor was deducted; they apply only on our source's turn.
+            var fromActivePlayer = source is EntityId attacker &&
+                _state.Entities.TryGetValue(attacker, out var attackingEntity) &&
+                attackingEntity.Controller == _state.ActivePlayer;
+            TriggerTiming? lethalTiming = null;
+            if (fromActivePlayer && character.Health > 0)
+            {
+                if (healthDamage > character.Health)
+                    lethalTiming = TriggerTiming.Overkill;
+                else if (healthDamage == character.Health)
+                    lethalTiming = TriggerTiming.HonorableKill;
+            }
+
             _state = _state.UpdateCharacter(target, character with
             {
                 Armor = character.Armor - absorbed,
-                Damage = checked(character.Damage + (amount - absorbed))
+                Damage = checked(character.Damage + healthDamage)
             });
             _events.Add(new(SimulationEventKind.Damage, entity.Controller, source, target, amount)
             {
-                DamageToArmor = absorbed, DamageToHealth = amount - absorbed
+                DamageToArmor = absorbed, DamageToHealth = healthDamage,
+                IsOverkill = lethalTiming == TriggerTiming.Overkill,
+                IsHonorableKill = lethalTiming == TriggerTiming.HonorableKill
             });
 
             // DamageSource remains the actual character for trigger filtering.
@@ -235,7 +252,10 @@ public sealed partial class GameSimulator
             }
 
             return new(TriggerTiming.Damage, entity.Controller, target,
-                source is EntityId triggerSource ? new(triggerSource, _state.Entities[triggerSource].Controller) : null, amount);
+                source is EntityId triggerSource ? new(triggerSource, _state.Entities[triggerSource].Controller) : null,
+                amount, LethalBonus: lethalTiming,
+                AttackingWeapon: attackingWeapon is EntityId w && _state.Entities.TryGetValue(w, out var heldWeapon)
+                    ? new(w, heldWeapon.Controller) : null);
 
             bool HasDamageKeyword(CardKeywords keyword) =>
                 (source is EntityId s && _state.Entities.TryGetValue(s, out var damageSource) &&

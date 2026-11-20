@@ -52,7 +52,8 @@ public sealed partial class GameSimulator
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && !card.Deathrattle.IsEmpty) ||
                 (definition.Kind != EntityKind.Minion && (!card.Auras.IsEmpty || card.LeavesNoCorpse)) ||
                 (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.CostAuras.IsEmpty) ||
-                (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.IsSecret && !card.Triggers.IsEmpty) ||
+                (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.IsSecret &&
+                    card.Triggers.Any(trigger => trigger.Timing is not (TriggerTiming.Overkill or TriggerTiming.HonorableKill))) ||
                 (!card.Choices.IsEmpty && (card.Choices.Length < 2 || card.IsSecret || card.Target != TargetRequirement.None ||
                     !card.OnPlay.IsDefaultOrEmpty || definition.Kind is not (EntityKind.Minion or EntityKind.Spell))) ||
                 (card.IsSecret && (definition.Kind != EntityKind.Spell || card.Target != TargetRequirement.None ||
@@ -97,7 +98,10 @@ public sealed partial class GameSimulator
                     !Enum.IsDefined(trigger.Focus) || !Enum.IsDefined(trigger.EntityMatch) ||
                     !IsValidCardFilter(trigger.CardFilter) ||
                     (trigger.EntityKind is EntityKind kind && (kind == EntityKind.Unknown || !Enum.IsDefined(kind))) ||
-                    (trigger.Focus == TriggerFocus.DamageSource && trigger.Timing != TriggerTiming.Damage) ||
+                    (trigger.Focus == TriggerFocus.DamageSource &&
+                    trigger.Timing is not (TriggerTiming.Damage or TriggerTiming.Overkill or TriggerTiming.HonorableKill)) ||
+                (trigger.Timing is TriggerTiming.Overkill or TriggerTiming.HonorableKill &&
+                    (trigger.Focus != TriggerFocus.DamageSource || trigger.EntityMatch != TriggerEntityMatch.Self)) ||
                     (trigger.Focus == TriggerFocus.AttackDefender && trigger.Timing != TriggerTiming.AttackProposed) ||
                     (trigger.Timing is TriggerTiming.SpellCounterWindow or TriggerTiming.AttackProposed && !card.IsSecret) ||
                     (trigger.Timing is TriggerTiming.TurnStarted or TriggerTiming.TurnEnded &&
@@ -499,7 +503,8 @@ public sealed partial class GameSimulator
 
     private static bool HasCharacterSubject(TriggerTiming? timing) =>
         timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
-            TriggerTiming.AfterMinionPlayed or TriggerTiming.Damage or TriggerTiming.HeroAttacking or TriggerTiming.AttackProposed;
+            TriggerTiming.AfterMinionPlayed or TriggerTiming.Damage or TriggerTiming.Overkill or
+            TriggerTiming.HonorableKill or TriggerTiming.HeroAttacking or TriggerTiming.AttackProposed;
 
     private static bool IsOptionalCardIdValid(string? cardId) => cardId is null || !string.IsNullOrWhiteSpace(cardId);
 }

@@ -52,7 +52,8 @@ public enum TriggerTiming
 {
     TurnStarted, TurnEnded, WhenMinionSummoned, AfterMinionSummoned,
     BeforeSpellResolved, AfterSpellResolved, MinionDied, Damage, CardDrawn, HeroAttacking, WeaponDestroyed, AfterHeroPowerUsed,
-    SpellCounterWindow, AttackProposed, AfterMinionPlayed, CardDiscarded
+    SpellCounterWindow, AttackProposed, AfterMinionPlayed, CardDiscarded,
+    Overkill, HonorableKill
 }
 
 public enum TriggerRelation { Friendly, Opponent, Any }

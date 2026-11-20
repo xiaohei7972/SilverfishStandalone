@@ -138,6 +138,12 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan artifacts/checkpoint.
 
 此阶段先覆盖剧毒/吸血的基本伤害场景，超杀、荣誉击杀、过量治疗和复杂的伤害改写机制仍需要后续独立实现。
 
+## 超杀与荣誉消灭：按实际伤害触发奖励
+
+模拟器新增 `TriggerTiming.Overkill` 与 `TriggerTiming.HonorableKill`，根据伤害来源控制者的回合和角色受击前的生命值判断：超过剩余生命的伤害是超杀，恰好致命的伤害是荣誉消灭。先扣护甲再比较生命值；圣盾完全抵消伤害，不触发两种奖励。敌方回合的反击不触发奖励。
+
+需要额外奖励的卡牌将 `triggers` 定义为 `timing: "Overkill"` 或 `"HonorableKill"`，并指定 `focus: "DamageSource"` 和 `entityMatch: "Self"`；奖励效果通过现有结算工作队列执行，在统一死亡处理之前触发。支持造成伤害的随从、法术，以及英雄攻击时装备的武器。伤害事件增加 `isOverkill` 和 `isHonorableKill` 两个判定字段，便于测试及搜索回放。当前实现的是机制本身；各卡牌的超杀和荣誉消灭奖励仍需逐张接入单卡规则。
+
 ## 后续重构路线
 
 1. 以已验收的 2026-11-05 版及固定牌面决策作为回归基线。
