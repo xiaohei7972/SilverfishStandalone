@@ -7,7 +7,7 @@ namespace Silverfish.Simulation;
 [Flags]
 public enum CardKeywords { None = 0, Taunt = 1, Charge = 2, DivineShield = 4, Rush = 8, Windfury = 16 }
 
-public enum TargetRequirement { None, Character, EnemyCharacter, EnemyMinion, FriendlyMinion, Minion }
+public enum TargetRequirement { None, Character, EnemyCharacter, EnemyMinion, FriendlyMinion, Minion, FriendlyCharacter }
 
 [Flags]
 public enum PlayRequirements { None = 0, BoardSpace = 1, FriendlyMinionDeath = 2 }
@@ -118,6 +118,7 @@ public sealed record ConditionalEffect(EffectCondition Condition, ImmutableArray
 public sealed record CardPlayChoice(string Id, ImmutableArray<CardEffect> Effects)
 {
     public TargetRequirement Target { get; init; }
+    public TargetFilter? TargetFilter { get; init; }
     public PlayRequirements Requirements { get; init; }
 }
 
@@ -125,6 +126,7 @@ public sealed record CardPlayChoice(string Id, ImmutableArray<CardEffect> Effect
 public record CardRules
 {
     public TargetRequirement Target { get; init; }
+    public TargetFilter? TargetFilter { get; init; }
     public PlayRequirements Requirements { get; init; }
     public int MinimumEnemyMinions { get; init; }
     public int MinimumTotalMinions { get; init; }

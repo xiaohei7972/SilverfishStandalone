@@ -53,6 +53,8 @@ dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulatio
 
 效果可以通过 `conditional` 按角色生命、伤害、攻击、护甲或指定区域的实体数量选分支。触发器也支持同样的 `condition`，在发动前按当时的状态判断。
 
+有目标的牌、英雄技能和抉择分支可使用 `targetFilter`。合法目标须同时满足 `comparisons` 里的属性比较和可选的 `frozen` 状态。伤害值大于零可用来筛选已受伤的角色。
+
 场上英雄、随从以及已装备的武器可通过 `costAuras` 改变手牌或英雄技能的费用。合法动作和扣费共用同一计算，费用叠加后最低为零。
 
 ```powershell

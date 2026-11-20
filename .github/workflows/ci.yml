@@ -170,10 +170,12 @@ jobs:
           $replay = ($json -join "`n") | ConvertFrom-Json
           $summon = $replay.steps[0].events | Where-Object { $_.kind -eq 'summoned' }
           $strike = $replay.plan.actions[0]
+          $strikeTargets = @($replay.legalActions | Where-Object { $_.choice -eq 'strike' })
           if ($replay.steps[0].action.choice -ne 'deploy' -or $summon.source.value -ne 21 -or
+              $strikeTargets.Count -ne 1 -or $strikeTargets[0].target.value -ne 20 -or
               $replay.plan.winProbability -ne 1 -or $replay.plan.actions.Count -ne 1 -or
               $strike.choice -ne 'strike' -or $strike.source.value -ne 12 -or $strike.target.value -ne 20) {
-              throw 'Unexpected targeted choice replay or plan.'
+              throw '抉择的合法目标或搜索结果与预期不符。'
           }
       - name: Replay and plan with catalog-backed custom rules
         shell: pwsh

@@ -50,7 +50,7 @@ Cost auras come from living heroes, living minions, and equipped weapons. They a
 
 Empty crystal gain preserves available mana, filled crystal gain can refill unused capacity at the cap, and configured ramp effects can generate Excess Mana at the permanent cap. Generated cards receive new entity IDs and enter the hand without a draw event. `samples/simulation-mana.json` replays The Coin, Nourish, Wild Growth, and Lightning Bloom.
 
-Each play choice can declare its own target and play requirements. A legal action records the chosen option and any selected target. The simulator applies only that option's effects. `samples/simulation-choices.json` replays an untargeted summon and plans a targeted strike from the same card definition.
+Each play choice can declare its own target and play requirements. A legal action records the chosen option and any selected target. Cards, hero powers, and choices can filter targets through current character stats and freeze state. The simulator applies the filter when generating legal actions and carries the selected entity through resolution. `samples/simulation-choices.json` replays an untargeted summon and plans a strike that can select only a damaged character.
 
 Conditional effects compare a living character's current stats or count entities in a player's zone. Each branch uses the same effect queue and preserves the parent effect context. Triggers evaluate their optional conditions immediately before activation. A secret whose condition fails stays armed. `samples/simulation-conditions.json` exercises a branch based on damage just dealt and a listener that checks the resulting armor.
 

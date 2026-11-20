@@ -37,7 +37,7 @@ public sealed partial class GameSimulator
                 definition.PrintedCost < 0 || definition.PrintedAttack < 0 ||
                 (IsCharacter(definition.Kind) && definition.PrintedHealth < 1) ||
                 (definition.Kind == EntityKind.Weapon && definition.PrintedDurability <= 0) ||
-                !Enum.IsDefined(card.Target) ||
+                !IsValidTarget(card.Target, card.TargetFilter) ||
                 (card.Requirements & ~SupportedPlayRequirements) != 0 ||
                 card.MinimumEnemyMinions is < 0 or > BoardLimit || card.MinimumTotalMinions is < 0 or > BoardLimit * 2 ||
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield |
@@ -61,7 +61,7 @@ public sealed partial class GameSimulator
             foreach (var choice in card.Choices)
             {
                 if (choice is null || string.IsNullOrWhiteSpace(choice.Id) || !choiceIds.Add(choice.Id) ||
-                    !Enum.IsDefined(choice.Target) || (choice.Requirements & ~SupportedPlayRequirements) != 0 ||
+                    !IsValidTarget(choice.Target, choice.TargetFilter) || (choice.Requirements & ~SupportedPlayRequirements) != 0 ||
                     choice.Effects.IsDefaultOrEmpty)
                     throw new ArgumentException($"卡牌「{definition.CardId}」的抉择选项无效。", nameof(cards));
                 ValidateEffects(card, choice.Effects, choice.Target, hasInPlaySource: definition.Kind == EntityKind.Minion);
@@ -200,18 +200,18 @@ public sealed partial class GameSimulator
                 continue;
 
             if (card.Choices.IsEmpty)
-                AddPlayActions(card.Target, card.OnPlay, choiceId: null);
+                AddPlayActions(card.Target, card.TargetFilter, card.OnPlay, choiceId: null);
             else
                 foreach (var choice in card.Choices)
                     if (MeetsPlayRequirements(state, choice.Requirements, minions))
-                        AddPlayActions(choice.Target, choice.Effects, choice.Id);
+                        AddPlayActions(choice.Target, choice.TargetFilter, choice.Effects, choice.Id);
 
-            void AddPlayActions(TargetRequirement requirement, ImmutableArray<CardEffect> effects, string? choiceId)
+            void AddPlayActions(TargetRequirement requirement, TargetFilter? filter, ImmutableArray<CardEffect> effects, string? choiceId)
             {
                 if (minions >= BoardLimit && effects.Any(effect => effect is TakeControlEffect))
                     return;
 
-                var targets = PlayTargets(state, requirement);
+                var targets = PlayTargets(state, requirement, filter);
                 if (card.Definition.Kind is EntityKind.Minion or EntityKind.Weapon)
                     targets = targets.DefaultIfEmpty();
 
@@ -235,7 +235,7 @@ public sealed partial class GameSimulator
             var entity = state.Entities[powerId];
             var power = Card(entity);
             if (EffectiveCost(entity, power, costAuras) <= player.Mana && MeetsPlayRequirements(state, power, minions))
-                foreach (var target in PlayTargets(state, power.Target))
+                foreach (var target in PlayTargets(state, power.Target, power.TargetFilter))
                     actions.Add(new(SimulationActionKind.UseHeroPower, actor, powerId, target));
         }
 
@@ -257,36 +257,11 @@ public sealed partial class GameSimulator
             throw new InvalidOperationException($"玩家 {action.Actor.Value} 当前不能执行动作「{action.Kind}」。");
     }
 
-    private IEnumerable<EntityId?> PlayTargets(GameState state, TargetRequirement requirement)
-    {
-        if (requirement == TargetRequirement.None)
-        {
-            yield return null;
-            yield break;
-        }
-
-        foreach (var player in state.Players.Values.OrderBy(player => player.Id.Value))
-        {
-            if (requirement == TargetRequirement.FriendlyMinion && player.Id != state.ActivePlayer)
-                continue;
-            if ((requirement is TargetRequirement.EnemyCharacter or TargetRequirement.EnemyMinion) &&
-                player.Id == state.ActivePlayer)
-                continue;
-            foreach (var id in player.In(GameZone.Play))
-                if (state.Entities[id].Character is { Health: > 0 } &&
-                    (!TargetsOnlyMinions(requirement) || Card(state.Entities[id]).Definition.Kind == EntityKind.Minion))
-                    yield return id;
-        }
-    }
-
     private bool IsTaunt(GameEntity entity) =>
         Card(entity).Definition.Kind == EntityKind.Minion && HasKeyword(entity, CardKeywords.Taunt);
 
     private bool HasKeyword(GameEntity entity, CardKeywords keyword) =>
         !entity.Silenced && Card(entity).Keywords.HasFlag(keyword);
-
-    private static bool TargetsOnlyMinions(TargetRequirement requirement) =>
-        requirement is TargetRequirement.Minion or TargetRequirement.FriendlyMinion or TargetRequirement.EnemyMinion;
 
     private static bool IsCharacter(EntityKind kind) => kind is EntityKind.Hero or EntityKind.Minion;
 

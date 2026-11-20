@@ -7,8 +7,8 @@ public sealed partial class GameSimulator
     private static bool IsValidCondition(EffectCondition? condition, TargetRequirement target,
         bool hasCharacterSubject, bool hasInPlaySource) => condition switch
     {
-        CharacterCondition character => character.Value >= 0 && Enum.IsDefined(character.Metric) &&
-            Enum.IsDefined(character.Comparison) && (character.Target switch
+        CharacterCondition character => IsValidCharacterComparison(character.Metric, character.Comparison, character.Value) &&
+            (character.Target switch
             {
                 ConditionCharacter.Source => hasInPlaySource,
                 ConditionCharacter.Selected => target != TargetRequirement.None,
@@ -19,6 +19,32 @@ public sealed partial class GameSimulator
         ZoneCountCondition count => count.Value >= 0 && Enum.IsDefined(count.Player) && Enum.IsDefined(count.Zone) &&
             Enum.IsDefined(count.Comparison) && (count.EntityKind is not EntityKind kind || (Enum.IsDefined(kind) && kind != EntityKind.Unknown)),
         _ => false
+    };
+
+    private static bool IsValidCharacterComparison(CharacterMetric metric, NumberComparison comparison, int value) =>
+        value >= 0 && Enum.IsDefined(metric) && Enum.IsDefined(comparison);
+
+    private bool MatchesCharacterComparison(GameState state, GameEntity entity, CharacterMetric metric,
+        NumberComparison comparison, int expected)
+    {
+        var character = entity.Character!;
+        var observed = metric switch
+        {
+            CharacterMetric.Health => character.Health,
+            CharacterMetric.Damage => character.Damage,
+            CharacterMetric.Attack => EffectiveAttack(state, entity),
+            CharacterMetric.Armor => character.Armor,
+            _ => throw new InvalidOperationException("无法识别条件引用的角色属性。")
+        };
+        return TestComparison(observed, comparison, expected);
+    }
+
+    private static bool TestComparison(int observed, NumberComparison comparison, int expected) => comparison switch
+    {
+        NumberComparison.Equal => observed == expected,
+        NumberComparison.AtLeast => observed >= expected,
+        NumberComparison.AtMost => observed <= expected,
+        _ => throw new InvalidOperationException("无法识别条件的比较方式。")
     };
 
     private sealed partial class Resolution
@@ -44,17 +70,8 @@ public sealed partial class GameSimulator
             if (!IsLivingCharacter(id))
                 return false;
 
-            var entity = _state.Entities[id!.Value];
-            var character = entity.Character!;
-            var metric = condition.Metric switch
-            {
-                CharacterMetric.Health => character.Health,
-                CharacterMetric.Damage => character.Damage,
-                CharacterMetric.Attack => _rules.EffectiveAttack(_state, entity),
-                CharacterMetric.Armor => character.Armor,
-                _ => throw new InvalidOperationException("无法识别条件引用的角色属性。")
-            };
-            return TestComparison(metric, condition.Comparison, condition.Value);
+            return _rules.MatchesCharacterComparison(_state, _state.Entities[id!.Value],
+                condition.Metric, condition.Comparison, condition.Value);
         }
 
         private int CountEntities(EffectContext context, ZoneCountCondition condition)
@@ -65,13 +82,5 @@ public sealed partial class GameSimulator
                 ? entities.Count(id => _rules.Card(_state.Entities[id]).Definition.Kind == kind)
                 : entities.Length;
         }
-
-        private static bool TestComparison(int observed, NumberComparison comparison, int expected) => comparison switch
-        {
-            NumberComparison.Equal => observed == expected,
-            NumberComparison.AtLeast => observed >= expected,
-            NumberComparison.AtMost => observed <= expected,
-            _ => throw new InvalidOperationException("无法识别条件的比较方式。")
-        };
     }
 }
