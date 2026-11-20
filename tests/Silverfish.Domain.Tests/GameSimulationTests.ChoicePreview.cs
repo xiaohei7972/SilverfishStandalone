@@ -64,7 +64,7 @@ public sealed partial class GameSimulationTests
         Assert.Equal(2, preview.State.Players[First].In(GameZone.Hand).Length);
         Assert.Single(root.Players[First].In(GameZone.Hand));
         Assert.Null(root.PendingChoice!.Submitted);
-        Assert.Equal([new EntityId(32)], preview.State.PendingChoice!.Submitted!.OrderedEntityIds);
+        Assert.Equal([32], preview.State.PendingChoice!.Submitted!.OrderedEntityIds.Select(id => id.Value));
         Assert.Empty(simulator.LegalActions(preview.State));
         Assert.Equal(SimulationEventKind.ChoiceSubmitted, preview.Events[0].Kind);
         Assert.Contains(preview.Events, e => e.Kind == SimulationEventKind.CardGenerated);

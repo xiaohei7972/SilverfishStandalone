@@ -66,7 +66,7 @@ public sealed class EntityChoiceForecastPlannerTests
         Assert.True(forecast.IsComplete);
         Assert.Equal(2, forecast.EvaluatedCandidates);
         Assert.Equal(20, forecast.Score);
-        Assert.Equal([new EntityId(32)], forecast.Action!.OrderedChoiceTargets);
+        Assert.Equal([32], forecast.Action!.OrderedChoiceTargets.Select(id => id.Value));
         Assert.Null(root.PendingChoice!.Submitted);
         Assert.Empty(simulator.LegalActions(root));
         var intent = simulator.Apply(root, forecast.Action);
