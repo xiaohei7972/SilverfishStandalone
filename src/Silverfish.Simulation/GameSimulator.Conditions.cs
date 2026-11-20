@@ -17,7 +17,8 @@ public sealed partial class GameSimulator
                 _ => false
             }),
         ZoneCountCondition count => count.Value >= 0 && Enum.IsDefined(count.Player) && Enum.IsDefined(count.Zone) &&
-            Enum.IsDefined(count.Comparison) && (count.EntityKind is not EntityKind kind || (Enum.IsDefined(kind) && kind != EntityKind.Unknown)),
+            Enum.IsDefined(count.Comparison) && IsValidCardFilter(count.CardFilter) &&
+            (count.EntityKind is not EntityKind kind || (Enum.IsDefined(kind) && kind != EntityKind.Unknown)),
         _ => false
     };
 
@@ -78,9 +79,15 @@ public sealed partial class GameSimulator
         {
             var player = condition.Player == ConditionPlayer.Friendly ? context.Controller : _state.OpponentOf(context.Controller);
             var entities = _state.Players[player].In(condition.Zone);
-            return condition.EntityKind is EntityKind kind
-                ? entities.Count(id => _rules.Card(_state.Entities[id]).Definition.Kind == kind)
-                : entities.Length;
+            if (condition.EntityKind is null && condition.CardFilter is null)
+                return entities.Length;
+
+            return entities.Count(id =>
+            {
+                var definition = _rules.Card(_state.Entities[id]).Definition;
+                return (condition.EntityKind is not EntityKind kind || definition.Kind == kind) &&
+                    (condition.CardFilter is not { } cards || MatchesCardFilter(definition, cards));
+            });
         }
     }
 }

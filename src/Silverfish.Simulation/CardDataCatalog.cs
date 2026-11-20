@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using System.Xml;
 using System.Xml.Linq;
 using Silverfish.Domain;
+using Silverfish.Domain.Client;
 
 namespace Silverfish.Simulation;
 
@@ -15,27 +16,41 @@ public sealed record CardMetadata(
     [property: JsonRequired] ImmutableSortedDictionary<int, int> Tags)
 {
     public int GetTag(int tag) => Tags.GetValueOrDefault(tag);
+    public int GetTag(GAME_TAG tag) => GetTag((int)tag);
+
+    [JsonIgnore] public TAG_CARDTYPE ClientCardType => (TAG_CARDTYPE)GetTag(GAME_TAG.CARDTYPE);
+    [JsonIgnore] public TAG_CARD_SET ClientCardSet => (TAG_CARD_SET)GetTag(GAME_TAG.CARD_SET);
+    [JsonIgnore] public TAG_RACE ClientRace => (TAG_RACE)GetTag(GAME_TAG.CARDRACE);
+    [JsonIgnore] public TAG_SPELL_SCHOOL ClientSpellSchool => (TAG_SPELL_SCHOOL)GetTag(GAME_TAG.SPELL_SCHOOL);
+    [JsonIgnore] public TAG_CARD_ALTERNATE_COST ClientAlternateCost => (TAG_CARD_ALTERNATE_COST)GetTag(GAME_TAG.CARD_ALTERNATE_COST);
+    [JsonIgnore] public TAG_ZONE ClientZone => (TAG_ZONE)GetTag(GAME_TAG.ZONE);
 
     public CardDefinition ToDefinition()
     {
-        const int cardType = 202, cost = 48, attack = 47, health = 45;
-        var kind = GetTag(cardType) switch
+        var kind = ClientCardType switch
         {
-            0 => EntityKind.Unknown,
-            3 => EntityKind.Hero,
-            4 => EntityKind.Minion,
-            5 => EntityKind.Spell,
-            6 => EntityKind.Enchantment,
-            7 => EntityKind.Weapon,
-            10 => EntityKind.HeroPower,
-            39 => EntityKind.Location,
+            TAG_CARDTYPE.INVALID => EntityKind.Unknown,
+            TAG_CARDTYPE.HERO => EntityKind.Hero,
+            TAG_CARDTYPE.MINION => EntityKind.Minion,
+            TAG_CARDTYPE.SPELL => EntityKind.Spell,
+            TAG_CARDTYPE.ENCHANTMENT => EntityKind.Enchantment,
+            TAG_CARDTYPE.WEAPON => EntityKind.Weapon,
+            TAG_CARDTYPE.HERO_POWER => EntityKind.HeroPower,
+            TAG_CARDTYPE.LOCATION => EntityKind.Location,
             _ => EntityKind.Other
         };
 
         // 武器和地标的初始耐久取自 HEALTH。
-        return kind is EntityKind.Weapon or EntityKind.Location
-            ? new(CardId, kind, GetTag(cost), GetTag(attack), PrintedDurability: GetTag(health))
-            : new(CardId, kind, GetTag(cost), GetTag(attack), GetTag(health));
+        var equipment = kind is EntityKind.Weapon or EntityKind.Location;
+        var health = GetTag(GAME_TAG.HEALTH);
+        var alternateCost = ClientAlternateCost;
+        return new(CardId, kind, GetTag(GAME_TAG.COST), GetTag(GAME_TAG.ATK),
+            PrintedHealth: equipment ? 0 : health, PrintedDurability: equipment ? health : 0)
+        {
+            MinionTypes = kind == EntityKind.Minion ? CardTraitReader.ReadMinionTypes(this) : null,
+            SpellSchool = CardTraitReader.ReadSpellSchool(this),
+            AlternateCost = alternateCost == TAG_CARD_ALTERNATE_COST.MANA ? null : alternateCost
+        };
     }
 }
 
@@ -43,6 +58,8 @@ public sealed record CardMetadata(
 public sealed class CardDataCatalog
 {
     private const int SchemaVersion = 1;
+    // 卡名标签来自 CardDefs.xml，客户端 GAME_TAG 中未声明该成员。
+    private const int CardNameTag = 185;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -89,11 +106,22 @@ public sealed class CardDataCatalog
     public static CardDataCatalog ImportXml(Stream source)
     {
         using var reader = XmlReader.Create(source, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit });
-        var root = XDocument.Load(reader).Root;
-        if (root?.Name != "CardDefs" || (int?)root.Attribute("build") is not int build)
+        if (!reader.IsStartElement("CardDefs", "") || reader.GetAttribute("build") is not { } build)
             throw new InvalidDataException("请输入带有构建号的 CardDefs 文档。");
 
-        return new(build, root.Elements("Entity").Select(ReadCard));
+        return new(XmlConvert.ToInt32(build), ReadCards(reader));
+    }
+
+    private static IEnumerable<CardMetadata> ReadCards(XmlReader reader)
+    {
+        // 每次只保留当前卡牌的 XML 节点，同时读完整份文档以校验结尾。
+        while (reader.Read())
+        {
+            if (reader.Depth != 1 || reader.NodeType != XmlNodeType.Element || reader.LocalName != "Entity" || reader.NamespaceURI.Length != 0)
+                continue;
+            using var entity = reader.ReadSubtree();
+            yield return ReadCard(XElement.Load(entity));
+        }
     }
 
     private static CardMetadata ReadCard(XElement entity)
@@ -108,10 +136,10 @@ public sealed class CardDataCatalog
         foreach (var tag in entity.Elements("Tag"))
         {
             var id = (int?)tag.Attribute("enumID");
-            if (id is 184 or 185)
+            if (id is (int)GAME_TAG.CARDTEXT or CardNameTag)
             {
                 var localized = new LocalizedCardText((string?)tag.Element("enUS"), (string?)tag.Element("zhCN"));
-                if (id == 185)
+                if (id == CardNameTag)
                     name = localized;
                 else
                     text = localized;

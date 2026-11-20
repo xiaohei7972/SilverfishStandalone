@@ -11,25 +11,31 @@ using Silverfish.Simulation;
 
 Console.OutputEncoding = Encoding.UTF8;
 
-var simulation = (args.Length == 2 || (args.Length == 4 && args[2] == "--card-data")) &&
-    args[0] is "simulate" or "plan" or "decide" or "checkpoint";
-var plan = simulation && args[0] == "plan";
-var decide = simulation && args[0] == "decide";
-var checkpoint = simulation && args[0] == "checkpoint";
-var import = args.Length is 3 or 4 && args[0] == "import-card-data" &&
+var command = args.FirstOrDefault();
+var simulationCommand = command is "simulate" or "plan" or "decide" or "checkpoint";
+var simulation = simulationCommand && (args.Length == 2 || (args.Length == 4 && args[2] == "--card-data"));
+var plan = simulation && command == "plan";
+var decide = simulation && command == "decide";
+var checkpoint = simulation && command == "checkpoint";
+var import = command == "import-card-data" && args.Length is 3 or 4 &&
     (args.Length == 3 || args[3] == "--starter");
-var generateSim = args.Length >= 4 && args[0] == "generate-sim";
-var help = args.Length > 0 && args[0] is "--help" or "-h";
-if (help || (!simulation && !import && !generateSim && (args.Length != 1 || args[0] == "generate-sim")))
+var generateSim = command == "generate-sim" && args.Length >= 4;
+var snapshotInput = args.Length == 1 && !simulationCommand && command is not ("import-card-data" or "generate-sim") &&
+    command is not null && !command.StartsWith('-');
+var help = args.Length == 1 && command is "--help" or "-h";
+if (help || (!simulation && !import && !generateSim && !snapshotInput))
 {
-    Console.Error.WriteLine("用法  Silverfish.Cli <game-snapshot.json>");
-    Console.Error.WriteLine("       Silverfish.Cli simulate <scenario.json> [--card-data <catalog.json>]");
-    Console.Error.WriteLine("       Silverfish.Cli plan <scenario.json> [--card-data <catalog.json>]");
-    Console.Error.WriteLine("       Silverfish.Cli decide <decision.json> [--card-data <catalog.json>]");
-    Console.Error.WriteLine("       Silverfish.Cli checkpoint <scenario.json> [--card-data <catalog.json>]");
-    Console.Error.WriteLine("       Silverfish.Cli import-card-data <CardDefs.xml> <catalog.json> [--starter]");
-    Console.Error.WriteLine("       Silverfish.Cli generate-sim <CardDefs.xml 或 catalog.json> <Cards目录> <卡牌ID> [...]");
-    return help && args.Length == 1 ? 0 : 2;
+    var output = help ? Console.Out : Console.Error;
+    if (!help)
+        output.WriteLine("命令或参数无效。");
+    output.WriteLine("用法  Silverfish.Cli <对局快照.json>");
+    output.WriteLine("       Silverfish.Cli simulate <回放场景.json> [--card-data <卡牌目录.json>]");
+    output.WriteLine("       Silverfish.Cli plan <搜索场景.json> [--card-data <卡牌目录.json>]");
+    output.WriteLine("       Silverfish.Cli decide <决策请求.json> [--card-data <卡牌目录.json>]");
+    output.WriteLine("       Silverfish.Cli checkpoint <回放场景.json> [--card-data <卡牌目录.json>]");
+    output.WriteLine("       Silverfish.Cli import-card-data <CardDefs.xml> <卡牌目录.json 或 Generated.g.cs> [--starter]");
+    output.WriteLine("       Silverfish.Cli generate-sim <CardDefs.xml 或 卡牌目录.json> <Cards 目录> <卡牌 ID> [...]");
+    return help ? 0 : 2;
 }
 
 var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
@@ -104,7 +110,7 @@ try
         {
             state.Turn, state.ActivePlayer, state.Outcome, state.Winner,
             state.MinionDeaths, state.RandomState,
-            CardDataBuild = cardData?.SourceBuild,
+            CardDataBuild = cardData?.SourceBuild ?? scenario.CompiledDataBuild,
             Players = state.Players.Values.OrderBy(player => player.Id.Value).ToArray(),
             Entities = state.Entities.Values.OrderBy(entity => entity.Id.Value).ToArray(),
             Steps = steps,
@@ -164,6 +170,7 @@ static string DescribeArgument(ArgumentException error, string name)
 static void ImportCardData(string input, string output, bool starterOnly)
 {
     var outputPath = Path.GetFullPath(output);
+    var generateSource = outputPath.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase);
     var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
     if (string.Equals(Path.GetFullPath(input), outputPath, comparison))
         throw new ArgumentException("输出目录文件必须与输入 XML 使用不同的路径。");
@@ -184,7 +191,12 @@ static void ImportCardData(string input, string output, bool starterOnly)
     try
     {
         using (var destination = File.Open(temporaryPath, FileMode.CreateNew, FileAccess.Write))
-            data.WriteJson(destination, indented: starterOnly);
+        {
+            if (generateSource)
+                CardDataSourceWriter.Write(destination, data);
+            else
+                data.WriteJson(destination, indented: starterOnly);
+        }
         File.Move(temporaryPath, outputPath, overwrite: true);
     }
     finally
@@ -211,6 +223,8 @@ internal record SimulationStateInput
     public long? NextPlayOrder { get; init; }
     public MatchOutcome? Outcome { get; init; }
     public PlayerId? Winner { get; init; }
+
+    internal int? CompiledDataBuild => CardSet == "starter" || CardRules.Length != 0 ? CompiledCardData.Build : null;
 
     public static SimulationStateInput Capture(GameSimulator simulator, GameState state) => new()
     {
@@ -272,13 +286,12 @@ internal record SimulationStateInput
             return builtIn.Concat(Cards);
         }
 
-        if (cardData is null)
-            throw new InvalidDataException("使用 cardRules 时，请通过 --card-data <catalog.json> 指定卡牌目录。");
         return builtIn.Concat(Cards).Concat(CardRules.Select(rules =>
         {
             if (string.IsNullOrWhiteSpace(rules?.CardId))
                 throw new InvalidDataException("每条 cardRules 规则必须提供 cardId。");
-            return SimulationCard.FromMetadata(cardData.GetCard(rules.CardId), rules);
+            return cardData is null ? CompiledCardData.Bind(rules.CardId, rules) :
+                SimulationCard.FromMetadata(cardData.GetCard(rules.CardId), rules);
         }));
     }
 }

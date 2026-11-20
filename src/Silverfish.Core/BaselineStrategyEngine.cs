@@ -58,7 +58,7 @@ public sealed class BaselineStrategyEngine : IStrategyEngine
         {
             GameActionKind.EndTurn => -1000,
             GameActionKind.PlayCard => 20 + Math.Min(action.ManaCost, snapshot.AvailableMana) * 3,
-            GameActionKind.HeroPower => 12,
+            GameActionKind.HeroPower or GameActionKind.ActivateLocation => 12,
             GameActionKind.Attack => EvaluateAttack(snapshot, action),
             GameActionKind.ChooseOption => 0,
             _ => -2000

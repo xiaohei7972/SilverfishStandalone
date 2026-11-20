@@ -3,11 +3,12 @@ using System.Text.Json.Serialization;
 
 namespace Silverfish.Simulation;
 
-/// <summary>目标必须同时满足全部属性比较和指定的冻结状态。</summary>
+/// <summary>目标必须满足指定的属性、冻结状态和卡牌条件。</summary>
 public sealed record TargetFilter
 {
     public ImmutableArray<TargetComparison> Comparisons { get; init; } = [];
     public bool? Frozen { get; init; }
+    public CardFilter? CardFilter { get; init; }
 }
 
 public sealed record TargetComparison(

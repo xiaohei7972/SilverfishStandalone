@@ -7,6 +7,49 @@ namespace Silverfish.Domain.Tests;
 public sealed partial class GameSimulationTests
 {
     [Fact]
+    public void TemporaryHandDiscountCombinesWithPersistentDiscountAndExpiresAfterRestore()
+    {
+        var draw = Spell("draw") with { OnPlay = [new DrawEffect(1)] };
+        var discount = Spell("discount") with
+        {
+            OnPlay = [new ChangeHandCostEffect(HandCostTarget.FriendlyHand, -1, EnchantmentDuration.CurrentTurn)
+                { CardFilter = new CardFilter { Kind = EntityKind.Spell }, EnchantmentCardId = "turn-discount" }]
+        };
+        var target = new SimulationCard(new("target", EntityKind.Spell, 3))
+        {
+            WhenDrawn = [new ChangeHandCostEffect(HandCostTarget.Source, -1) { EnchantmentCardId = "draw-discount" }]
+        };
+        var simulator = new GameSimulator([Hero, draw, discount, target, Minion("unit", 1, 1, cost: 3)]);
+        var root = Create(simulator, First,
+            Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10]), (GameZone.Hand, [11, 12, 14]), (GameZone.Deck, [13])) },
+            Player(Second, SecondHero), Card(11, "draw", First), Card(12, "discount", First),
+            Card(13, "target", First), Card(14, "unit", First));
+
+        var drawn = simulator.Apply(root, new(SimulationActionKind.PlayCard, First, new EntityId(11)));
+        var id = new EntityId(13);
+        var play = new SimulationAction(SimulationActionKind.PlayCard, First, id);
+        Assert.DoesNotContain(play, simulator.LegalActions(drawn.State));
+        Assert.Equal("draw-discount", Assert.Single(drawn.Events, entry => entry.Kind == SimulationEventKind.EnchantmentApplied).EnchantmentCardId);
+
+        var discounted = simulator.Apply(drawn.State, new(SimulationActionKind.PlayCard, First, new EntityId(12)));
+        var state = discounted.State;
+        Assert.Equal(1, simulator.EffectiveCost(state, id));
+        Assert.Equal(3, simulator.EffectiveCost(state, new EntityId(14)));
+        var continuation = new GameContinuation(state.NextEntity, state.NextPlayOrder, state.Outcome, state.Winner);
+        var restored = Restore(simulator, state, continuation);
+        var paid = simulator.Apply(restored, play).State;
+        Assert.Equal(0, paid.Players[First].Mana);
+        Assert.Empty(paid.Entities[id].CostModifiers);
+
+        var ended = simulator.Apply(restored, new(SimulationActionKind.EndTurn, First));
+        var expired = Assert.Single(ended.Events, entry => entry.Kind == SimulationEventKind.EnchantmentExpired);
+        Assert.Equal("turn-discount", expired.EnchantmentCardId);
+        Assert.Equal(id, expired.Target);
+        Assert.Equal(2, simulator.EffectiveCost(ended.State, id));
+        Assert.Equal("draw-discount", Assert.Single(ended.State.Entities[id].CostModifiers).CardId);
+    }
+
+    [Fact]
     public void PaymentMatchesLegalityWhenHandAndBoardModifiersStack()
     {
         var simulator = new GameSimulator([

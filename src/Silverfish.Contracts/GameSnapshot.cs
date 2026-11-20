@@ -68,7 +68,8 @@ public enum GameActionKind
     PlayCard,
     Attack,
     HeroPower,
-    ChooseOption
+    ChooseOption,
+    ActivateLocation
 }
 
 /// <summary>由调用方提供的候选动作及其标识。</summary>

@@ -29,7 +29,7 @@ jobs:
           $replay = ($json -join "`n") | ConvertFrom-Json
           $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
           if ($hero.character.health -ne 28 -or $replay.steps[2].events[-2].kind -ne 'deathrattle') {
-              throw 'Unexpected combat replay result.'
+              throw '战斗回放结果与预期不符。'
           }
       - name: Replay spell timing and death position
         shell: pwsh
@@ -40,7 +40,7 @@ jobs:
           $timing = $replay.steps[0].events | Where-Object { $_.kind -eq 'triggered' } | ForEach-Object { $_.timing }
           $board = $replay.players[0].zones.play.value -join ','
           if (($timing -join ',') -ne 'beforeSpellResolved,minionDied,afterSpellResolved' -or $board -ne '10,11,21,13') {
-              throw 'Unexpected trigger or board order.'
+              throw '触发结算顺序或战场站位与预期不符。'
           }
       - name: Replay starter cards with damage and draw triggers
         shell: pwsh
@@ -53,7 +53,7 @@ jobs:
           $draws = ($replay.steps.events | Where-Object { $_.kind -eq 'cardDrawn' }).source.value -join ','
           if ($hero.character.armor -ne 1 -or $draws -ne '14,15,22,16' -or
               $attack -ne 'attack,damage,damage,triggered,cardDrawn,triggered,armorGained') {
-              throw 'Unexpected damage-and-draw replay.'
+              throw '伤害和抽牌回放结果与预期不符。'
           }
       - name: Replay stat enchantments and auras
         shell: pwsh
@@ -68,7 +68,7 @@ jobs:
               $wisp.character.baseAttack -ne 1 -or $wisp.auraGrants.source.value -ne 12 -or
               $wisp.enchantments.Count -ne 0 -or
               $endTurn -ne 'turnEnded,enchantmentExpired,enchantmentExpired,turnStarted,cardDrawn') {
-              throw 'Unexpected stat enchantment or aura replay result.'
+              throw '属性附魔或光环回放结果与预期不符。'
           }
       - name: Replay equipment and hero powers
         shell: pwsh
@@ -84,7 +84,7 @@ jobs:
           if ($hero.character.health -ne 26 -or $weapon.cardId -ne 'CS2_082' -or $weapon.weapon.durability -ne 2 -or
               $replay.players[0].heroPowerUsesThisTurn -ne 0 -or !$ready -or
               $attack -ne 'attack,damage,damage,weaponDurabilityLost,weaponDestroyed,died,deathrattle,damage,died') {
-              throw 'Unexpected equipment or hero power replay.'
+              throw '武器或英雄技能回放结果与预期不符。'
           }
       - name: Replay return, transform, and resurrection
         shell: pwsh
@@ -98,7 +98,7 @@ jobs:
           if ($replay.players[0].mana -ne 0 -or $replayed.character.health -ne 2 -or $replayed.costModifiers.Count -ne 0 -or
               $sheep.cardId -ne 'CS2_tk1' -or $sheep.playOrder -ne 5 -or $replay.minionDeaths.Count -ne 1 -or
               $replay.minionDeaths[0].entity.value -ne 15 -or $resurrection.source.value -ne 15 -or $resurrection.target.value -ne 22) {
-              throw 'Unexpected return, transform, or resurrection replay.'
+              throw '回手、变形或复活的回放结果与预期不符。'
           }
       - name: Replay combat keywords and overload
         shell: pwsh
@@ -114,7 +114,7 @@ jobs:
           if ($heroAttack -or !$hero.character.frozen -or $hero.character.health -ne 27 -or $enemyHero.character.health -ne 26 -or
               $weapon.weapon.durability -ne 6 -or $player.mana -ne 8 -or $player.overloadLocked -ne 2 -or
               $player.overloadOwed -ne 0 -or $replay.minionDeaths[0].entity.value -ne 21) {
-              throw 'Unexpected combat keyword or overload replay.'
+              throw '战斗关键词或过载的回放结果与预期不符。'
           }
       - name: Replay secrets, counters, and attack cancellation
         shell: pwsh
@@ -131,7 +131,7 @@ jobs:
               $hero.character.health -ne 28 -or $wisp.costModifiers.delta -ne 2 -or $replay.players[0].overloadOwed -ne 0 -or
               $counter -ne 'cardPlayed,secretRevealed,spellCountered' -or
               $attack -ne 'attack,secretRevealed,returnedToHand,secretRevealed,damage,attackCancelled') {
-              throw 'Unexpected counter or trap order.'
+              throw '法术反制或陷阱的结算顺序与预期不符。'
           }
       - name: Replay and plan random effects
         shell: pwsh
@@ -144,7 +144,7 @@ jobs:
               $replay.plan.winProbability -ne 0.875 -or $replay.plan.usesSamples -or
               !$replay.plan.replanAfterLastAction -or $replay.plan.actions.Count -ne 1 -or
               $replay.plan.actions[0].source.value -ne 12 -or $replay.plan.transitions -gt 512) {
-              throw 'Unexpected seeded summon or random outcome plan.'
+                  throw '固定种子的召唤结果或随机分支搜索结果与预期不符。'
           }
       - name: Replay mana and player choices
         shell: pwsh
@@ -160,7 +160,7 @@ jobs:
               $player.temporaryMana -ne 0 -or $player.overloadLocked -ne 2 -or $player.overloadOwed -ne 0 -or
               $nourish.amount -ne 2 -or $excess.target.value -ne 22 -or
               $replay.steps[3].events[-1].source.value -ne 15 -or $bloom -ne 'cardPlayed,overloadScheduled,manaRefreshed') {
-              throw 'Unexpected mana, choice, or generated card result.'
+              throw '法力、抉择或卡牌生成的回放结果与预期不符。'
           }
       - name: Replay and plan targeted card choices
         shell: pwsh
@@ -181,6 +181,7 @@ jobs:
         shell: pwsh
         run: |
           $catalog = [System.IO.Path]::GetTempFileName()
+          $compiledScenario = [System.IO.Path]::GetTempFileName()
           try {
               $import = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- import-card-data samples/card-data-demo.xml $catalog
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -205,8 +206,20 @@ jobs:
                   $decision.snapshotSequence -ne 4 -or $decision.chosenAction.id -ne 'host-equip-11') {
                   throw '模拟决策未返回预期的快照序号和调用方动作 ID。'
               }
+              $scenario = (Get-Content -Raw samples/simulation-card-data.json).Replace('training-blade', 'CS2_029') | ConvertFrom-Json
+              $scenario.players[0].mana = 4
+              $scenario.players[0].manaCrystals = 4
+              $scenario | ConvertTo-Json -Depth 12 | Set-Content -Encoding utf8 $compiledScenario
+              $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate $compiledScenario
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $replay = ($json -join "`n") | ConvertFrom-Json
+              $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+              if ($replay.cardDataBuild -ne 256589 -or $replay.players[0].manaSpent -ne 4 -or $hero.character.armor -ne 2) {
+                  throw '从内置卡牌数据绑定自定义规则后，费用或效果结算与预期不符。'
+              }
           } finally {
               Remove-Item -LiteralPath $catalog
+              Remove-Item -LiteralPath $compiledScenario
           }
       - name: Replay with a restored checkpoint
         shell: pwsh
@@ -273,28 +286,63 @@ jobs:
           $xml = Join-Path $output 'CardDefs.xml'
           $data = Join-Path $output 'data.json'
           $cards = Join-Path $output 'Cards'
-          '<CardDefs build="1"><Entity CardID="TestCard" ID="1"><Tag enumID="202" value="5" /></Entity><Entity CardID="TestBuff" ID="2"><Tag enumID="202" value="6" /></Entity></CardDefs>' |
-              Set-Content -Encoding utf8 $xml
+          @'
+          <CardDefs build="1">
+            <Entity CardID="TestCard" ID="1">
+              <Tag enumID="183" value="1635" />
+              <Tag enumID="202" value="5" />
+              <Tag enumID="185"><enUS>Practice Spell</enUS><zhCN>练习法术</zhCN></Tag>
+              <Tag enumID="184"><enUS>&lt;b&gt;Draw&lt;/b&gt;\na&#x2028;card.</enUS><zhCN>抽一张牌。</zhCN></Tag>
+            </Entity>
+            <Entity CardID="TestBuff" ID="2">
+              <Tag enumID="183" value="1635" />
+              <Tag enumID="202" value="6" />
+              <Tag enumID="185"><enUS>Practice Buff</enUS><zhCN>练习附魔</zhCN></Tag>
+              <Tag enumID="184"><zhCN>获得一点攻击力。</zhCN></Tag>
+            </Entity>
+          </CardDefs>
+          '@ | Set-Content -Encoding utf8 $xml
           dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- generate-sim $xml $cards TestCard TestBuff
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $normal = Join-Path $cards 'Sim_TestCard.cs'
-          $enchantment = Join-Path $cards 'Enchantments/Sim_TestBuff.cs'
+          $normal = Join-Path $cards '1635-怀旧/Sim_TestCard.cs'
+          $enchantment = Join-Path $cards '1635-怀旧/ENCHANTMENT/Sim_TestBuff.cs'
           $normalSource = Get-Content -Raw $normal
           $enchantmentSource = Get-Content -Raw $enchantment
           if ($normalSource -notmatch 'CardRules Rules' -or $enchantmentSource -notmatch 'StatEnchantmentRule Rule') {
-              throw 'Sim 骨架没有按普通卡和附魔分别生成。'
+              throw '同系列中的普通卡或附魔 Sim 骨架使用了错误的规则类型。'
           }
           if ($normalSource -cnotmatch '(?m)^// \[CardSim\("TestCard"\)\]\r?$' -or
               $normalSource -match '\bconst\s+string\s+CardId\b' -or $enchantmentSource -match '\[CardSim\(') {
               throw '普通卡骨架应预填注释形式的 CardSim 卡牌 ID，附魔骨架由单卡直接引用。'
           }
+          if ($normalSource -notmatch '// 练习法术' -or $normalSource -notmatch '// Practice Spell' -or
+              $normalSource -notmatch '// 抽一张牌。' -or $normalSource -notmatch '// Draw a card\.' -or
+              $enchantmentSource -notmatch '// 获得一点攻击力。' -or $enchantmentSource -notmatch '// （无）') {
+              throw 'Sim 骨架的双语卡牌注释与原始资料不符。'
+          }
           Add-Content $enchantment '// 保留手写规则。'
           $before = (Get-FileHash $enchantment).Hash
           dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- import-card-data $xml $data
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $fromJson = Join-Path $output 'FromJson'
+          dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- generate-sim $data $fromJson TestCard TestBuff
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-Content -Raw (Join-Path $fromJson '1635-怀旧/Sim_TestCard.cs')) -cne $normalSource -or
+              (Get-Content -Raw (Join-Path $fromJson '1635-怀旧/ENCHANTMENT/Sim_TestBuff.cs')) -cne $enchantmentSource) {
+              throw '从 XML 和 JSON 生成的 Sim 骨架不一致。'
+          }
           dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- generate-sim $data $cards TestCard TestBuff
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ((Get-FileHash $enchantment).Hash -ne $before) { throw '重新生成覆盖了手写 Sim。' }
+          $oldDirectory = Join-Path $cards 'Enchantments'
+          New-Item -ItemType Directory -Path $oldDirectory | Out-Null
+          $oldPath = Join-Path $oldDirectory 'Sim_TestBuff.cs'
+          Move-Item -LiteralPath $enchantment -Destination $oldPath
+          dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- generate-sim $data $cards TestBuff
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Test-Path -LiteralPath $enchantment) -or (Get-FileHash $oldPath).Hash -ne $before) {
+              throw '重新生成时应识别旧目录中的手写 Sim。'
+          }
       - name: Run published standalone executable outside the workspace
         shell: pwsh
         run: |

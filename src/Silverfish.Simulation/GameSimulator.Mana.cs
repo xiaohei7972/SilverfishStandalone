@@ -71,7 +71,7 @@ public sealed partial class GameSimulator
             var count = Math.Min(effect.Amount, player.MaximumManaCrystals - player.ManaCrystals);
             if (count == 0 && effect.OverflowCardId is string overflow)
             {
-                AddCardToHand(overflow, player, source);
+                TryCreateCard(overflow, player.Id, source, CardPlacement.Hand);
                 return;
             }
 
@@ -117,16 +117,6 @@ public sealed partial class GameSimulator
 
             _state = _state.UpdateResources(player with { TemporaryMana = checked(player.TemporaryMana + amount) });
             _events.Add(new(kind, player.Id, source, Amount: amount));
-        }
-
-        private void AddCardToHand(string cardId, PlayerState player, EntityId source)
-        {
-            if (player.In(GameZone.Hand).Length >= HandLimit)
-                return;
-
-            var id = new EntityId(_state.NextEntity);
-            _state = _state.AddToHand(new(id, cardId, player.Id, player.Id));
-            _events.Add(new(SimulationEventKind.CardGenerated, player.Id, source, id));
         }
     }
 }

@@ -1,4 +1,5 @@
 using Silverfish.Domain;
+using Silverfish.Domain.Client;
 using Silverfish.Simulation;
 using Xunit;
 
@@ -6,6 +7,21 @@ namespace Silverfish.Domain.Tests;
 
 public sealed partial class GameSimulationTests
 {
+    [Fact]
+    public void AnUnsupportedAlternateCostIsNotOfferedForManaPayment()
+    {
+        var alternate = new SimulationCard(new("alternate", EntityKind.Spell, 0) { AlternateCost = TAG_CARD_ALTERNATE_COST.ALT_TAVERN_COIN });
+        var simulator = new GameSimulator([Hero, alternate, Spell("normal")]);
+        var root = Create(simulator, First,
+            Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10]), (GameZone.Hand, [11, 12])) },
+            Player(Second, SecondHero), Card(11, "alternate", First), Card(12, "normal", First));
+        var legal = simulator.LegalActions(root).Where(action => action.Kind == SimulationActionKind.PlayCard);
+        Assert.Equal(new EntityId(12), Assert.Single(legal).Source);
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            simulator.Apply(root, new(SimulationActionKind.PlayCard, First, new EntityId(11))));
+        Assert.Contains("替代费用", error.Message);
+    }
+
     [Theory]
     [InlineData(10)]
     [InlineData(11)]

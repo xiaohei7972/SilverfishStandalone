@@ -10,11 +10,7 @@ public static class StarterCardCatalog
     private static readonly Lazy<ImmutableArray<(string CardId, CardRules Rules)>> RegisteredRules = new(DiscoverRules);
 
     private static readonly Lazy<ImmutableArray<SimulationCard>> BuiltInCards = new(() =>
-    {
-        using var stream = typeof(StarterCardCatalog).Assembly.GetManifestResourceStream("Silverfish.Simulation.StarterCardData.json")
-            ?? throw new InvalidOperationException("缺少内置 starter 卡牌数据。");
-        return FromCardData(CardDataCatalog.LoadJson(stream));
-    });
+        [.. RegisteredRules.Value.Select(entry => CompiledCardData.Bind(entry.CardId, entry.Rules))]);
 
     public static ImmutableArray<SimulationCard> Cards => BuiltInCards.Value;
 

@@ -1,3 +1,5 @@
+using Silverfish.Domain.Client;
+
 namespace Silverfish.Domain;
 
 public enum EntityKind
@@ -13,4 +15,9 @@ public sealed record CardDefinition(
     int PrintedCost,
     int PrintedAttack = 0,
     int PrintedHealth = 0,
-    int PrintedDurability = 0);
+    int PrintedDurability = 0)
+{
+    public MinionType? MinionTypes { get; init; }
+    public SpellSchool? SpellSchool { get; init; }
+    public TAG_CARD_ALTERNATE_COST? AlternateCost { get; init; }
+}

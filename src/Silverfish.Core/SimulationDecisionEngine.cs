@@ -60,6 +60,7 @@ public sealed class SimulationDecisionEngine(GameSimulator simulator)
             GameActionKind.PlayCard => SimulationActionKind.PlayCard,
             GameActionKind.Attack => SimulationActionKind.Attack,
             GameActionKind.HeroPower => SimulationActionKind.UseHeroPower,
+            GameActionKind.ActivateLocation => SimulationActionKind.ActivateLocation,
             _ => throw new ArgumentException($"候选动作「{candidate.Id}」的类型「{candidate.Kind}」不受支持。", nameof(candidate))
         };
         EntityId? source = candidate.SourceEntityId is int from ? new(from) : null;

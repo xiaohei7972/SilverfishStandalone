@@ -1,10 +1,36 @@
 using System.Collections.Immutable;
+using System.Text.Json;
 using Silverfish.Domain;
 
 namespace Silverfish.Simulation;
 
 public sealed partial class GameSimulator
 {
+    private void RegisterEnchantmentRemovalEffects(SimulationCard card, EnchantStatsEffect enchantment)
+    {
+        if (enchantment.EnchantmentCardId is not { } cardId)
+            throw new ArgumentException("声明移除效果的属性附魔必须提供卡牌 ID。");
+
+        var reasons = new HashSet<EnchantmentRemovalReason>();
+        foreach (var removal in enchantment.OnRemoved)
+        {
+            if (removal is null || !Enum.IsDefined(removal.Reason) || !reasons.Add(removal.Reason) || removal.Effects.IsDefaultOrEmpty)
+                throw new ArgumentException($"附魔「{cardId}」的移除规则无效或原因重复。");
+
+            var key = (cardId, removal.Reason);
+            if (_enchantmentRemovalEffects.TryAdd(key, removal.Effects))
+            {
+                ValidateEffects(card, removal.Effects, TargetRequirement.Character, hasCharacterSubject: true);
+                continue;
+            }
+
+            // 同一附魔可被多张牌引用。存档还原后，嵌套效果的数组也按内容比较。
+            var existing = _enchantmentRemovalEffects[key];
+            if (existing != removal.Effects && JsonSerializer.Serialize(existing) != JsonSerializer.Serialize(removal.Effects))
+                throw new ArgumentException($"附魔「{cardId}」同一移除原因的效果定义不一致。");
+        }
+    }
+
     private static bool IsValidModifier(StatModifier? modifier) =>
         modifier is not null && (modifier.Attack is not null || modifier.MaximumHealth is not null) &&
         (modifier.Mode switch
@@ -39,12 +65,12 @@ public sealed partial class GameSimulator
         var grants = new Dictionary<EntityId, ImmutableArray<StatAuraGrant>.Builder>();
         foreach (var player in state.Players.Values)
         {
-            var minions = BoardMinions(state, player.Id).ToArray();
-            var emitters = Enumerable.Range(0, minions.Length).OrderBy(i => state.Entities[minions[i]].PlayOrder);
+            var slots = BoardSlots(state, player.Id).Select(id => state.Entities[id]).ToArray();
+            var emitters = Enumerable.Range(0, slots.Length).OrderBy(i => slots[i].PlayOrder);
             foreach (var index in emitters)
             {
-                var source = state.Entities[minions[index]];
-                if (source.Silenced)
+                var source = slots[index];
+                if (source.Character is null || source.Silenced)
                     continue;
 
                 var auras = Card(source).Auras;
@@ -53,12 +79,13 @@ public sealed partial class GameSimulator
                     var aura = auras[auraIndex];
                     var first = aura.Recipients == AuraRecipients.AdjacentFriendlyMinions ? Math.Max(0, index - 1) : 0;
                     var last = aura.Recipients == AuraRecipients.AdjacentFriendlyMinions
-                        ? Math.Min(minions.Length - 1, index + 1) : minions.Length - 1;
+                        ? Math.Min(slots.Length - 1, index + 1) : slots.Length - 1;
                     for (var position = first; position <= last; position++)
                     {
-                        if (position == index)
+                        if (position == index || slots[position].Character is null ||
+                            (aura.CardFilter is { } cards && !MatchesCardFilter(Card(slots[position]).Definition, cards)))
                             continue;
-                        var target = minions[position];
+                        var target = slots[position].Id;
                         if (!grants.TryGetValue(target, out var received))
                         {
                             received = ImmutableArray.CreateBuilder<StatAuraGrant>();
@@ -155,7 +182,7 @@ public sealed partial class GameSimulator
             }
         }
 
-        private void Silence(EffectContext context)
+        private void Silence(Stack<Work> work, EffectContext context)
         {
             var id = context.Selected!.Value;
             if (_state.LocationOf(id).Zone != GameZone.Play)
@@ -169,23 +196,49 @@ public sealed partial class GameSimulator
             };
             _state = _state.UpdateEntity(RecalculateStats(silenced, entity.AuraGrants));
             _events.Add(new(SimulationEventKind.Silenced, context.Controller, context.Source, id));
+            PushEnchantmentRemovalEffects(work, entity, entity.Enchantments, EnchantmentRemovalReason.Silenced);
         }
 
-        private void ExpireTurnEnchantments()
+        private void PushEnchantmentRemovalEffects(Stack<Work> work, GameEntity holder,
+            ImmutableArray<StatEnchantment> removed, EnchantmentRemovalReason reason)
         {
+            for (var index = removed.Length - 1; index >= 0; index--)
+            {
+                var layer = removed[index];
+                if (layer.CardId is { } cardId && _rules._enchantmentRemovalEffects.TryGetValue((cardId, reason), out var effects))
+                    PushEffects(work, new(layer.Source, holder.Controller, Selected: holder.Id, Subject: holder.Id), effects);
+            }
+        }
+
+        private bool ExpireTurnEnchantments()
+        {
+            List<(GameEntity Holder, ImmutableArray<StatEnchantment> Layers)>? removed = null;
             var entities = _state.Players.Values.SelectMany(player => player.In(GameZone.Play))
                 .Select(id => _state.Entities[id]).OrderBy(entity => entity.PlayOrder).ToArray();
             foreach (var entity in entities)
             {
-                var expired = entity.Enchantments.Where(modifier => modifier.ExpiresAfterTurn <= _state.Turn).ToArray();
-                if (expired.Length == 0)
+                var expired = entity.Enchantments.Where(modifier => modifier.ExpiresAfterTurn <= _state.Turn).ToImmutableArray();
+                if (expired.IsEmpty)
                     continue;
                 var remaining = entity.Enchantments.Where(modifier => !(modifier.ExpiresAfterTurn <= _state.Turn));
-                var updated = RecalculateStats(entity with { Enchantments = remaining.ToImmutableArray() }, entity.AuraGrants);
-                _state = _state.UpdateEntity(updated);
+                _state = _state.UpdateEntity(RecalculateStats(entity with { Enchantments = remaining.ToImmutableArray() }, entity.AuraGrants));
                 foreach (var modifier in expired)
                     _events.Add(new(SimulationEventKind.EnchantmentExpired, entity.Controller, modifier.Source, entity.Id));
+                if (_rules._enchantmentRemovalEffects.Count != 0)
+                    (removed ??= []).Add((entity, expired));
             }
+
+            if (removed is null)
+                return false;
+            var work = new Stack<Work>();
+            for (var index = removed.Count - 1; index >= 0; index--)
+            {
+                var (holder, layers) = removed[index];
+                PushEnchantmentRemovalEffects(work, holder, layers, EnchantmentRemovalReason.Expired);
+            }
+            var hasEffects = work.Count != 0;
+            RunWork(work);
+            return hasEffects;
         }
     }
 }

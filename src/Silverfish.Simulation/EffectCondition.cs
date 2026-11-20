@@ -25,4 +25,7 @@ public sealed record ZoneCountCondition(
     [property: JsonRequired] GameZone Zone,
     [property: JsonRequired] NumberComparison Comparison,
     [property: JsonRequired] int Value,
-    EntityKind? EntityKind = null) : EffectCondition;
+    EntityKind? EntityKind = null) : EffectCondition
+{
+    public CardFilter? CardFilter { get; init; }
+}

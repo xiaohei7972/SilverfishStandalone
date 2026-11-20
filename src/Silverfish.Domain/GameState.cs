@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Silverfish.Domain;
 
@@ -30,6 +31,11 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
     public int HeroPowerUsesThisTurn { get; init; }
     public int OverloadOwed { get; init; }
     public int OverloadLocked { get; init; }
+    public int? Corpses { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int CorpsesSpentThisGame { get; init; }
+    [JsonIgnore]
+    public int AvailableCorpses => Math.Max(0, Corpses.GetValueOrDefault() - CorpsesSpentThisGame);
     public ImmutableDictionary<GameZone, ImmutableArray<EntityId>> Zones { get; init; } =
         ImmutableDictionary<GameZone, ImmutableArray<EntityId>>.Empty;
 
@@ -140,7 +146,7 @@ public sealed class GameState
                         throw new ArgumentException($"实体 {id} 必须位于其控制者的一个且仅一个区域中。");
 
                     var hasActiveOrder = zone.Key == GameZone.Secret ||
-                        (zone.Key == GameZone.Play && (entity.Character is not null || entity.Weapon is not null));
+                        (zone.Key == GameZone.Play && HasPlayState(entity));
                     if (hasActiveOrder &&
                         (entity.PlayOrder is not > 0 || !playOrders.Add(entity.PlayOrder.Value)))
                         throw new ArgumentException($"实体 {id} 的进场顺序必须为正数，且不能与其他实体重复。");
@@ -208,7 +214,8 @@ public sealed class GameState
             PlayOrder = entersActiveZone ? NextPlayOrder : entity.PlayOrder,
             AuraGrants = destination.Zone == GameZone.Play ? entity.AuraGrants : [],
             Enchantments = destination.Zone == GameZone.Play ? entity.Enchantments : [],
-            CostModifiers = destination.Zone == GameZone.Hand ? entity.CostModifiers : []
+            CostModifiers = destination.Zone == GameZone.Hand ? entity.CostModifiers : [],
+            CostTypeModifiers = destination.Zone == GameZone.Hand ? entity.CostTypeModifiers : null
         };
         return new GameState(players.SetItem(to.Id, to), Entities.SetItem(id, entity), _locations.SetItem(id, destination),
             ActivePlayer, Turn, NextEntity, entersActiveZone ? checked(NextPlayOrder + 1) : NextPlayOrder,
@@ -232,11 +239,22 @@ public sealed class GameState
 
     internal GameState AddToHand(GameEntity entity) => AddEntity(entity, GameZone.Hand);
 
+    internal GameState AddToDeck(GameEntity entity, int index) => AddEntity(entity, GameZone.Deck, index);
+
+    internal GameState ReorderDeck(PlayerId playerId, ImmutableArray<EntityId> order)
+    {
+        var player = Players[playerId];
+        var deck = player.In(GameZone.Deck);
+        if (order.IsDefault || order.Length != deck.Length || !deck.ToHashSet().SetEquals(order))
+            throw new ArgumentException("调整牌序时必须保留牌库中的所有实体。", nameof(order));
+        return UpdatePlayer(SetZone(player, GameZone.Deck, order));
+    }
+
     private GameState AddEntity(GameEntity entity, GameZone zone, int? index = null)
     {
         ValidateEntity(entity, Players);
         var entersPlay = zone == GameZone.Play;
-        if (entity.Id.Value != NextEntity || entersPlay != (entity.Character is not null || entity.Weapon is not null))
+        if (entity.Id.Value != NextEntity || entersPlay != HasPlayState(entity))
             throw new ArgumentException("新实体必须使用下一个可用 ID，且其组件必须符合所在区域的要求。");
 
         var player = Players[entity.Controller];
@@ -268,8 +286,17 @@ public sealed class GameState
         new(Players.SetItem(player.Id, player), Entities, _locations,
             ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
 
-    internal GameState RecordMinionDeath(GameEntity minion) => new(Players, Entities, _locations, ActivePlayer, Turn,
-        NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths.Add(new(minion.Id, minion.CardId, minion.Controller, Turn)), RandomState);
+    internal GameState RecordMinionDeath(GameEntity minion, bool leavesCorpse)
+    {
+        var players = Players;
+        if (leavesCorpse)
+        {
+            var player = players[minion.Controller];
+            players = players.SetItem(player.Id, player with { Corpses = checked(player.Corpses.GetValueOrDefault() + 1) });
+        }
+        return new(players, Entities, _locations, ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner,
+            MinionDeaths.Add(new(minion.Id, minion.CardId, minion.Controller, Turn)), RandomState);
+    }
 
     internal GameState SetRandomState(ulong randomState) => new(Players, Entities, _locations, ActivePlayer, Turn,
         NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, randomState);
@@ -297,7 +324,8 @@ public sealed class GameState
         if (player.Zones is null || player.Id.Value < 1 || player.Mana < 0 || player.ManaCrystals < 0 ||
             player.MaximumManaCrystals < 1 || player.ManaCrystals > player.MaximumManaCrystals ||
             player.Fatigue < 0 || player.HeroPowerUsesThisTurn is < 0 or > 1 || player.ManaSpent is < 0 ||
-            player.TemporaryMana < 0 || player.OverloadLocked < 0 || player.OverloadOwed < 0)
+            player.TemporaryMana < 0 || player.OverloadLocked < 0 || player.OverloadOwed < 0 ||
+            player.Corpses is < 0 || player.CorpsesSpentThisGame < 0)
             throw new ArgumentException("玩家 ID 或资源数值无效。");
     }
 
@@ -325,7 +353,14 @@ public sealed class GameState
         if (entity.Weapon is { } weapon && (entity.Character is not null || weapon.Attack < 0 || weapon.Durability < 0 ||
             weapon.MaximumDurability < 1 || weapon.Durability > weapon.MaximumDurability || weapon.AttacksThisTurn < 0))
             throw new ArgumentException($"实体 {entity.Id} 的武器属性无效。");
+        if (entity.Location is { } location && (entity.Character is not null || entity.Weapon is not null ||
+            location.Health < 0 || location.TurnsUntilReady is < 0 or > LocationState.StartsUntilReadyAfterUse ||
+            (location.Health == 0 && location.TurnsUntilReady != 0)))
+            throw new ArgumentException($"实体 {entity.Id} 的地标属性无效。");
     }
+
+    private static bool HasPlayState(GameEntity entity) =>
+        entity.Character is not null || entity.Weapon is not null || entity.Location is not null;
 
     private static void ValidateCharacter(CharacterState character)
     {

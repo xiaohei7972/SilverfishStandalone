@@ -9,9 +9,9 @@ public sealed partial class GameSimulator
         private readonly HashSet<EntityId> _pendingDestruction = [];
         private readonly List<Death> _immediateDeaths = [];
 
-        private sealed record Death(GameEntity Entity, int? MinionPosition);
+        private sealed record Death(GameEntity Entity, int? BoardPosition);
 
-        private void ReturnMinion(EffectContext context, ReturnMinionEffect effect)
+        private void ReturnMinion(Stack<Work> work, EffectContext context, ReturnMinionEffect effect)
         {
             var id = (effect.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value;
             if (!IsLivingCharacter(id) || _rules.Card(_state.Entities[id]).Definition.Kind != EntityKind.Minion)
@@ -26,16 +26,17 @@ public sealed partial class GameSimulator
             }
 
             _state = _state.Move(id, new(controller, GameZone.Hand));
-            var modifiers = effect.CostDelta == 0
-                ? entity.CostModifiers : entity.CostModifiers.Add(new(context.Source, effect.CostDelta));
+            var modifiers = effect.CostDelta == 0 ? entity.CostModifiers :
+                entity.CostModifiers.Add(CreateCostModifier(context.Source, effect.CostDelta, effect.EnchantmentCardId, effect.CostDuration));
             _state = _state.UpdateEntity(_state.Entities[id] with
             {
                 Character = null, Silenced = false, CostModifiers = modifiers
             });
-            _events.Add(new(SimulationEventKind.ReturnedToHand, controller, context.Source, id));
+            _events.Add(new(SimulationEventKind.ReturnedToHand, controller, context.Source, id) { EnchantmentCardId = effect.EnchantmentCardId });
+            PushEnchantmentRemovalEffects(work, entity, entity.Enchantments, EnchantmentRemovalReason.LeftPlay);
         }
 
-        private void TransformMinion(EffectContext context, string cardId)
+        private void TransformMinion(Stack<Work> work, EffectContext context, string cardId)
         {
             var id = context.Selected!.Value;
             if (!IsLivingCharacter(id))
@@ -48,6 +49,7 @@ public sealed partial class GameSimulator
                 Enchantments = [], AuraGrants = []
             });
             _events.Add(new(SimulationEventKind.Transformed, entity.Controller, context.Source, id));
+            PushEnchantmentRemovalEffects(work, entity, entity.Enchantments, EnchantmentRemovalReason.Transformed);
         }
 
         private void DestroyMinion(EntityId id)
@@ -58,7 +60,7 @@ public sealed partial class GameSimulator
 
         private void ResurrectFriendlyMinion(Stack<Work> work, PlayerId player)
         {
-            if (_rules.MinionCount(_state, player) >= BoardLimit)
+            if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
                 return;
 
             var candidates = _state.MinionDeaths.Where(death => death.Controller == player).ToArray();
@@ -83,10 +85,11 @@ public sealed partial class GameSimulator
         {
             SpendResolutionStep();
             int? position = null;
-            if (_rules.Card(entity).Definition.Kind == EntityKind.Minion)
+            var card = _rules.Card(entity);
+            if (card.Definition.Kind == EntityKind.Minion)
             {
-                position = _rules.BoardMinions(_state, entity.Controller).TakeWhile(id => id != entity.Id).Count();
-                _state = _state.RecordMinionDeath(entity);
+                position = _rules.BoardSlots(_state, entity.Controller).TakeWhile(id => id != entity.Id).Count();
+                _state = _state.RecordMinionDeath(entity, !card.LeavesNoCorpse);
             }
 
             if (!entity.AuraGrants.IsEmpty || !entity.Enchantments.IsEmpty)

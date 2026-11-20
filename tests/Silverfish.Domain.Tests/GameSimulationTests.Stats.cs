@@ -91,6 +91,93 @@ public sealed partial class GameSimulationTests
             ended.Events.Select(e => e.Kind));
     }
 
+    [Theory]
+    [InlineData("end-turn", SimulationEventKind.EnchantmentExpired, GameZone.Play, 1)]
+    [InlineData("silence", SimulationEventKind.Silenced, GameZone.Play, 2)]
+    [InlineData("return", SimulationEventKind.ReturnedToHand, GameZone.Hand, 3)]
+    [InlineData("destroy", SimulationEventKind.Died, GameZone.Graveyard, 3)]
+    [InlineData("transform", SimulationEventKind.Transformed, GameZone.Play, 4)]
+    public void EnchantmentRunsOnlyTheMatchingRemovalRuleOnce(string removal, SimulationEventKind removalEvent,
+        GameZone zone, int armor)
+    {
+        var buff = new EnchantStatsEffect(StatTarget.Selected, new(StatModifierMode.Add, Attack: 2), EnchantmentDuration.CurrentTurn)
+        {
+            EnchantmentCardId = "buff-enchantment",
+            OnRemoved =
+            [
+                new(EnchantmentRemovalReason.Expired, [new GainArmorEffect(1)]),
+                new(EnchantmentRemovalReason.Silenced, [new GainArmorEffect(2)]),
+                new(EnchantmentRemovalReason.LeftPlay, [new GainArmorEffect(3)]),
+                new(EnchantmentRemovalReason.Transformed, [new GainArmorEffect(4)])
+            ]
+        };
+        var remover = Spell(removal) with
+        {
+            Target = TargetRequirement.Minion,
+            OnPlay = removal switch
+            {
+                "silence" => [new SilenceEffect()],
+                "return" => [new ReturnMinionEffect()],
+                "destroy" => [new DestroyMinionEffect()],
+                "transform" => [new TransformMinionEffect("token")],
+                _ => []
+            }
+        };
+        var simulator = new GameSimulator([Hero, Minion("unit", 3, 2), Minion("token", 1, 1),
+            Spell("buff") with { Target = TargetRequirement.Minion, OnPlay = [buff] }, remover]);
+        var holder = new EntityId(11);
+        var applier = new EntityId(12);
+        var initial = Create(simulator, First,
+            Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10, 11]), (GameZone.Hand, [12, 13])) },
+            Player(Second, SecondHero), InPlay(11, "unit", First, 3, 3, 2), Card(12, "buff", First), Card(13, removal, First));
+
+        var attached = simulator.Apply(initial, new(SimulationActionKind.PlayCard, First, applier, holder)).State;
+        var action = removal == "end-turn" ? new SimulationAction(SimulationActionKind.EndTurn, First) :
+            new(SimulationActionKind.PlayCard, First, new EntityId(13), holder);
+        var result = simulator.Apply(attached, action);
+
+        Assert.Equal(5, attached.Entities[holder].Character!.Attack);
+        Assert.Single(attached.Entities[holder].Enchantments);
+        Assert.Equal(zone, result.State.LocationOf(holder).Zone);
+        Assert.Empty(result.State.Entities[holder].Enchantments);
+        Assert.Equal(armor, result.State.Entities[FirstHero].Character!.Armor);
+        var gained = Assert.Single(result.Events, entry => entry.Kind == SimulationEventKind.ArmorGained);
+        Assert.Equal(applier, gained.Source);
+        Assert.True(result.Events.IndexOf(gained) > result.Events.IndexOf(Assert.Single(result.Events, entry => entry.Kind == removalEvent)));
+        if (removal != "end-turn")
+        {
+            var ended = simulator.Apply(result.State, new(SimulationActionKind.EndTurn, First));
+            Assert.DoesNotContain(ended.Events, entry => entry.Kind is SimulationEventKind.EnchantmentExpired or SimulationEventKind.ArmorGained);
+        }
+    }
+
+    [Fact]
+    public void ExpiringEnchantmentUsesRecalculatedAttackAndResolvesLethalBeforePassingTurn()
+    {
+        var buff = new EnchantStatsEffect(StatTarget.Selected, new(StatModifierMode.Add, Attack: 2), EnchantmentDuration.CurrentTurn)
+        {
+            EnchantmentCardId = "expiring-buff",
+            OnRemoved = [new(EnchantmentRemovalReason.Expired,
+                [new ConditionalEffect(new CharacterCondition(ConditionCharacter.Selected, CharacterMetric.Attack, NumberComparison.Equal, 1),
+                    [new DamageEffect(DamageTarget.EnemyHero, 30)])])]
+        };
+        var setting = new EnchantStatsEffect(StatTarget.Selected, new(StatModifierMode.Set, Attack: 1));
+        var simulator = new GameSimulator([Hero, Minion("unit", 3, 2),
+            Spell("buff") with { Target = TargetRequirement.Minion, OnPlay = [buff, setting] }]);
+        var holder = new EntityId(11);
+        var initial = Create(simulator, First,
+            Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10, 11]), (GameZone.Hand, [12])) },
+            Player(Second, SecondHero), InPlay(11, "unit", First, 3, 3, 2), Card(12, "buff", First));
+        var attached = simulator.Apply(initial, new(SimulationActionKind.PlayCard, First, new EntityId(12), holder)).State;
+
+        var result = simulator.Apply(attached, new(SimulationActionKind.EndTurn, First));
+
+        Assert.Equal(1, result.State.Entities[holder].Character!.Attack);
+        Assert.Equal(setting.Modifier, Assert.Single(result.State.Entities[holder].Enchantments).Modifier);
+        Assert.Equal(First, result.State.Winner);
+        Assert.DoesNotContain(result.Events, entry => entry.Kind is SimulationEventKind.TurnStarted or SimulationEventKind.CardDrawn);
+    }
+
     [Fact]
     public void SilencingADamagedRecipientKeepsTheExternalAuraAndClampsCurrentHealth()
     {

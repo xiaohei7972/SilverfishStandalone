@@ -130,20 +130,24 @@ public sealed partial class GameSimulationTests
     {
         var simulator = new GameSimulator([
             Hero, Minion("unit", 0, 1), Spell("draw-two") with { OnPlay = [new DrawEffect(2)] },
+            Minion("burned", 0, 1) with { WhenDiscarded = [new GainArmorEffect(1)] },
             Minion("watcher", 0, 1) with
             {
-                Triggers = [new(TriggerTiming.CardDrawn, TriggerRelation.Friendly, [new DrawEffect(1)])]
+                Triggers = [
+                    new(TriggerTiming.CardDrawn, TriggerRelation.Friendly, [new DrawEffect(1)]),
+                    new(TriggerTiming.CardDiscarded, TriggerRelation.Friendly, [new GainArmorEffect(2)])
+                ]
             }
         ]);
         var hand = Enumerable.Range(40, 8).ToArray();
-        var extras = hand.Concat([30, 31, 32]).Select(id => Card(id, "unit", First));
+        var extras = hand.Concat([30, 31]).Select(id => Card(id, "unit", First));
         var root = Create(simulator, First,
             Player(First, FirstHero) with
             {
                 Zones = Zones((GameZone.Play, [10, 12]), (GameZone.Hand, [11, ..hand]), (GameZone.Deck, [30, 31, 32]))
             },
             Player(Second, SecondHero),
-            [InPlay(12, "watcher", First, 3, 0, 1), Card(11, "draw-two", First), ..extras]);
+            [InPlay(12, "watcher", First, 3, 0, 1), Card(11, "draw-two", First), Card(32, "burned", First), ..extras]);
 
         var result = simulator.Apply(root, new(SimulationActionKind.PlayCard, First, new EntityId(11)));
 

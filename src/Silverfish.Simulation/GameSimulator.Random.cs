@@ -188,7 +188,7 @@ public sealed partial class GameSimulator
 
         private void SummonRandomMinion(Stack<Work> work, PlayerId player, SummonRandomMinionEffect effect)
         {
-            if (_rules.MinionCount(_state, player) >= BoardLimit)
+            if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
                 return;
 
             var cardId = effect.CardIds[ChooseIndex(effect.CardIds.Length)];

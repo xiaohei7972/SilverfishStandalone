@@ -1,5 +1,7 @@
 using System.Text;
+using System.Xml;
 using Silverfish.Domain;
+using Silverfish.Domain.Client;
 using Silverfish.Simulation;
 using Xunit;
 
@@ -7,6 +9,35 @@ namespace Silverfish.Domain.Tests;
 
 public sealed class CardDataCatalogTests
 {
+    [Fact]
+    public void ClientTagsRetainTheirNumericValuesAndProjectIntoTheSimulation()
+    {
+        using var xml = Utf8("""
+            <CardDefs build="1">
+              <Entity CardID="client-tags" ID="1">
+                <Tag enumID="202" value="10" />
+                <Tag enumID="49" value="1" />
+                <Tag enumID="200" value="24" />
+                <Tag enumID="1635" value="3" />
+                <Tag enumID="2837" value="2" />
+              </Entity>
+            </CardDefs>
+            """);
+        var catalog = CardDataCatalog.ImportXml(xml);
+        var card = catalog.GetCard("client-tags");
+
+        Assert.Equal(TAG_CARDTYPE.HERO_POWER, card.ClientCardType);
+        Assert.Equal(TAG_ZONE.PLAY, card.ClientZone);
+        Assert.Equal(TAG_RACE.DRAGON, card.ClientRace);
+        Assert.Equal(TAG_SPELL_SCHOOL.FROST, card.ClientSpellSchool);
+        Assert.Equal(TAG_CARD_ALTERNATE_COST.ARMOR, card.ClientAlternateCost);
+        Assert.Equal((int)TAG_CARD_ALTERNATE_COST.ARMOR, card.GetTag(GAME_TAG.CARD_ALTERNATE_COST));
+        Assert.Equal(GameZone.HeroPower, ClientZoneMapping.ToGameZone(card.ClientZone, card.ClientCardType));
+        Assert.Equal(GameZone.Deck, ClientZoneMapping.ToGameZone(TAG_ZONE.DECK, TAG_CARDTYPE.SPELL));
+        Assert.Equal(TAG_CARD_ALTERNATE_COST.ARMOR, card.ToDefinition().AlternateCost);
+        Assert.Equal(SpellSchool.Frost, card.ToDefinition().SpellSchool);
+    }
+
     [Fact]
     public void ImportPreservesCardIdentityLocalizationAndNumericTagsAcrossJson()
     {
@@ -70,6 +101,94 @@ public sealed class CardDataCatalogTests
             data.GetCard("WITH_HEALTH").ToDefinition());
         Assert.Equal(new CardDefinition("WITHOUT_HEALTH", kind, 0),
             data.GetCard("WITHOUT_HEALTH").ToDefinition());
+    }
+
+    [Fact]
+    public void ImportCombinesPrimaryAndAdditionalMinionTypesAndReadsSpellSchool()
+    {
+        using var xml = Utf8("""
+            <CardDefs build="1">
+              <Entity CardID="dual" ID="1">
+                <Tag enumID="202" value="4" />
+                <Tag enumID="200" value="24" />
+                <Tag enumID="2523" value="1" />
+                <Tag enumID="2534" value="1" />
+                <Tag enumID="2542" value="0" />
+                <ReferencedTag enumID="2539" value="1" />
+              </Entity>
+              <Entity CardID="universal" ID="2">
+                <Tag enumID="202" value="4" />
+                <Tag enumID="200" value="26" />
+                <Tag enumID="2534" value="1" />
+              </Entity>
+              <Entity CardID="extra-only" ID="3">
+                <Tag enumID="202" value="4" />
+                <Tag enumID="4756" value="1" />
+              </Entity>
+              <Entity CardID="spell" ID="4">
+                <Tag enumID="202" value="5" />
+                <Tag enumID="1635" value="3" />
+              </Entity>
+            </CardDefs>
+            """);
+        var catalog = CardDataCatalog.ImportXml(xml);
+        using var json = new MemoryStream();
+        catalog.WriteJson(json);
+        json.Position = 0;
+        var loaded = CardDataCatalog.LoadJson(json);
+
+        Assert.Equal(MinionType.Dragon | MinionType.Undead, loaded.GetCard("dual").ToDefinition().MinionTypes);
+        Assert.Equal(MinionType.All, loaded.GetCard("universal").ToDefinition().MinionTypes);
+        Assert.Equal(MinionType.Aberration, loaded.GetCard("extra-only").ToDefinition().MinionTypes);
+        Assert.Equal(SpellSchool.Frost, loaded.GetCard("spell").ToDefinition().SpellSchool);
+        Assert.Null(loaded.GetCard("spell").ToDefinition().MinionTypes);
+    }
+
+    [Fact]
+    public void CastWhenDrawnReadsOnlyTheSpellsOwnTag()
+    {
+        using var xml = Utf8("""
+            <CardDefs build="1">
+              <Entity CardID="spell" ID="1"><Tag enumID="202" value="5" /><Tag enumID="1077" value="1" /></Entity>
+              <Entity CardID="minion" ID="2"><Tag enumID="202" value="4" /><Tag enumID="1077" value="1" /></Entity>
+              <Entity CardID="mentions" ID="3"><Tag enumID="202" value="5" /><ReferencedTag enumID="1077" value="1" /></Entity>
+            </CardDefs>
+            """);
+        var catalog = CardDataCatalog.ImportXml(xml);
+        Assert.Equal(CardKeywords.CastsWhenDrawn, SimulationCard.FromMetadata(catalog.GetCard("spell")).Keywords);
+        Assert.Equal(CardKeywords.None, SimulationCard.FromMetadata(catalog.GetCard("minion")).Keywords);
+        Assert.Equal(CardKeywords.None, SimulationCard.FromMetadata(catalog.GetCard("mentions")).Keywords);
+    }
+
+    [Fact]
+    public void CompiledDataBindsCustomRulesWithoutTheStarterCatalog()
+    {
+        var rules = new CardRules { OnPlay = [new GainArmorEffect(2)] };
+
+        var card = CompiledCardData.Bind("CS2_029", rules);
+
+        Assert.Equal(EntityKind.Spell, card.Definition.Kind);
+        Assert.Equal(4, card.Definition.PrintedCost);
+        Assert.Equal(SpellSchool.Fire, card.Definition.SpellSchool);
+        Assert.Equal(rules.OnPlay, card.OnPlay);
+    }
+
+    [Fact]
+    public void XmlImportReadsOnlyDirectEntitiesAndValidatesTheWholeDocument()
+    {
+        const string input = """
+            <CardDefs build="1">
+              <Entity CardID="first" ID="1" />
+              <Unused><Entity CardID="first" ID="1" /></Unused>
+              <Entity CardID="last" ID="2" />
+            </CardDefs>
+            """;
+        using var valid = Utf8(input);
+        var catalog = CardDataCatalog.ImportXml(valid);
+        Assert.Equal(new[] { "first", "last" }, catalog.Cards.Select(card => card.CardId));
+
+        using var trailingXml = Utf8(input + "<Extra />");
+        Assert.Throws<XmlException>(() => CardDataCatalog.ImportXml(trailingXml));
     }
 
     [Theory]

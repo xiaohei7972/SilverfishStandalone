@@ -1,11 +1,17 @@
+using System.Collections.Immutable;
 using Silverfish.Domain;
 
 namespace Silverfish.Simulation;
 
-/// <summary>按卡牌 ID 定义可复用的附魔数值。施加方式由引用它的单卡规则指定。</summary>
+/// <summary>定义附魔的属性修正及按移除原因执行的额外效果。</summary>
 internal sealed record StatEnchantmentRule(
     string CardId, StatModifier Modifier, EnchantmentDuration Duration = EnchantmentDuration.Permanent)
 {
-    internal EnchantStatsEffect ApplyTo(StatTarget target) => new(target, Modifier, Duration) { EnchantmentCardId = CardId };
+    internal ImmutableArray<EnchantmentRemovalRule> OnRemoved { get; init; }
+
+    internal EnchantStatsEffect ApplyTo(StatTarget target) => new(target, Modifier, Duration)
+    {
+        EnchantmentCardId = CardId, OnRemoved = OnRemoved
+    };
     internal StatAura GrantTo(AuraRecipients recipients) => new(recipients, Modifier) { EnchantmentCardId = CardId };
 }

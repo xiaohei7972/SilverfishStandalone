@@ -23,7 +23,11 @@ public sealed partial class GameSimulator
 
         private abstract record Work;
         private sealed record ApplyEffect(EffectContext Context, CardEffect Effect) : Work;
-        private sealed record DrawCards(PlayerId Player, int Remaining) : Work;
+        private sealed record DrawCards(PlayerId Player, int Remaining, CardFilter? Filter = null) : Work;
+        private sealed record RecruitCards(PlayerId Player, int Remaining, CardFilter? Filter) : Work;
+        private sealed record CastDrawnSpell(PlayerId Player, EntityId Source) : Work;
+        private sealed record FinishDrawnSpell(PlayerId Player, EntityId Source) : Work;
+        private sealed record ResolveDiscardedCard(PlayerId Player, EntityId Card, ImmutableArray<CardEffect> Effects) : Work;
         private sealed record Dispatch(Occurrence Occurrence) : Work;
         private sealed record Activate(EffectContext Context, long PlayOrder, ImmutableArray<CardEffect> Effects,
             Listener? Listener = null, EntityId? LivingEntity = null, int? Amount = null) : Work;
@@ -79,6 +83,8 @@ public sealed partial class GameSimulator
                     (trigger.EntityMatch == TriggerEntityMatch.Other && listener.Id.Entity == entityId) ||
                     (trigger.EntityKind is EntityKind kind &&
                         (entityId is not EntityId id || _rules.Card(_state.Entities[id]).Definition.Kind != kind)) ||
+                    (trigger.CardFilter is { } cards &&
+                        (entityId is not EntityId filtered || !MatchesCardFilter(_rules.Card(_state.Entities[filtered]).Definition, cards))) ||
                     (trigger.RequireLivingEntity && !IsLivingCharacter(entityId)))
                     continue;
 
@@ -111,9 +117,21 @@ public sealed partial class GameSimulator
                         ExecuteEffect(work, effect.Context, effect.Effect);
                         break;
                     case DrawCards draw:
-                        if (draw.Remaining > 1)
-                            work.Push(new DrawCards(draw.Player, draw.Remaining - 1));
-                        Draw(work, draw.Player);
+                        Draw(work, draw);
+                        break;
+                    case RecruitCards recruit:
+                        Recruit(work, recruit);
+                        break;
+                    case CastDrawnSpell spell:
+                        CastWhenDrawn(work, spell);
+                        break;
+                    case FinishDrawnSpell spell:
+                        if (_state.LocationOf(spell.Source).Zone == GameZone.Play)
+                            _state = _state.Move(spell.Source, new(spell.Player, GameZone.Graveyard));
+                        break;
+                    case ResolveDiscardedCard discarded:
+                        _events.Add(new(SimulationEventKind.DiscardedEffect, discarded.Player, discarded.Card));
+                        PushEffects(work, new(discarded.Card, discarded.Player), discarded.Effects);
                         break;
                     case Dispatch dispatch:
                         PushTriggers(work, Queue(dispatch.Occurrence, CaptureListeners()));
@@ -128,7 +146,7 @@ public sealed partial class GameSimulator
                                     _state.Players[listener.Controller].EquippedWeapon != listener.Id.Entity) ||
                                 (listener.Trigger.Timing == TriggerTiming.SpellCounterWindow &&
                                     !CanCounterSpell(trigger.Context.Subject!.Value)) ||
-                                (listener.Trigger.RequiresBoardSpace && _rules.MinionCount(_state, listener.Controller) >= BoardLimit) ||
+                                (listener.Trigger.RequiresBoardSpace && _rules.BoardSlotCount(_state, listener.Controller) >= BoardLimit) ||
                                 (trigger.LivingEntity is EntityId living && !IsLivingCharacter(living)) ||
                                 (listener.Trigger.Condition is { } condition && !MeetsCondition(trigger.Context, condition)) ||
                                 !_activeTriggers.Add(listener.Id))

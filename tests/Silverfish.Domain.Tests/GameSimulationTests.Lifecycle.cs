@@ -29,7 +29,8 @@ public sealed partial class GameSimulationTests
         Assert.Empty(inHand.Enchantments);
         Assert.Empty(inHand.AuraGrants);
         Assert.Empty(returned.State.MinionDeaths);
-        Assert.Equal(new ManaCostModifier(shadowstep, -2), Assert.Single(inHand.CostModifiers));
+        Assert.Equal(new ManaCostModifier(shadowstep, -2) { CardId = "GBL_002e" }, Assert.Single(inHand.CostModifiers));
+        Assert.Equal("GBL_002e", Assert.Single(returned.Events, entry => entry.Kind == SimulationEventKind.ReturnedToHand).EnchantmentCardId);
         var play = new SimulationAction(SimulationActionKind.PlayCard, First, minion, Position: 0);
         Assert.Contains(play, simulator.LegalActions(returned.State));
 

@@ -109,7 +109,8 @@ public sealed partial class GameSimulationTests
         Assert.Contains(result.Events, e => e.Kind == SimulationEventKind.AttackCancelled);
         if (freezingFirst)
         {
-            Assert.Equal(new ManaCostModifier(freezing, 2), Assert.Single(result.State.Entities[wisp].CostModifiers));
+            Assert.Equal(new ManaCostModifier(freezing, 2) { CardId = "GBL_005e" }, Assert.Single(result.State.Entities[wisp].CostModifiers));
+            Assert.Equal("GBL_005e", Assert.Single(result.Events, entry => entry.Kind == SimulationEventKind.ReturnedToHand).EnchantmentCardId);
             Assert.DoesNotContain(simulator.LegalActions(result.State), action => action.Source == wisp);
         }
     }

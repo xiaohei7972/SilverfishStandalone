@@ -65,6 +65,16 @@ public sealed class BaselineStrategyEngineTests
     }
 
     [Fact]
+    public void RejectsAnEmptyBoardEntryWithAChineseError()
+    {
+        var snapshot = CreateSnapshot() with { OurBoard = [null!] };
+
+        var error = Assert.Throws<ArgumentException>(() => SnapshotValidator.Validate(snapshot));
+
+        Assert.Contains("快照中的战场或手牌不能包含空条目。", error.Message);
+    }
+
+    [Fact]
     public async Task DeterministicallyBreaksScoreTiesById()
     {
         var snapshot = CreateSnapshot() with

@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
+using Silverfish.Domain.Client;
 
 namespace Silverfish.Domain;
 
@@ -24,15 +26,38 @@ public sealed record WeaponStats(
     int MaximumDurability,
     int AttacksThisTurn = 0);
 
+/// <summary>地标剩余次数与距离再次可用还需经过的己方回合开始次数。</summary>
+public sealed record LocationState(int Health, int TurnsUntilReady = 0)
+{
+    internal const int StartsUntilReadyAfterUse = 2;
+}
+
 public sealed record GameEntity(EntityId Id, string CardId, PlayerId Owner, PlayerId Controller)
 {
     public CharacterState? Character { get; init; }
     public WeaponStats? Weapon { get; init; }
+    public LocationState? Location { get; init; }
     public long? PlayOrder { get; init; }
     public bool Silenced { get; init; }
     public ImmutableArray<StatEnchantment> Enchantments { get; init; } = [];
     public ImmutableArray<StatAuraGrant> AuraGrants { get; init; } = [];
     public ImmutableArray<ManaCostModifier> CostModifiers { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<CostTypeModifier>? CostTypeModifiers { get; init; }
 }
 
-public sealed record ManaCostModifier(EntityId Source, int Delta);
+/// <summary>手牌费用数值的修正。未设置到期回合时持续到卡牌离开手牌区。</summary>
+public sealed record ManaCostModifier(EntityId Source, int Delta)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CardId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ExpiresAfterTurn { get; init; }
+}
+
+/// <summary>手牌支付方式的修正。未设置到期回合时持续到卡牌离开手牌区。</summary>
+public sealed record CostTypeModifier(EntityId Source, TAG_CARD_ALTERNATE_COST Type, int? ExpiresAfterTurn = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CardId { get; init; }
+}

@@ -29,6 +29,9 @@ public sealed partial class GameSimulator
                 case SimulationActionKind.UseHeroPower:
                     UseHeroPower(action.Actor, action.Source!.Value, action.Target);
                     break;
+                case SimulationActionKind.ActivateLocation:
+                    ActivateLocation(action.Actor, action.Source!.Value, action.Target);
+                    break;
             }
 
             ResolveDeaths();
@@ -46,7 +49,15 @@ public sealed partial class GameSimulator
                 return;
 
             ThawAtTurnEnd(outgoing);
-            ExpireTurnEnchantments();
+            // 移除效果和随后发生的死亡也可能添加本回合内到期的附魔。
+            while (ExpireTurnEnchantments())
+            {
+                ResolveDeaths();
+                FinishIfHeroesDied();
+                if (_state.Outcome != MatchOutcome.InProgress)
+                    return;
+            }
+            ExpireTurnHandCostModifiers();
             var previous = _state.Players[outgoing];
             if (previous.TemporaryMana != 0)
                 _state = _state.UpdateResources(previous with { TemporaryMana = 0 });
@@ -60,8 +71,11 @@ public sealed partial class GameSimulator
             });
             foreach (var id in next.In(GameZone.Play))
             {
-                if (_state.Entities[id].Character is { } character)
+                var entity = _state.Entities[id];
+                if (entity.Character is { } character)
                     _state = _state.UpdateCharacter(id, character with { AttacksThisTurn = 0, Exhausted = false });
+                else if (entity.Location is { TurnsUntilReady: > 0 } location)
+                    _state = _state.UpdateEntity(entity with { Location = location with { TurnsUntilReady = location.TurnsUntilReady - 1 } });
             }
 
             _events.Add(new(SimulationEventKind.TurnStarted, next.Id));
@@ -72,36 +86,6 @@ public sealed partial class GameSimulator
                 RunWork(new Stack<Work>([new DrawCards(next.Id, 1)]));
         }
 
-        private void Draw(Stack<Work> work, PlayerId playerId)
-        {
-            SpendResolutionStep();
-            var player = _state.Players[playerId];
-            var deck = player.In(GameZone.Deck);
-            if (deck.IsEmpty)
-            {
-                var fatigue = checked(player.Fatigue + 1);
-                _state = _state.UpdateResources(player with { Fatigue = fatigue });
-                _events.Add(new(SimulationEventKind.Fatigue, playerId, Target: player.Hero, Amount: fatigue));
-                PushOccurrence(work, Damage(null, player.Hero, fatigue));
-                return;
-            }
-
-            var drawn = deck[0];
-            var burned = player.In(GameZone.Hand).Length >= HandLimit;
-            _state = _state.Move(drawn, new(playerId, burned ? GameZone.Graveyard : GameZone.Hand));
-            _events.Add(new(burned ? SimulationEventKind.CardBurned : SimulationEventKind.CardDrawn, playerId, drawn));
-            if (burned)
-                return;
-
-            PushTriggers(work, Queue(new(TriggerTiming.CardDrawn, playerId, drawn), CaptureListeners()));
-            var drawEffects = _rules.Card(_state.Entities[drawn]).WhenDrawn;
-            if (!drawEffects.IsEmpty)
-            {
-                _events.Add(new(SimulationEventKind.DrawnEffect, playerId, drawn));
-                PushEffects(work, new(drawn, playerId), drawEffects);
-            }
-        }
-
         private void Play(PlayerId playerId, EntityId source, EntityId? target, int? position, string? choice)
         {
             var card = _rules.Card(_state.Entities[source]);
@@ -110,7 +94,7 @@ public sealed partial class GameSimulator
             var effects = option?.Effects ?? card.OnPlay;
             var resolvesEffect = (option?.Target ?? card.Target) == TargetRequirement.None || target is not null;
             var listeners = CaptureListeners();
-            PayMana(playerId, _rules.EffectiveCost(_state, source));
+            PayCardCost(playerId, source, card);
             var index = position is int slot ? _rules.BoardIndex(_state, playerId, slot) : (int?)null;
             _state = _state.Move(source, new(playerId, card.IsSecret ? GameZone.Secret : GameZone.Play), index);
             _events.Add(new(SimulationEventKind.CardPlayed, playerId, source, target));
@@ -136,12 +120,22 @@ public sealed partial class GameSimulator
                 return;
             }
 
+            if (kind == EntityKind.Location)
+            {
+                var entity = _state.Entities[source];
+                _state = _state.UpdateEntity(entity with { Location = new(card.Definition.PrintedDurability) });
+                _state = _rules.RefreshAuras(_state);
+                AddOverload(playerId, source, card.Overload);
+                if (resolvesEffect)
+                    ResolveEffects(new(source, playerId, target), effects);
+                return;
+            }
+
             var isMinion = kind == EntityKind.Minion;
             if (isMinion)
             {
                 _state = _state.UpdateCharacter(source, card.CreateCharacter());
-                _state = _rules.RefreshAuras(_state);
-                _events.Add(new(SimulationEventKind.Summoned, playerId, source));
+                FinishSummon(playerId, source);
             }
 
             var before = isMinion ? TriggerTiming.WhenMinionSummoned : TriggerTiming.BeforeSpellResolved;
@@ -269,6 +263,30 @@ public sealed partial class GameSimulator
                 case DrawEffect draw:
                     work.Push(new DrawCards(context.Controller, draw.Count));
                     break;
+                case DrawMatchingEffect draw:
+                    work.Push(new DrawCards(context.Controller, draw.Count, draw.CardFilter));
+                    break;
+                case ChangeCostTypeEffect change:
+                    ChangeCostType(context, change);
+                    break;
+                case ChangeHandCostEffect change:
+                    ChangeHandCost(context, change);
+                    break;
+                case RecruitEffect recruit:
+                    work.Push(new RecruitCards(context.Controller, recruit.Count, recruit.CardFilter));
+                    break;
+                case CreateCardEffect create:
+                    CreateCards(context, create);
+                    break;
+                case DiscardEffect discard:
+                    Discard(work, context, discard.Recipient, discard.Count, discard.Selection);
+                    break;
+                case DiscardHandEffect discard:
+                    Discard(work, context, discard.Recipient, HandLimit, DiscardSelection.Random);
+                    break;
+                case SummonDiscardedMinionEffect:
+                    SummonFromDiscard(work, context);
+                    break;
                 case GainArmorEffect armor:
                     GainArmor(context, armor.Amount);
                     break;
@@ -285,7 +303,7 @@ public sealed partial class GameSimulator
                     EnchantStats(context, enchant);
                     break;
                 case SilenceEffect:
-                    Silence(context);
+                    Silence(work, context);
                     break;
                 case SummonEffect summon:
                     var position = summon.Placement == SummonPlacement.Rightmost ? null : context.DeathPosition;
@@ -296,10 +314,10 @@ public sealed partial class GameSimulator
                     TakeControl(context.Source, context.Selected!.Value, context.Controller);
                     break;
                 case ReturnMinionEffect returned:
-                    ReturnMinion(context, returned);
+                    ReturnMinion(work, context, returned);
                     break;
                 case TransformMinionEffect transform:
-                    TransformMinion(context, transform.CardId);
+                    TransformMinion(work, context, transform.CardId);
                     break;
                 case DestroyMinionEffect:
                     DestroyMinion(context.Selected!.Value);
@@ -343,15 +361,28 @@ public sealed partial class GameSimulator
 
         private EntityId? Summon(PlayerId player, string cardId, int? position)
         {
-            if (_rules.MinionCount(_state, player) >= BoardLimit)
+            if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
                 return null;
             var id = new EntityId(_state.NextEntity);
             var entity = new GameEntity(id, cardId, player, player) { Character = _rules.GetCard(cardId).CreateCharacter() };
             var index = position is int slot ? _rules.BoardIndex(_state, player, slot) : _state.Players[player].In(GameZone.Play).Length;
             _state = _state.AddToPlay(entity, index);
+            FinishSummon(player, id);
+            return id;
+        }
+
+        private void FinishSummon(PlayerId player, EntityId id)
+        {
             _state = _rules.RefreshAuras(_state);
             _events.Add(new(SimulationEventKind.Summoned, player, id));
-            return id;
+        }
+
+        private void SummonExistingMinion(PlayerId player, EntityId id)
+        {
+            var card = _rules.Card(_state.Entities[id]);
+            _state = _state.Move(id, new(player, GameZone.Play));
+            _state = _state.UpdateCharacter(id, card.CreateCharacter());
+            FinishSummon(player, id);
         }
 
         private void TakeControl(EntityId source, EntityId target, PlayerId controller)
@@ -359,7 +390,7 @@ public sealed partial class GameSimulator
             var entity = _state.Entities[target];
             if (!IsLivingCharacter(target) || entity.Controller == controller)
                 return;
-            if (_rules.MinionCount(_state, controller) >= BoardLimit)
+            if (_rules.BoardSlotCount(_state, controller) >= BoardLimit)
             {
                 _immediateDeaths.Add(RemoveDeadEntity(entity));
                 return;
@@ -393,6 +424,12 @@ public sealed partial class GameSimulator
                 _state = _rules.RefreshAuras(_state);
                 foreach (var (entity, position) in wave.OrderBy(death => death.Entity.PlayOrder))
                 {
+                    if (!entity.Enchantments.IsEmpty && _rules._enchantmentRemovalEffects.Count != 0)
+                    {
+                        var work = new Stack<Work>();
+                        PushEnchantmentRemovalEffects(work, entity, entity.Enchantments, EnchantmentRemovalReason.LeftPlay);
+                        RunWork(work);
+                    }
                     if (position is null && entity.Weapon is null)
                         continue;
                     var timing = position is not null ? TriggerTiming.MinionDied : TriggerTiming.WeaponDestroyed;
