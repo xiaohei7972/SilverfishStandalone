@@ -49,6 +49,18 @@ dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulatio
 
 武器和地标的初始耐久只读取 `HEALTH`（45）。只有旧耐久标签的条目仍可在导出的原始标签中查询。
 
+## 单卡 Sim
+
+单卡逻辑位于 `src/Silverfish.Simulation/Cards/Sim_<卡牌ID>.cs`。带独立卡牌 ID 的属性附魔和光环定义位于 `Cards/Enchantments/Sim_<附魔ID>.cs`，由施加效果的卡牌引用。局面记录附魔 ID 和来源实体，便于在回放和存档里追踪。
+
+从完整 XML 或导出的 JSON 按 ID 生成骨架。下列命令可先输出到临时目录查看。
+
+```powershell
+dotnet run --project src/Silverfish.Cli -c Release -- generate-sim $cardDefs artifacts/card-sims CS2_092 CS2_092e
+```
+
+现有文件会保留。实现后将普通牌加入 `StarterCardCatalog.Registered`，附魔由对应单卡的 Sim 引用。新增普通牌时，用完整 XML 重新生成内置 `StarterCardData.json`。
+
 自定义场景可以在 `cardRules` 中以 `cardId` 指定目录条目，并填写对应的结算规则。类型、费用、基础数值、已支持的关键词和过载值由 `--card-data` 指定的目录提供。场景可以同时使用 `cards` 定义独立测试卡。
 
 效果可以通过 `conditional` 按角色生命、伤害、攻击、护甲或指定区域的实体数量选分支。触发器也支持同样的 `condition`，在发动前按当时的状态判断。

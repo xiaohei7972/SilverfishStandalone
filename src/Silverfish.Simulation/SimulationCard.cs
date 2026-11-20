@@ -26,7 +26,10 @@ public enum AuraRecipients { OtherFriendlyMinions, AdjacentFriendlyMinions }
 public enum CostAuraTarget { Hand, Minion, Spell, Weapon, HeroPower }
 public enum CostAuraRecipient { Friendly, Opponent, BothPlayers }
 
-public sealed record StatAura(AuraRecipients Recipients, StatModifier Modifier);
+public sealed record StatAura(AuraRecipients Recipients, StatModifier Modifier)
+{
+    public string? EnchantmentCardId { get; init; }
+}
 
 /// <summary>对指定玩家的手牌或英雄技能持续增减费用。</summary>
 public sealed record CostAura(
@@ -89,7 +92,10 @@ public sealed record HealFriendlyHeroEffect(int Amount) : CardEffect;
 public sealed record EquipWeaponEffect(string CardId) : CardEffect;
 public sealed record DestroyEnemyWeaponEffect : CardEffect;
 public sealed record EnchantStatsEffect(StatTarget Target, StatModifier Modifier,
-    EnchantmentDuration Duration = EnchantmentDuration.Permanent) : CardEffect;
+    EnchantmentDuration Duration = EnchantmentDuration.Permanent) : CardEffect
+{
+    public string? EnchantmentCardId { get; init; }
+}
 public sealed record SilenceEffect : CardEffect;
 /// <summary>亡语召唤沿用死亡位置，其他情况放到场上最右侧。</summary>
 public sealed record SummonEffect(string CardId, SummonPlacement Placement = SummonPlacement.Default) : CardEffect;

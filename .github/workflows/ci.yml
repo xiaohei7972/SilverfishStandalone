@@ -265,6 +265,30 @@ jobs:
               $hero.character.armor -ne 1 -or $opponent.character.health -ne 28) {
               throw '费用光环下的扣费或结算结果与预期不符。'
           }
+      - name: Generate card and enchantment Sim scaffolds
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP "silverfish-sim-$([Guid]::NewGuid())"
+          New-Item -ItemType Directory -Path $output | Out-Null
+          $xml = Join-Path $output 'CardDefs.xml'
+          $data = Join-Path $output 'data.json'
+          $cards = Join-Path $output 'Cards'
+          '<CardDefs build="1"><Entity CardID="TestCard" ID="1"><Tag enumID="202" value="5" /></Entity><Entity CardID="TestBuff" ID="2"><Tag enumID="202" value="6" /></Entity></CardDefs>' |
+              Set-Content -Encoding utf8 $xml
+          dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- generate-sim $xml $cards TestCard TestBuff
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $normal = Join-Path $cards 'Sim_TestCard.cs'
+          $enchantment = Join-Path $cards 'Enchantments/Sim_TestBuff.cs'
+          if ((Get-Content -Raw $normal) -notmatch 'CardRules Rules' -or (Get-Content -Raw $enchantment) -notmatch 'StatEnchantmentRule Rule') {
+              throw 'Sim 骨架没有按普通卡和附魔分别生成。'
+          }
+          Add-Content $enchantment '// 保留手写规则。'
+          $before = (Get-FileHash $enchantment).Hash
+          dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- import-card-data $xml $data
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- generate-sim $data $cards TestCard TestBuff
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-FileHash $enchantment).Hash -ne $before) { throw '重新生成覆盖了手写 Sim。' }
       - name: Run published standalone executable outside the workspace
         shell: pwsh
         run: |

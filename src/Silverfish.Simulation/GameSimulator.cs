@@ -69,7 +69,8 @@ public sealed partial class GameSimulator
             foreach (var aura in card.Auras)
             {
                 if (aura is null || !Enum.IsDefined(aura.Recipients) ||
-                    aura.Modifier?.Mode != StatModifierMode.Add || !IsValidModifier(aura.Modifier))
+                    aura.Modifier?.Mode != StatModifierMode.Add || !IsValidModifier(aura.Modifier) ||
+                    !IsOptionalCardIdValid(aura.EnchantmentCardId))
                     throw new ArgumentException($"卡牌「{definition.CardId}」的属性光环无效。", nameof(cards));
             }
             foreach (var aura in card.CostAuras)
@@ -346,7 +347,7 @@ public sealed partial class GameSimulator
                 EquipWeaponEffect equip => GetCard(equip.CardId).Definition.Kind == EntityKind.Weapon,
                 DestroyEnemyWeaponEffect => true,
                 EnchantStatsEffect enchant => Enum.IsDefined(enchant.Target) && Enum.IsDefined(enchant.Duration) &&
-                    IsValidModifier(enchant.Modifier) &&
+                    IsValidModifier(enchant.Modifier) && IsOptionalCardIdValid(enchant.EnchantmentCardId) &&
                     (enchant.Target != StatTarget.Selected || target != TargetRequirement.None) &&
                     (enchant.Target != StatTarget.Source || hasInPlaySource),
                 SilenceEffect or DestroyMinionEffect => TargetsOnlyMinions(target),
@@ -389,4 +390,6 @@ public sealed partial class GameSimulator
     private static bool HasCharacterSubject(TriggerTiming? timing) =>
         timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
             TriggerTiming.AfterMinionPlayed or TriggerTiming.Damage or TriggerTiming.HeroAttacking or TriggerTiming.AttackProposed;
+
+    private static bool IsOptionalCardIdValid(string? cardId) => cardId is null || !string.IsNullOrWhiteSpace(cardId);
 }

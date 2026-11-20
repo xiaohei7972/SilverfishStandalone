@@ -20,6 +20,7 @@ public sealed partial class GameSimulator
         {
             if (enchantment is null || !state.Entities.ContainsKey(enchantment.Source) ||
                 !IsValidModifier(enchantment.Modifier) ||
+                !IsOptionalCardIdValid(enchantment.CardId) ||
                 (enchantment.ExpiresAfterTurn is int turn && turn < state.Turn))
                 throw new ArgumentException($"实体 {entity.Id} 的属性附魔无效。");
         }
@@ -27,7 +28,8 @@ public sealed partial class GameSimulator
         foreach (var aura in entity.AuraGrants)
         {
             if (aura is null || !state.Entities.TryGetValue(aura.Source, out var source) || aura.Index < 0 ||
-                aura.Index >= Card(source).Auras.Length || aura.Modifier != Card(source).Auras[aura.Index].Modifier)
+                aura.Index >= Card(source).Auras.Length || aura.Modifier != Card(source).Auras[aura.Index].Modifier ||
+                (aura.CardId is not null && aura.CardId != Card(source).Auras[aura.Index].EnchantmentCardId))
                 throw new ArgumentException($"实体 {entity.Id} 获得的光环无效。");
         }
     }
@@ -62,7 +64,7 @@ public sealed partial class GameSimulator
                             received = ImmutableArray.CreateBuilder<StatAuraGrant>();
                             grants.Add(target, received);
                         }
-                        received.Add(new(source.Id, auraIndex, aura.Modifier));
+                        received.Add(new(source.Id, auraIndex, aura.Modifier) { CardId = aura.EnchantmentCardId });
                     }
                 }
             }
@@ -141,7 +143,7 @@ public sealed partial class GameSimulator
                 if (_state.LocationOf(id).Zone != GameZone.Play)
                     continue;
                 var entity = _state.Entities[id];
-                var enchantment = new StatEnchantment(context.Source, effect.Modifier, expires);
+                var enchantment = new StatEnchantment(context.Source, effect.Modifier, expires) { CardId = effect.EnchantmentCardId };
                 // 设定生命值时只在效果应用的那一刻清除已有伤害。
                 if (effect.Modifier is { Mode: StatModifierMode.Set, MaximumHealth: not null })
                     entity = entity with { Character = entity.Character! with { Damage = 0 } };

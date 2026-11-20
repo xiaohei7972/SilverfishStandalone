@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml;
+using Silverfish.Cli;
 using Silverfish.Contracts;
 using Silverfish.Core;
 using Silverfish.Domain;
@@ -17,7 +18,9 @@ var decide = simulation && args[0] == "decide";
 var checkpoint = simulation && args[0] == "checkpoint";
 var import = args.Length is 3 or 4 && args[0] == "import-card-data" &&
     (args.Length == 3 || args[3] == "--starter");
-if ((!simulation && !import && args.Length != 1) || args[0] is "--help" or "-h")
+var generateSim = args.Length >= 4 && args[0] == "generate-sim";
+var help = args.Length > 0 && args[0] is "--help" or "-h";
+if (help || (!simulation && !import && !generateSim && (args.Length != 1 || args[0] == "generate-sim")))
 {
     Console.Error.WriteLine("用法  Silverfish.Cli <game-snapshot.json>");
     Console.Error.WriteLine("       Silverfish.Cli simulate <scenario.json> [--card-data <catalog.json>]");
@@ -25,7 +28,8 @@ if ((!simulation && !import && args.Length != 1) || args[0] is "--help" or "-h")
     Console.Error.WriteLine("       Silverfish.Cli decide <decision.json> [--card-data <catalog.json>]");
     Console.Error.WriteLine("       Silverfish.Cli checkpoint <scenario.json> [--card-data <catalog.json>]");
     Console.Error.WriteLine("       Silverfish.Cli import-card-data <CardDefs.xml> <catalog.json> [--starter]");
-    return args.Length == 1 ? 0 : 2;
+    Console.Error.WriteLine("       Silverfish.Cli generate-sim <CardDefs.xml 或 catalog.json> <Cards目录> <卡牌ID> [...]");
+    return help && args.Length == 1 ? 0 : 2;
 }
 
 var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
@@ -41,6 +45,11 @@ try
     if (import)
     {
         ImportCardData(args[1], args[2], args.Length == 4);
+        return 0;
+    }
+    if (generateSim)
+    {
+        CardSimGenerator.Generate(args[1], args[2], args.Skip(3));
         return 0;
     }
 
@@ -117,7 +126,7 @@ catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or J
     ArgumentException or InvalidDataException or InvalidOperationException or KeyNotFoundException or
     FormatException or OverflowException)
 {
-    var operation = import ? "导入卡牌数据" : decide ? "模拟决策" : plan ? "搜索回合" :
+    var operation = generateSim ? "生成 Sim" : import ? "导入卡牌数据" : decide ? "模拟决策" : plan ? "搜索回合" :
         checkpoint ? "保存对局" : simulation ? "回放场景" : "分析快照";
     Console.Error.WriteLine($"{operation}失败。{DescribeFailure(ex)}");
     return 1;

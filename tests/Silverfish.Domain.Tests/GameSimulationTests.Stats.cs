@@ -49,7 +49,10 @@ public sealed partial class GameSimulationTests
         Assert.Equal(6, reset.Entities[minion].Character!.MaximumHealth);
         Assert.Equal(1, reset.Entities[minion].Character!.BaseAttack);
         Assert.Equal(new[] { kings, humility }, reset.Entities[minion].Enchantments.Select(layer => layer.Source));
-        Assert.Equal(champion, Assert.Single(reset.Entities[minion].AuraGrants).Source);
+        Assert.Equal(new[] { "CS2_092e", "EX1_360e" }, reset.Entities[minion].Enchantments.Select(layer => layer.CardId));
+        var aura = Assert.Single(reset.Entities[minion].AuraGrants);
+        Assert.Equal(champion, aura.Source);
+        Assert.Equal("CS2_222o", aura.CardId);
         Assert.Equal(reset.Entities[minion].Character, rebuild.Entities[minion].Character);
         Assert.Empty(root.Entities[minion].Enchantments);
     }
@@ -78,6 +81,7 @@ public sealed partial class GameSimulationTests
 
         Assert.Equal(2, withLeader.Entities[minion].Character!.Attack);
         Assert.Equal(5, withBloodlust.Entities[minion].Character!.Attack);
+        Assert.Equal("CS2_046e", Assert.Single(withBloodlust.Entities[minion].Enchantments).CardId);
         Assert.Equal(25, ended.State.Entities[SecondHero].Character!.Health);
         Assert.Equal(2, ended.State.Entities[minion].Character!.Attack);
         Assert.Equal(leader, Assert.Single(ended.State.Entities[minion].AuraGrants).Source);
