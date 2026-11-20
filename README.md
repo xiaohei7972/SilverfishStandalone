@@ -95,7 +95,7 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan artifacts/checkpoint.
 - 旧版经典银鱼参考代码可在 .NET 8 下**独立编译**、加载 CardDB、运行原版 `Ai.autoTester` 并计算出固定牌面中的斩杀攻击。
 - 受限 `GameSnapshot JSON → BoardTester → 经典 Ai → BotDecision` 离线端到端回归已通过，相关 ClassicBridge 测试 9/9 通过。见 [Actions #43531545029](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43531545029)。
 - 新增 `Silverfish.Domain`：实体中心的不可变局面模型，分离卡牌基础定义、战斗属性、费用、武器属性、关键词与扩展标签。对应基础模型单元测试已通过 [Actions #43566986229](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43566986229)。
-- 新增 `Silverfish.ClassicModelAdapter`：旧 `Minion`、`Handcard`、`Weapon` 到新模型的**只读状态投影**，用于迁移前差异验证，不再直接把可变旧对象暴露给新状态层。它与经典 AI 同源编译的测试由独立 Actions 工作流运行。
+- 新模拟器统一使用 `GameState` 和 `GameEntity` 表示随从、手牌和武器。旧 `Minion`、`Handcard`、`Weapon` 类型留在经典引擎的独立回归路径中。
 - 新模拟器已支持抽牌、亡语、附魔、位置光环、沉默、武器、基础英雄技能、回手、变形、消灭、复活、战斗关键词、过载、奥秘、随机效果、临时法力和带独立目标规则的抉择。`starter` 的 89 项卡牌、衍生物和技能用新的通用结算操作实现。
 
 ## 后续重构路线
@@ -113,8 +113,7 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan artifacts/checkpoint.
 - `src/Silverfish.Simulation`：合法动作生成、规则结算和卡牌定义。
 - `tests/Silverfish.Domain.Tests`：新模型的分支隔离、状态不变量和基础功能测试。
 - `src/Silverfish.Classic`：按 SHA/选择规则从旧源归档导入的经典银鱼源码编译项目。
-- `src/Silverfish.ClassicModelAdapter`：实验性的只读旧模型投影。
-- `tests/Silverfish.ClassicModelAdapter.Tests`：对实际编译的旧 Minion/Handcard/Weapon 的映射回归。
+- `tests/Silverfish.Classic.Tests`：经典 `Playfield` 的分支隔离、牌库与单卡效果回归。
 - `src/Silverfish.Classic.Smoke`：原版 AI 和 CardDB 离线回归程序。
 - `src/Silverfish.ClassicBridge`：原版动作到合法候选动作 ID 的映射。
 - `src/Silverfish.Contracts`：离线输入与决策接口。
@@ -141,4 +140,4 @@ python tools/test_import_classic.py
 python tools/test_normalize_classic.py
 ```
 
-真实 `Silverfish.Classic` 及其迁移适配器须先导入对应经典源文件，再在 `classic-compile.yml` 中完整验证。
+经典引擎和相关回归须先导入对应经典源文件，再在 `classic-compile.yml` 中完整验证。

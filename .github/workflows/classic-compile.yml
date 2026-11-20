@@ -38,8 +38,7 @@ on:
       - "src/Silverfish.Classic/**"
       - "src/Silverfish.Classic.Smoke/**"
       - "tests/Silverfish.ClassicBridge.Tests/**"
-      - "tests/Silverfish.ClassicModelAdapter.Tests/**"
-      - "src/Silverfish.ClassicModelAdapter/**"
+      - "tests/Silverfish.Classic.Tests/**"
       - "src/Silverfish.Domain/**"
       - "samples/classic-*.txt"
       - "samples/classic-*.json"
@@ -172,10 +171,10 @@ jobs:
         run: |
           dotnet test tests/Silverfish.ClassicBridge.Tests/Silverfish.ClassicBridge.Tests.csproj -c Release --nologo
 
-      - name: Test classic state projection and simulation branch isolation
+      - name: Test classic Playfield and simulation branch isolation
         shell: pwsh
         run: |
-          dotnet test tests/Silverfish.ClassicModelAdapter.Tests/Silverfish.ClassicModelAdapter.Tests.csproj -c Release --nologo
+          dotnet test tests/Silverfish.Classic.Tests/Silverfish.Classic.Tests.csproj -c Release --nologo
 
       - name: Run classic AI autoTester against a fixed offline board
         shell: pwsh

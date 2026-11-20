@@ -38,7 +38,7 @@ pwsh ./tools/publish_owner_classic_source.ps1 -ArchivePath "C:\\path\\ClassicSil
 
 ## 重构相关回归
 
-经典工作流在原版编译之后，还会测试 `Silverfish.ClassicModelAdapter`：只读地把旧 Minion、Handcard、Weapon 投影到 `Silverfish.Domain`，验证状态复制与身份映射。后续对原版模型动手改造时，这些测试用于识别新旧状态差异。
+经典工作流在原版编译之后运行 `Silverfish.Classic.Tests`，直接用已导入的经典源码回归 `Playfield` 分支隔离、牌库变更和单卡效果。独立模拟器的 `GameState` 规则由主解决方案测试覆盖。
 
 ## 最新版 2026-11-05 的正式构建
 

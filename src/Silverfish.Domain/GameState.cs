@@ -37,26 +37,6 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
         Zones.TryGetValue(zone, out var entities) ? entities : ImmutableArray<EntityId>.Empty;
 }
 
-public sealed record CharacterState(int Attack, int MaximumHealth, int Damage = 0, int Armor = 0,
-    int AttacksThisTurn = 0, bool Exhausted = false, bool DivineShield = false)
-{
-    public int? BaseAttack { get; init; }
-    public int? BaseMaximumHealth { get; init; }
-    public bool Frozen { get; init; }
-    public int Health => MaximumHealth - Damage;
-}
-
-public sealed record GameEntity(EntityId Id, string CardId, PlayerId Owner, PlayerId Controller)
-{
-    public CharacterState? Character { get; init; }
-    public WeaponStats? Weapon { get; init; }
-    public long? PlayOrder { get; init; }
-    public bool Silenced { get; init; }
-    public ImmutableArray<StatEnchantment> Enchantments { get; init; } = [];
-    public ImmutableArray<StatAuraGrant> AuraGrants { get; init; } = [];
-    public ImmutableArray<ManaCostModifier> CostModifiers { get; init; } = [];
-}
-
 public enum MatchOutcome { InProgress, Draw, Won }
 
 /// <summary>动作结算完成后用于继续对局的计数器和结果。</summary>

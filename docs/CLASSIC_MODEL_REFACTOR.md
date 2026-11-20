@@ -24,43 +24,20 @@
 | `ai/Playfield/Playfield.Ctors.cs` | 复制局面时直接 `new Minion(m)`、`new Handcard(hc)`、`new Weapon(w)` | 同一局面的不同搜索分支可能持有共享的可变嵌套对象 |
 | `ai/Action/action.cs` | 动作直接持有 `Minion`、`Handcard` 可变对象引用 | 动作与被模拟后续局面耦合，历史动作缺少稳定快照身份 |
 
-## 新模型：第一批已落地
+## 当前独立模型
 
-`src/Silverfish.Domain` 是新的、完全独立于旧 Hearthbuddy/Triton/旧 Silverfish 类的 .NET 8 类库：
+- `CardDefinition` 保存卡牌的印刷属性。
+- `GameState` 保存玩家资源、有序区域、实体表和续跑计数。随从、武器和手牌共用 `GameEntity`，通过实体 ID 和区域访问。
+- `CharacterState` 和 `WeaponStats` 分别保存角色战斗状态和武器攻耐。手牌使用区域位置及实体上的费用修正。
+- 模拟动作记录来源、目标、位置和抉择。规则结算基于不可变局面，搜索分支可以共享同一个输入状态。
 
-- `CardDefinition`：印刷/基础卡牌信息，与当前实体数值严格分离。
-- `EntityId`、`PlayerSide`、`EntityZone`、`EntityKind`：明确区分实体身份、所有权、区域和类型。
-- `EntityState`：实体中心的不可变状态值，组合 `CombatStats`、`ManaCost`、`HandStatModifiers`、`WeaponStats`。
-- `Keywords`、`RawTags`、`Counters`、`EnchantmentCardIds` 使用不可变集合，保留未识别的标签，而不是每个卡牌效果都加一个公开 bool/int 字段。
-- `BoardSnapshot`：不可变局面状态，支持 `Replace`、`Move` 和 `Remove`，并拒绝重复实体 ID 或不合理的结构。
-
-第一批测试重点是**分支隔离、实体身份稳定、卡牌定义/运行时数据分离、装备/战斗/费用状态分离、未知标签保留**。
-
-## 第二批：只读旧模型投影
-
-`src/Silverfish.ClassicModelAdapter` 新增 `LegacyEntityProjection`，把原始 `Minion`、`Handmanager.Handcard`、`Weapon` 中能明确识别的状态投影为独立、不可变的 `EntityState`：
-
-- 英雄和随从依然读取旧类，但转换后按不同 `EntityKind` 保存。
-- 同一张牌的**基础费用/属性**来自独立 `CardDefinition`，当前费用、攻防、附魔是实体状态；不再修改 CardDB 共享卡牌定义。
-- 扩展标签如果旧版本不存在，会省略为未知，不伪造数值 0。
-- 2026-11-05 的 `Minion.enchs` 是卡牌 ID 列表；旧版参考源仍是字符串。投影层只在能够明确转换时接受，不会把字符串拆成字符作为错误的卡牌 ID。
-- 原版 `Weapon` 缺少可靠的实体 ID、最大耐久，投影接口要求显式传入；有尚未可转换的武器附魔时拒绝转换。
-
-`tests/Silverfish.ClassicModelAdapter.Tests` 将直接引用 CI 导入的旧银鱼源码进行回归，验证投影后的实体不再随旧对象继续变化。**它仍不是 Playfield 的完整替代实现**。
-
-## 迁移顺序（不一次性重写 19K 个脚本）
-
-1. **回归基准已建立**：2026-11-05 独立源码工作包已通过 SHA-256 校验、.NET 8 编译、`BoardTester` 和 JSON 决策回归。[私有 Actions #44256337489](https://github.com/xiaohei7972/Hearthbuddy_Silverfish/actions/runs/44256337489)
-2. **只读映射层**：将旧 `Minion/Handcard/Weapon` 捕获为独立 `EntityState`，并添加缺失标签警报与差异测试；旧对象不泄漏到新引擎。
-3. **局面树与动作重构**：把 `Playfield` 中的分支复制逐步替换为 `BoardSnapshot` 的结构共享更新；`Action` 只保存来源/目标 ID、选择与位置，不保存旧对象引用。
-4. **效果系统迁移**：逐步按卡牌分组迁移旧 `Sim_*` 脚本，加入效果执行上下文、明确的状态变更操作和原版回归金样本。不能直接将 19000+ 卡牌脚本硬性替换成新结构而不测试。
-5. **搜索与估值**：在新局面模型稳定后，再逐步改造 Movegenerator、MiniSimulator、PenalityManager 和 Ai，比较可重复最佳动作与耗时/内存。
+现有经典源码和下文的回归用于核对历史规则。新卡牌效果按独立模拟器的规则机制实现和测试。
 
 ## 经典模拟分支的状态隔离
 
 2026-11-05 源码已复现三处共享写入，分别出现在 `Playfield` 复制后的兄弟分支、随从变形和手牌替换。导入脚本为这些入口复制可变的附魔列表和条件卡牌列表，并分离随从的内嵌手牌对象。复制保留列表内容及随从原有的手牌扩展字段，变形与替换保留目标实体 ID。旧版随从的字符串附魔按不可变值复制。
 
-回归直接创建两个真实 `Playfield` 分支，修改一个分支后检查父局面和兄弟分支。经典源码编译工作流在状态投影测试中运行这些用例。
+回归直接创建两个真实 `Playfield` 分支，修改一个分支后检查父局面和兄弟分支。经典源码编译工作流通过 `Silverfish.Classic.Tests` 运行这些用例。
 
 DIY 手牌的组合入口和 `BoardTester` 的模块牌解析会先复制卡牌元数据，再写入模块费用与属性。测试用同一张牌的普通版和模块版验证原版卡库和另一张手牌保留印刷数据。
 
@@ -74,8 +51,6 @@ DIY 手牌的组合入口和 `BoardTester` 的模块牌解析会先复制卡牌�
 
 已迁移的招募、条件抽牌和奥秘入场共用牌库条目选择与扣减。它们优先按已知条目的顺序和当前属性匹配，再从估计剩余的份数选择。招募遇到满场即停止，奥秘入场跳过已经在场的同名奥秘。回归覆盖战斗号角的重复牌和满场、冰钓术与芬杰连续消费同一牌库，以及冰封秘典对重复奥秘的处理。
 
-## 严格边界
+## 当前范围
 
-这份 `Silverfish.Domain` 只是正式重构的**底层状态模型第一版**，尚未替代旧 `Minion/Handcard/Weapon`，也没有替代真实旧版 `Playfield` 算法。不能将新模型单元测试通过误称为全量银鱼模型迁移成功。
-
-剩余带连带效果的抽牌脚本、试炼场的随从互斗，以及个别费用变更的持续时间仍需核对。武器附魔需要带来源的投影，供 `BoardSnapshot` 和按实体 ID 表示的动作使用。
+经典 `Playfield` 及其卡牌脚本用于历史回归。独立模拟器的卡牌行为由已经绑定的单卡规则及场景规则覆盖。
