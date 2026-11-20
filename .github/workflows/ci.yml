@@ -212,3 +212,36 @@ jobs:
           } finally {
               Remove-Item -LiteralPath $catalog
           }
+      - name: Replay with a restored checkpoint
+        shell: pwsh
+        run: |
+          $directInput = [System.IO.Path]::GetTempFileName()
+          $resumedInput = [System.IO.Path]::GetTempFileName()
+          try {
+              $sample = 'samples/simulation-random.json'
+              $action = '{"kind":"playCard","actor":{"value":1},"source":{"value":12}}'
+              $full = [System.Text.Json.Nodes.JsonNode]::Parse((Get-Content -Raw $sample))
+              $full['actions'].AsArray().Add([System.Text.Json.Nodes.JsonNode]::Parse($action))
+              [System.IO.File]::WriteAllText($directInput, $full.ToJsonString())
+              $savedJson = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- checkpoint $sample
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $saved = [System.Text.Json.Nodes.JsonNode]::Parse(($savedJson -join "`n"))
+              $saved['actions'] = [System.Text.Json.Nodes.JsonNode]::Parse("[$action]")
+              [System.IO.File]::WriteAllText($resumedInput, $saved.ToJsonString())
+              $directJson = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate $directInput
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $resumedJson = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate $resumedInput
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $direct = [System.Text.Json.Nodes.JsonNode]::Parse(($directJson -join "`n"))
+              $resumed = [System.Text.Json.Nodes.JsonNode]::Parse(($resumedJson -join "`n"))
+              foreach ($key in @('players', 'entities', 'randomState', 'outcome', 'legalActions')) {
+                  if ($direct[$key].ToJsonString() -ne $resumed[$key].ToJsonString()) {
+                      throw "续跑后的 $key 与连续回放不一致。"
+                  }
+              }
+              if ($direct['steps'].AsArray()[1].ToJsonString() -ne $resumed['steps'].AsArray()[0].ToJsonString()) {
+                  throw '续跑后的结算事件与连续回放不一致。'
+              }
+          } finally {
+              Remove-Item -LiteralPath $directInput, $resumedInput
+          }

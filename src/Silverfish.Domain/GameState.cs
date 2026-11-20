@@ -59,6 +59,9 @@ public sealed record GameEntity(EntityId Id, string CardId, PlayerId Owner, Play
 
 public enum MatchOutcome { InProgress, Draw, Won }
 
+/// <summary>动作结算完成后用于继续对局的计数器和结果。</summary>
+public sealed record GameContinuation(int NextEntity, long NextPlayOrder, MatchOutcome Outcome, PlayerId? Winner);
+
 /// <summary>不可变对局状态。各区域按顺序存放实体表中的 ID。</summary>
 public sealed class GameState
 {
@@ -95,7 +98,8 @@ public sealed class GameState
     public ulong RandomState { get; }
 
     internal static GameState Create(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
-        PlayerId activePlayer, int turn, IEnumerable<MinionDeath>? minionDeaths, ulong randomState)
+        PlayerId activePlayer, int turn, IEnumerable<MinionDeath>? minionDeaths, ulong randomState,
+        GameContinuation? continuation = null)
     {
         if (players is null)
             throw new ArgumentNullException(nameof(players), "必须提供玩家列表。");
@@ -126,11 +130,15 @@ public sealed class GameState
 
         var locations = ImmutableDictionary.CreateBuilder<EntityId, EntityLocation>();
         var playOrders = new HashSet<long>();
+        var survivors = new List<PlayerId>(2);
         foreach (var player in byPlayer.Values)
         {
-            if (!player.In(GameZone.Play).Contains(player.Hero) ||
-                !byEntity.TryGetValue(player.Hero, out var hero) || hero.Character is null)
-                throw new ArgumentException($"玩家 {player.Id.Value} 必须有一名在场英雄。");
+            if (!byEntity.TryGetValue(player.Hero, out var hero) || hero.Character is not { } character)
+                throw new ArgumentException($"玩家 {player.Id.Value} 缺少英雄或英雄属性。");
+            if (player.In(GameZone.Play).Contains(player.Hero) && character.Health > 0)
+                survivors.Add(player.Id);
+            else if (continuation is null || !player.In(GameZone.Graveyard).Contains(player.Hero) || character.Health > 0)
+                throw new ArgumentException($"玩家 {player.Id.Value} 的英雄生命值或所在区域无效。");
             if (player.EquippedWeapon is EntityId equipped && (!player.In(GameZone.Play).Contains(equipped) ||
                 !byEntity.TryGetValue(equipped, out var weapon) || weapon.Weapon is not { Durability: > 0 }))
                 throw new ArgumentException($"玩家 {player.Id.Value} 装备的武器无效。");
@@ -172,9 +180,21 @@ public sealed class GameState
             deathTurn = death.Turn;
         }
 
+        var minimumEntity = checked(byEntity.Keys.Max(id => id.Value) + 1);
+        var minimumPlayOrder = checked(byEntity.Values.Max(e => e.PlayOrder ?? 0) + 1);
+        var outcome = survivors.Count switch { 0 => MatchOutcome.Draw, 1 => MatchOutcome.Won, _ => MatchOutcome.InProgress };
+        PlayerId? winner = survivors.Count == 1 ? survivors[0] : null;
+        if (continuation is not null)
+        {
+            if (continuation.NextEntity < minimumEntity || continuation.NextPlayOrder < minimumPlayOrder)
+                throw new ArgumentException("存档的实体 ID 或进场顺序计数会与已有实体冲突。", nameof(continuation));
+            if (continuation.Outcome != outcome || continuation.Winner != winner)
+                throw new ArgumentException("存档的对局结果与双方英雄的状态不一致。", nameof(continuation));
+        }
+
         return new GameState(byPlayer, byEntity, locations.ToImmutable(), activePlayer, turn,
-            checked(byEntity.Keys.Max(id => id.Value) + 1),
-            checked(byEntity.Values.Max(e => e.PlayOrder ?? 0) + 1), MatchOutcome.InProgress, null, deaths, randomState);
+            continuation?.NextEntity ?? minimumEntity, continuation?.NextPlayOrder ?? minimumPlayOrder,
+            outcome, winner, deaths, randomState);
     }
 
     public EntityLocation LocationOf(EntityId id) => _locations[id];

@@ -11,9 +11,10 @@ using Silverfish.Simulation;
 Console.OutputEncoding = Encoding.UTF8;
 
 var simulation = (args.Length == 2 || (args.Length == 4 && args[2] == "--card-data")) &&
-    args[0] is "simulate" or "plan" or "decide";
+    args[0] is "simulate" or "plan" or "decide" or "checkpoint";
 var plan = simulation && args[0] == "plan";
 var decide = simulation && args[0] == "decide";
+var checkpoint = simulation && args[0] == "checkpoint";
 var import = args.Length is 3 or 4 && args[0] == "import-card-data" &&
     (args.Length == 3 || args[3] == "--starter");
 if ((!simulation && !import && args.Length != 1) || args[0] is "--help" or "-h")
@@ -22,6 +23,7 @@ if ((!simulation && !import && args.Length != 1) || args[0] is "--help" or "-h")
     Console.Error.WriteLine("       Silverfish.Cli simulate <scenario.json> [--card-data <catalog.json>]");
     Console.Error.WriteLine("       Silverfish.Cli plan <scenario.json> [--card-data <catalog.json>]");
     Console.Error.WriteLine("       Silverfish.Cli decide <decision.json> [--card-data <catalog.json>]");
+    Console.Error.WriteLine("       Silverfish.Cli checkpoint <scenario.json> [--card-data <catalog.json>]");
     Console.Error.WriteLine("       Silverfish.Cli import-card-data <CardDefs.xml> <catalog.json> [--starter]");
     return args.Length == 1 ? 0 : 2;
 }
@@ -71,15 +73,22 @@ try
 
         var scenario = await JsonSerializer.DeserializeAsync<SimulationScenario>(stream, options)
             ?? throw new InvalidDataException("输入 JSON 必须包含模拟场景。");
-        if (scenario.Actions is null)
+        if (scenario.Actions is null && scenario.StateVersion is null)
             throw new InvalidDataException("场景动作必须使用数组。");
         var (simulator, state) = scenario.CreateGame(cardData);
         var steps = new List<SimulationStep>();
-        foreach (var action in scenario.Actions)
+        foreach (var action in scenario.Actions ?? [])
         {
             var result = simulator.Apply(state, action);
             state = result.State;
-            steps.Add(new SimulationStep(action, result.Events));
+            if (!checkpoint)
+                steps.Add(new SimulationStep(action, result.Events));
+        }
+
+        if (checkpoint)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(SimulationStateInput.Capture(simulator, state), options));
+            return 0;
         }
 
         Console.WriteLine(JsonSerializer.Serialize(new
@@ -108,7 +117,8 @@ catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or J
     ArgumentException or InvalidDataException or InvalidOperationException or KeyNotFoundException or
     FormatException or OverflowException)
 {
-    var operation = import ? "导入卡牌数据" : decide ? "模拟决策" : plan ? "搜索回合" : simulation ? "回放场景" : "分析快照";
+    var operation = import ? "导入卡牌数据" : decide ? "模拟决策" : plan ? "搜索回合" :
+        checkpoint ? "保存对局" : simulation ? "回放场景" : "分析快照";
     Console.Error.WriteLine($"{operation}失败。{DescribeFailure(ex)}");
     return 1;
 }
@@ -177,6 +187,8 @@ static void ImportCardData(string input, string output, bool starterOnly)
 
 internal record SimulationStateInput
 {
+    public const int CurrentStateVersion = 1;
+    public int? StateVersion { get; init; }
     public string? CardSet { get; init; }
     public SimulationCard[] Cards { get; init; } = [];
     public CatalogCardRules[] CardRules { get; init; } = [];
@@ -186,15 +198,53 @@ internal record SimulationStateInput
     public int Turn { get; init; } = 1;
     public MinionDeath[] MinionDeaths { get; init; } = [];
     public ulong RandomState { get; init; }
+    public int? NextEntity { get; init; }
+    public long? NextPlayOrder { get; init; }
+    public MatchOutcome? Outcome { get; init; }
+    public PlayerId? Winner { get; init; }
+
+    public static SimulationStateInput Capture(GameSimulator simulator, GameState state) => new()
+    {
+        StateVersion = CurrentStateVersion,
+        Cards = simulator.Cards.Values.OrderBy(card => card.Definition.CardId, StringComparer.Ordinal).ToArray(),
+        Players = state.Players.Values.OrderBy(player => player.Id.Value).ToArray(),
+        Entities = state.Entities.Values.OrderBy(entity => entity.Id.Value).ToArray(),
+        ActivePlayer = state.ActivePlayer,
+        Turn = state.Turn,
+        MinionDeaths = [.. state.MinionDeaths],
+        RandomState = state.RandomState,
+        NextEntity = state.NextEntity,
+        NextPlayOrder = state.NextPlayOrder,
+        Outcome = state.Outcome,
+        Winner = state.Winner
+    };
 
     public (GameSimulator Simulator, GameState State) CreateGame(CardDataCatalog? cardData)
     {
         if (Cards is null || CardRules is null || Players is null || Entities is null || MinionDeaths is null)
             throw new InvalidDataException("卡牌、卡牌规则、玩家、实体和随从死亡记录必须使用数组。");
 
+        var continuation = ReadContinuation();
         var simulator = new GameSimulator(BindCards(cardData));
-        var state = simulator.CreateGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState);
+        var state = continuation is null
+            ? simulator.CreateGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState)
+            : simulator.RestoreGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState, continuation);
         return (simulator, state);
+    }
+
+    private GameContinuation? ReadContinuation()
+    {
+        if (StateVersion is null)
+        {
+            if (NextEntity is not null || NextPlayOrder is not null || Outcome is not null || Winner is not null)
+                throw new InvalidDataException("存档必须提供 stateVersion。");
+            return null;
+        }
+        if (StateVersion != CurrentStateVersion)
+            throw new InvalidDataException($"不支持对局存档版本 {StateVersion}。");
+        if (NextEntity is not int entity || NextPlayOrder is not long order || Outcome is not MatchOutcome outcome)
+            throw new InvalidDataException("存档必须提供下一个实体 ID、下一个进场顺序和对局结果。");
+        return new(entity, order, outcome, Winner);
     }
 
     private IEnumerable<SimulationCard> BindCards(CardDataCatalog? cardData)
@@ -226,7 +276,7 @@ internal record SimulationStateInput
 
 internal sealed record SimulationScenario : SimulationStateInput
 {
-    public required SimulationAction[] Actions { get; init; }
+    public SimulationAction[]? Actions { get; init; }
 }
 
 internal sealed record SimulationDecisionRequest

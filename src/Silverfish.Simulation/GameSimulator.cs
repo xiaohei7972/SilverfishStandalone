@@ -89,14 +89,31 @@ public sealed partial class GameSimulator
     }
 
     public GameState CreateGame(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
-        PlayerId activePlayer, int turn = 1, IEnumerable<MinionDeath>? minionDeaths = null, ulong randomState = 0)
+        PlayerId activePlayer, int turn = 1, IEnumerable<MinionDeath>? minionDeaths = null, ulong randomState = 0) =>
+        ValidateState(GameState.Create(players, entities, activePlayer, turn, minionDeaths, randomState));
+
+    public IReadOnlyDictionary<string, SimulationCard> Cards => _cards;
+
+    public GameState RestoreGame(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities, PlayerId activePlayer,
+        int turn, IEnumerable<MinionDeath> minionDeaths, ulong randomState, GameContinuation continuation)
     {
-        var state = GameState.Create(players, entities, activePlayer, turn, minionDeaths, randomState);
+        if (continuation is null)
+            throw new ArgumentNullException(nameof(continuation), "必须提供存档的结算计数和对局结果。");
+        var saved = GameState.Create(players, entities, activePlayer, turn, minionDeaths, randomState, continuation);
+        var validated = ValidateState(saved);
+        // 存档保存的是结算后的状态，载入时核对属性与光环是否一致。
+        if (validated.Entities != saved.Entities)
+            throw new ArgumentException("存档中的场上属性或光环与卡牌规则不一致。", nameof(entities));
+        return validated;
+    }
+
+    private GameState ValidateState(GameState state)
+    {
         foreach (var death in state.MinionDeaths)
         {
             if (GetCard(death.CardId).Definition.Kind != EntityKind.Minion ||
                 Card(state.Entities[death.Entity]).Definition.Kind != EntityKind.Minion)
-                throw new ArgumentException("死亡记录必须引用随从。", nameof(minionDeaths));
+                throw new ArgumentException("死亡记录必须引用随从。");
         }
         foreach (var player in state.Players.Values)
         {
