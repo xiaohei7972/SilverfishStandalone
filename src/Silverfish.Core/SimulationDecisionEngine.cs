@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using Silverfish.Contracts;
 using Silverfish.Domain;
 using Silverfish.Simulation;
@@ -17,8 +16,8 @@ public sealed class SimulationDecisionEngine(GameSimulator simulator)
         if (candidates is null)
             throw new ArgumentNullException(nameof(candidates), "必须提供候选动作列表。");
 
-        var legalActions = simulator.LegalActions(state);
-        var legal = legalActions.ToHashSet();
+        var legalActions = simulator.GetLegalActionSet(state);
+        var legal = legalActions.Actions.ToHashSet();
         var ids = new HashSet<string>(StringComparer.Ordinal);
         var byAction = new Dictionary<SimulationAction, CandidateAction>();
         foreach (var candidate in candidates)
@@ -42,8 +41,8 @@ public sealed class SimulationDecisionEngine(GameSimulator simulator)
                 Reason = "调用方未提供可选动作。"
             };
 
-        ImmutableArray<SimulationAction> rootActions = [.. legalActions.Where(byAction.ContainsKey)];
-        var plan = new SimulationTurnPlanner(simulator, SimulationMaterialEvaluator.Evaluate).Plan(state, rootActions);
+        var rootActions = legalActions.Filter(byAction.ContainsKey);
+        var plan = new SimulationTurnPlanner(simulator, SimulationMaterialEvaluator.Evaluate).Plan(rootActions);
         return new BotDecision
         {
             MatchId = matchId, SnapshotSequence = snapshotSequence, Engine = EngineName,

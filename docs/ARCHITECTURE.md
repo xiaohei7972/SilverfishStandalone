@@ -8,7 +8,7 @@ The October 2026 client source provides a reference for identity, ownership and 
 
 `Silverfish.Simulation.GameSimulator` generates supported legal actions and resolves one action into a new immutable state and an ordered event trace. Card definitions compose typed effects. The existing classic snapshots and the classic engine provide historical fixtures for comparison.
 
-`Silverfish.Core.SimulationTurnPlanner` searches branches up to a depth and transition budget. It applies each candidate through the new simulator and evaluates the resulting state through a separate scoring function. The `plan` command runs it after the fixture's scripted actions.
+`Silverfish.Core.SimulationTurnPlanner` searches branches up to a depth and transition budget. For each visited state, it generates and reuses one ordered set of legal actions for the outcome forecasts. The action set is bound to that immutable state. A separate scoring function evaluates each resulting state. The `plan` command runs the search after the fixture's scripted actions.
 
 The `checkpoint` command serializes the state after an action finishes. Its versioned format carries the resolved card rules, ordered zones, entity state, death history, next entity and entry-order counters, random state, and match outcome. The simulator validates the stored counters, hero zones, and active stat layers on restore. A saved state can restart replay or planning and can supply the state in a decision request.
 

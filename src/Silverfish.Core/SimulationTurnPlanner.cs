@@ -19,9 +19,12 @@ public sealed class SimulationTurnPlanner(GameSimulator simulator, Func<GameStat
     private const int ResolutionWorkPerAction = 64;
 
     public TurnPlan Plan(GameState root, int depth = 5, int beamWidth = 16, int transitionLimit = 512) =>
-        Plan(root, default, depth, beamWidth, transitionLimit);
+        Plan(root, initialActions: null, depth, beamWidth, transitionLimit);
 
-    internal TurnPlan Plan(GameState root, ImmutableArray<SimulationAction> legalRootActions,
+    internal TurnPlan Plan(GameSimulator.LegalActionSet initialActions) =>
+        Plan(initialActions.State, initialActions);
+
+    private TurnPlan Plan(GameState root, GameSimulator.LegalActionSet? initialActions,
         int depth = 5, int beamWidth = 16, int transitionLimit = 512)
     {
         if (depth < 1 || beamWidth < 1 || transitionLimit < 1)
@@ -47,14 +50,15 @@ public sealed class SimulationTurnPlanner(GameSimulator simulator, Func<GameStat
                 return baseline;
 
             Prediction? selected = mayStop ? baseline : null;
-            var actions = mayStop || legalRootActions.IsDefault ? simulator.LegalActions(state) : legalRootActions;
+            var legal = mayStop || initialActions is null ? simulator.GetLegalActionSet(state) : initialActions;
+            var actions = legal.Actions;
             var candidates = new List<Candidate>();
             for (var index = 0; index < actions.Length && transitions < limit; index++)
             {
                 var action = actions[index];
                 var otherActions = actions.Length - index - 1;
                 var budget = Math.Min(ResolutionWorkPerAction, Math.Max(1, limit - transitions - otherActions));
-                var distribution = simulator.ApplyDistribution(state, action, budget);
+                var distribution = legal.ApplyDistribution(index, budget);
                 transitions += distribution.Resolutions;
                 var immediate = Forecast(action, distribution, 0, transitions);
                 if (selected is null || Rank(immediate).CompareTo(Rank(selected)) > 0)

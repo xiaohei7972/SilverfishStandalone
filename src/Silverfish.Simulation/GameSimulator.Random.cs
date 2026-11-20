@@ -9,9 +9,19 @@ public sealed partial class GameSimulator
     /// <remarks>预测保留输入的回放种子。实际推进对局时调用 Apply。</remarks>
     public SimulationDistribution ApplyDistribution(GameState state, SimulationAction action, int workLimit = 64)
     {
+        ValidateWorkLimit(workLimit);
+        EnsureLegal(state, action);
+        return RunDistribution(state, action, workLimit);
+    }
+
+    private static void ValidateWorkLimit(int workLimit)
+    {
         if (workLimit < 1)
             throw new ArgumentOutOfRangeException(nameof(workLimit), "随机结算预算必须大于零。");
-        EnsureLegal(state, action);
+    }
+
+    private SimulationDistribution RunDistribution(GameState state, SimulationAction action, int workLimit)
+    {
         var paths = new Stack<RandomPath>();
         paths.Push(new([], 1));
         var outcomes = ImmutableArray.CreateBuilder<SimulationOutcome>();
@@ -67,6 +77,44 @@ public sealed partial class GameSimulator
         }
 
         return new(outcomes.ToImmutable(), resolutions, IsExact: false);
+    }
+
+    public LegalActionSet GetLegalActionSet(GameState state) => new(this, state);
+
+    /// <summary>绑定到一个不可变局面的合法动作，供多个预测共用。</summary>
+    public sealed class LegalActionSet
+    {
+        private readonly GameSimulator _simulator;
+
+        internal LegalActionSet(GameSimulator simulator, GameState state)
+            : this(simulator, state, simulator.LegalActions(state))
+        {
+        }
+
+        private LegalActionSet(GameSimulator simulator, GameState state, ImmutableArray<SimulationAction> actions)
+        {
+            _simulator = simulator;
+            State = state;
+            Actions = actions;
+        }
+
+        public GameState State { get; }
+        public ImmutableArray<SimulationAction> Actions { get; }
+
+        public LegalActionSet Filter(Func<SimulationAction, bool> predicate)
+        {
+            if (predicate is null)
+                throw new ArgumentNullException(nameof(predicate), "必须提供合法动作的筛选条件。");
+            return new(_simulator, State, [.. Actions.Where(predicate)]);
+        }
+
+        public SimulationDistribution ApplyDistribution(int index, int workLimit = 64)
+        {
+            ValidateWorkLimit(workLimit);
+            if ((uint)index >= (uint)Actions.Length)
+                throw new ArgumentOutOfRangeException(nameof(index), "合法动作序号超出范围。");
+            return _simulator.RunDistribution(State, Actions[index], workLimit);
+        }
     }
 
     private readonly record struct RandomPath(ImmutableArray<int> Choices, double Probability);

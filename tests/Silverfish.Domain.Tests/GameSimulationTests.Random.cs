@@ -7,6 +7,32 @@ namespace Silverfish.Domain.Tests;
 public sealed partial class GameSimulationTests
 {
     [Fact]
+    public void BoundLegalActionsKeepTheirStateAndRespectTheFilteredIndices()
+    {
+        var simulator = new GameSimulator([
+            Hero, Spell("pulse") with { OnPlay = [new DamageEffect(DamageTarget.EnemyHero, 1)] }
+        ]);
+        var source = new EntityId(11);
+        var root = Create(simulator, First,
+            Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10]), (GameZone.Hand, [11])) },
+            Player(Second, SecondHero), Card(11, "pulse", First));
+
+        var actions = simulator.GetLegalActionSet(root);
+        var plays = actions.Filter(action => action.Source == source);
+        var play = Assert.Single(plays.Actions);
+        var prediction = Assert.Single(plays.ApplyDistribution(0).Outcomes);
+        var direct = Assert.Single(simulator.ApplyDistribution(root, play).Outcomes);
+
+        Assert.Same(root, plays.State);
+        Assert.Equal(direct.Result.Events, prediction.Result.Events.AsEnumerable());
+        Assert.Equal(direct.Result.State.Entities[SecondHero], prediction.Result.State.Entities[SecondHero]);
+        Assert.Equal(GameZone.Hand, root.LocationOf(source).Zone);
+        Assert.Contains(actions.Actions, action => action.Kind == SimulationActionKind.EndTurn);
+        Assert.Throws<ArgumentOutOfRangeException>(() => plays.ApplyDistribution(1));
+        Assert.Throws<InvalidOperationException>(() => simulator.ApplyDistribution(prediction.Result.State, play));
+    }
+
+    [Fact]
     public void ArcaneMissilesEnumeratesWeightedPathsAndStopsSelectingAMortallyWoundedMinion()
     {
         var simulator = new GameSimulator(StarterCardCatalog.Cards.Add(Hero));
