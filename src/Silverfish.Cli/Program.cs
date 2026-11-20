@@ -86,7 +86,7 @@ try
         {
             packet.ChoiceId, packet.Type, packet.CountMin, packet.CountMax,
             IsSingleChoice = packet.IsSingleChoice(), selection.CanConfirm,
-            selection.ShouldSubmitImmediately,
+            selection.IsSingleChoiceSubmissionCandidate,
             SelectedEntityIds = selection.OrderedEntityIds.Select(id => id.Value).ToArray(),
             Submission = submission is null ? null : new
             {

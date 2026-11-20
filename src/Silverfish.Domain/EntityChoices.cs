@@ -72,9 +72,10 @@ public sealed class EntityChoiceSelection
     public bool CanConfirm => OrderedEntityIds.Length >= Packet.CountMin &&
                               OrderedEntityIds.Length <= Packet.CountMax;
 
-    // UI auto-send applies to the single-choice path after a valid click.
-    // It must never send an empty selection merely because CountMax is zero.
-    public bool ShouldSubmitImmediately =>
+    // A necessary condition for client auto-submit, not a dispatch decision:
+    // the actual client has additional guards in DoNetworkChoice().
+    // An empty packet must never be auto-submitted based only on CountMax == 0.
+    public bool IsSingleChoiceSubmissionCandidate =>
         Packet.IsSingleChoice() && OrderedEntityIds.Length == 1 && CanConfirm;
 
     public EntityChoiceSelection Click(EntityId id)

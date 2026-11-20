@@ -65,23 +65,23 @@ public sealed class EntityChoiceSelectionTests
     {
         var optional = EntityChoiceSelection.Begin(Packet(0, 2));
         Assert.True(optional.CanConfirm);
-        Assert.False(optional.ShouldSubmitImmediately);
+        Assert.False(optional.IsSingleChoiceSubmissionCandidate);
         Assert.Empty(optional.Confirm(123).OrderedEntityIds);
 
         var zeroMax = EntityChoiceSelection.Begin(Packet(0, 0));
         Assert.True(zeroMax.Packet.IsSingleChoice());
-        Assert.False(zeroMax.ShouldSubmitImmediately);
+        Assert.False(zeroMax.IsSingleChoiceSubmissionCandidate);
         Assert.Empty(zeroMax.Confirm(123).OrderedEntityIds);
         Assert.Throws<InvalidOperationException>(() => zeroMax.Click(new(11)));
     }
 
     [Fact]
-    public void ExactOneSelectionCanAutofireButGeneralChoiceIsStillChoice()
+    public void SingleChoiceReadinessDoesNotDispatchOrConflateModes()
     {
         var packet = Packet(1, 1, EntityChoiceType.General);
         var selection = EntityChoiceSelection.Begin(packet);
-        Assert.False(selection.ShouldSubmitImmediately);
-        Assert.True(selection.Click(new(11)).ShouldSubmitImmediately);
+        Assert.False(selection.IsSingleChoiceSubmissionCandidate);
+        Assert.True(selection.Click(new(11)).IsSingleChoiceSubmissionCandidate);
     }
 
     [Fact]
