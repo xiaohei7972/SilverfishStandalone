@@ -62,7 +62,7 @@ public sealed partial class GameSimulationTests
             id => preview.State.Entities[id].CardId == "strong");
         Assert.Equal("strong", preview.State.Entities[added].CardId);
         Assert.Equal(2, preview.State.Players[First].In(GameZone.Hand).Length);
-        Assert.Equal(1, root.Players[First].In(GameZone.Hand).Length);
+        Assert.Single(root.Players[First].In(GameZone.Hand));
         Assert.Null(root.PendingChoice!.Submitted);
         Assert.Equal([new EntityId(32)], preview.State.PendingChoice!.Submitted!.OrderedEntityIds);
         Assert.Empty(simulator.LegalActions(preview.State));
