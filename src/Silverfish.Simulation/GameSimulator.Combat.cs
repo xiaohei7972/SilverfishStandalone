@@ -61,7 +61,7 @@ public sealed partial class GameSimulator
                 if (entity.Character is not { Frozen: true } character)
                     continue;
 
-                // A missed attack slot is sufficient. Zero Attack does not hold a character frozen.
+                // 错过一次可用的攻击机会即可解冻，即使角色的攻击力为零。
                 var reach = _rules.GetAttackReach(_state, entity);
                 if (reach == AttackReach.None || (reach == AttackReach.Minions && !opponentHasMinion))
                     continue;

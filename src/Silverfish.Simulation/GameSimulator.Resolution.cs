@@ -184,7 +184,7 @@ public sealed partial class GameSimulator
             var hit = Damage(source, target, _rules.EffectiveAttack(_state, attacker));
             var counter = Damage(target, source, retaliation);
 
-            // Commit both hits before either damage event can start its queue.
+            // 先记录双方受到的伤害，再处理伤害事件的触发队列。
             var work = new Stack<Work>();
             PushOccurrence(work, counter);
             PushOccurrence(work, hit);

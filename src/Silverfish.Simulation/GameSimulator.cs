@@ -3,7 +3,7 @@ using Silverfish.Domain;
 
 namespace Silverfish.Simulation;
 
-/// <summary>Runs the rules supported by the registered card definitions over immutable match states.</summary>
+/// <summary>在不可变的对局状态上执行已注册的卡牌规则。</summary>
 public sealed partial class GameSimulator
 {
     private const int BoardLimit = 7;

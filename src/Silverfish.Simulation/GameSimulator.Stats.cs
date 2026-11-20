@@ -97,8 +97,7 @@ public sealed partial class GameSimulator
         foreach (var aura in grants)
             Apply(aura.Modifier);
 
-        // A maximum Health increase adds the same current Health. A decrease
-        // clamps current Health to the new maximum without counting as damage.
+        // 生命上限提高时等量增加当前生命值。上限降低时只截断超出的生命值，不触发伤害。
         var damage = maximumHealth < character.MaximumHealth
             ? Math.Max(0, maximumHealth - character.Health)
             : character.Damage;
@@ -143,7 +142,7 @@ public sealed partial class GameSimulator
                     continue;
                 var entity = _state.Entities[id];
                 var enchantment = new StatEnchantment(context.Source, effect.Modifier, expires);
-                // Setting Health clears existing damage once, when the effect is applied.
+                // 设定生命值时只在效果应用的那一刻清除已有伤害。
                 if (effect.Modifier is { Mode: StatModifierMode.Set, MaximumHealth: not null })
                     entity = entity with { Character = entity.Character! with { Damage = 0 } };
                 _state = _state.UpdateEntity(RecalculateStats(entity with

@@ -2,11 +2,7 @@ using System.Collections.Immutable;
 
 namespace Silverfish.Domain;
 
-/// <summary>
-/// Immutable snapshot of the simulator's current entities. Each branch owns a
-/// new value; neither Playfield clone operations nor card simulations can
-/// accidentally mutate another branch through shared list references.
-/// </summary>
+/// <summary>实体的不可变快照。各分支可安全共享相同的快照值。</summary>
 public sealed class BoardSnapshot
 {
     private readonly ImmutableDictionary<EntityId, EntityState> _entities;

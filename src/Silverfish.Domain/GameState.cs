@@ -59,7 +59,7 @@ public sealed record GameEntity(EntityId Id, string CardId, PlayerId Owner, Play
 
 public enum MatchOutcome { InProgress, Draw, Won }
 
-/// <summary>Immutable simulator state. Ordered zones index the canonical entity table.</summary>
+/// <summary>不可变对局状态。各区域按顺序存放实体表中的 ID。</summary>
 public sealed class GameState
 {
     private readonly ImmutableDictionary<EntityId, EntityLocation> _locations;
@@ -165,7 +165,7 @@ public sealed class GameState
         return Players.Keys.Single(id => id != player);
     }
 
-    // Structural edits are shared by all rules. Ownership is preserved on a control change.
+    // 所有规则共用这些结构操作。改变控制者时保留原有的拥有者。
     internal GameState Move(EntityId id, EntityLocation destination, int? index = null)
     {
         var origin = LocationOf(id);
@@ -286,7 +286,7 @@ public sealed class GameState
         if (player.ManaSpent is not null)
             return player with { Mana = 0 };
 
-        // Replay inputs that predate the counters supply only displayed mana. Preserve it while retaining overload debt.
+        // 旧回放只提供界面显示的法力值。换算时保留该值和待结算的过载。
         var unspent = (long)player.ManaCrystals + player.TemporaryMana - player.OverloadLocked;
         var spent = Math.Max(0, unspent - player.Mana);
         var temporary = player.Mana == 0 ? 0 : Math.Max(0, player.Mana - unspent);

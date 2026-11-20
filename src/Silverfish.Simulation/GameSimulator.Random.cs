@@ -5,8 +5,8 @@ namespace Silverfish.Simulation;
 
 public sealed partial class GameSimulator
 {
-    /// <summary>Enumerates random paths within the work limit and samples independently of the replay seed when necessary.</summary>
-    /// <remarks>Forecast states retain the input replay seed. Use Apply to advance the seeded game.</remarks>
+    /// <summary>在预算内枚举随机分支，必要时使用独立于回放种子的采样。</summary>
+    /// <remarks>预测保留输入的回放种子。实际推进对局时调用 Apply。</remarks>
     public SimulationDistribution ApplyDistribution(GameState state, SimulationAction action, int workLimit = 64)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(workLimit, 1);
@@ -154,7 +154,7 @@ public sealed partial class GameSimulator
             if (_randomChoice is not null)
                 return _randomChoice(count);
 
-            // SplitMix64 keeps a branch-local replay stream. Reject the short tail before taking a modulus.
+            // 各分支使用独立的 SplitMix64 随机序列，取模前丢弃末端不足一组的值。
             var randomState = _state.RandomState;
             var bound = (ulong)count;
             var threshold = unchecked(0UL - bound) % bound;

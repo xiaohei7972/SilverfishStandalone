@@ -13,7 +13,7 @@ public sealed record TurnPlan(ImmutableArray<SimulationAction> Actions, double S
     public bool UsesSamples { get; init; }
 }
 
-/// <summary>Bounded search over the current turn with separate continuations for random outcomes.</summary>
+/// <summary>在给定预算内搜索当前回合，并按随机结果分别计算后续动作。</summary>
 public sealed class SimulationTurnPlanner(GameSimulator simulator, Func<GameState, PlayerId, double> evaluate)
 {
     private const int ResolutionWorkPerAction = 64;

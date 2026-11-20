@@ -2,10 +2,7 @@ using System.Collections.Immutable;
 
 namespace Silverfish.Domain;
 
-/// <summary>
-/// A stable entity identity. An entity's card ID, controller, zone and stats
-/// can change independently of this identity during a simulation.
-/// </summary>
+/// <summary>实体的固定标识。模拟中的卡牌、控制者、区域与属性可以独立变化。</summary>
 public readonly record struct EntityId(int Value)
 {
     public override string ToString() => Value.ToString();
@@ -25,10 +22,7 @@ public enum EntityKind
     Enchantment, Other
 }
 
-/// <summary>
-/// Printed CardDB-like data is immutable and never stores current battle tags.
-/// Card effects must not mutate these definitions to implement a one-off buff.
-/// </summary>
+/// <summary>不可变的卡牌印刷属性。战斗标签与临时增益记录在实体状态中。</summary>
 public sealed record CardDefinition(
     string CardId,
     EntityKind Kind,
@@ -37,8 +31,7 @@ public sealed record CardDefinition(
     int PrintedHealth = 0,
     int PrintedDurability = 0);
 
-/// <summary>State of an in-play character. A hero and a minion share this component,
-/// but are distinguished by EntityKind rather than being the same Minion object.</summary>
+/// <summary>场上角色的战斗属性。英雄和随从共用此结构，由 EntityKind 区分。</summary>
 public sealed record CombatStats(
     int Attack,
     int Health,
@@ -52,18 +45,14 @@ public sealed record ManaCostModifier(EntityId Source, int Delta);
 
 public sealed record HandStatModifiers(int AttackDelta = 0, int HealthDelta = 0);
 
-/// <summary>Equipped weapon state. An entity ID comes from the entity, not from this component.</summary>
+/// <summary>已装备武器的战斗属性。武器 ID 由所属实体提供。</summary>
 public sealed record WeaponStats(
     int Attack,
     int Durability,
     int MaximumDurability,
     int AttacksThisTurn = 0);
 
-/// <summary>
-/// Independent, immutable simulator entity. Never holds a reference to an old
-/// Minion, Handcard, Weapon or mutable CardDB.Card object.
-/// RawTags and Counters retain new mechanics without adding dozens of booleans.
-/// </summary>
+/// <summary>独立的不可变实体。通用标签和计数器可记录新增机制。</summary>
 public sealed record EntityState
 {
     public required EntityId Id { get; init; }

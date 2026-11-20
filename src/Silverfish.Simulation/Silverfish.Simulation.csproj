@@ -5,5 +5,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Silverfish.Domain/Silverfish.Domain.csproj" />
+    <EmbeddedResource Include="Data/StarterCardData.json" LogicalName="Silverfish.Simulation.StarterCardData.json" />
   </ItemGroup>
 </Project>

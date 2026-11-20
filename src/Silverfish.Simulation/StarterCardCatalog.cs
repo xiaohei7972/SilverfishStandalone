@@ -3,82 +3,105 @@ using Silverfish.Domain;
 
 namespace Silverfish.Simulation;
 
-/// <summary>Independently authored implementations validated against the November 2026 card-data baseline.</summary>
+/// <summary>将独立编写的卡牌规则与对应构建的静态属性绑定。</summary>
 public static class StarterCardCatalog
 {
-    public static ImmutableArray<SimulationCard> Cards { get; } =
+    private static readonly Lazy<ImmutableArray<SimulationCard>> BuiltInCards = new(() =>
+    {
+        using var stream = typeof(StarterCardCatalog).Assembly.GetManifestResourceStream("Silverfish.Simulation.StarterCardData.json")
+            ?? throw new InvalidOperationException("The built-in starter card data is missing.");
+        return FromCardData(CardDataCatalog.LoadJson(stream));
+    });
+
+    public static ImmutableArray<SimulationCard> Cards => BuiltInCards.Value;
+
+    public static ImmutableArray<SimulationCard> FromCardData(CardDataCatalog catalog) =>
+        CreateCards(cardId => CreateCard(catalog.GetCard(cardId)));
+
+    private static SimulationCard CreateCard(CardMetadata metadata)
+    {
+        const int windfury = 189, taunt = 190, divineShield = 194, charge = 197, overload = 215, rush = 791;
+        var keywords = (metadata.GetTag(windfury) > 0 ? CardKeywords.Windfury : CardKeywords.None) |
+            (metadata.GetTag(taunt) > 0 ? CardKeywords.Taunt : CardKeywords.None) |
+            (metadata.GetTag(divineShield) > 0 ? CardKeywords.DivineShield : CardKeywords.None) |
+            (metadata.GetTag(charge) > 0 ? CardKeywords.Charge : CardKeywords.None) |
+            (metadata.GetTag(rush) > 0 ? CardKeywords.Rush : CardKeywords.None);
+        return new(metadata.ToDefinition()) { Keywords = keywords, Overload = metadata.GetTag(overload) };
+    }
+
+    private static ImmutableArray<SimulationCard> CreateCards(Func<string, SimulationCard> define) =>
     [
-        new(new("CS2_231", EntityKind.Minion, 0, 1, 1)),
-        new(new("CS2_172", EntityKind.Minion, 2, 3, 2)),
-        new SimulationCard(new("CS2_023", EntityKind.Spell, 3))
+        define("CS2_231"),
+        define("CS2_172"),
+        define("CS2_023") with
         {
             OnPlay = [new DrawEffect(2)]
         },
-        new SimulationCard(new("CS2_032", EntityKind.Spell, 7))
+        define("CS2_032") with
         {
             OnPlay = [new DamageEffect(DamageTarget.EnemyMinions, 5)]
         },
-        new SimulationCard(new("EX1_007", EntityKind.Minion, 3, 1, 4))
+        define("EX1_007") with
         {
             Triggers = [new(TriggerTiming.Damage, TriggerRelation.Friendly, [new DrawEffect(1)])
             {
                 EntityMatch = TriggerEntityMatch.Self
             }]
         },
-        new SimulationCard(new("EX1_402", EntityKind.Minion, 2, 1, 4))
+        define("EX1_402") with
         {
             Triggers = [new(TriggerTiming.Damage, TriggerRelation.Friendly, [new GainArmorEffect(1)])
             {
                 EntityKind = EntityKind.Minion
             }]
         },
-        new SimulationCard(new("CS2_122", EntityKind.Minion, 3, 2, 3))
+        define("CS2_122") with
         {
             Auras = [new(AuraRecipients.OtherFriendlyMinions, new(StatModifierMode.Add, Attack: 1))]
         },
-        new SimulationCard(new("CS2_222", EntityKind.Minion, 7, 7, 7))
+        define("CS2_222") with
         {
             Auras = [new(AuraRecipients.OtherFriendlyMinions, new(StatModifierMode.Add, Attack: 1, MaximumHealth: 1))]
         },
-        new SimulationCard(new("EX1_162", EntityKind.Minion, 2, 2, 2))
+        define("EX1_162") with
         {
             Auras = [new(AuraRecipients.AdjacentFriendlyMinions, new(StatModifierMode.Add, Attack: 1))]
         },
-        new SimulationCard(new("CS2_092", EntityKind.Spell, 4))
+        define("CS2_092") with
         {
             Target = TargetRequirement.Minion,
             OnPlay = [new EnchantStatsEffect(StatTarget.Selected, new(StatModifierMode.Add, Attack: 4, MaximumHealth: 4))]
         },
-        new SimulationCard(new("CS2_046", EntityKind.Spell, 5))
+        define("CS2_046") with
         {
             OnPlay = [new EnchantStatsEffect(StatTarget.FriendlyMinions, new(StatModifierMode.Add, Attack: 3),
                 EnchantmentDuration.CurrentTurn)]
         },
-        new SimulationCard(new("EX1_360", EntityKind.Spell, 1))
+        define("EX1_360") with
         {
             Target = TargetRequirement.Minion,
             OnPlay = [new EnchantStatsEffect(StatTarget.Selected, new(StatModifierMode.Set, Attack: 1))]
         },
-        new SimulationCard(new("EX1_619", EntityKind.Spell, 2))
+        define("EX1_619") with
         {
             OnPlay = [new EnchantStatsEffect(StatTarget.AllMinions, new(StatModifierMode.Set, MaximumHealth: 1))]
         },
-        new SimulationCard(new("EX1_019", EntityKind.Minion, 3, 3, 2))
+        define("EX1_019") with
         {
             Target = TargetRequirement.FriendlyMinion,
             OnPlay = [new EnchantStatsEffect(StatTarget.Selected, new(StatModifierMode.Add, Attack: 1, MaximumHealth: 1))]
         },
-        new SimulationCard(new("EX1_332", EntityKind.Spell, 0))
+        define("EX1_332") with
         {
             Target = TargetRequirement.Minion,
             OnPlay = [new SilenceEffect()]
         },
-        new SimulationCard(new("EX1_245", EntityKind.Spell, 1))
+        define("EX1_245") with
         {
             Target = TargetRequirement.Minion,
             OnPlay = [new SilenceEffect(), new DamageEffect(DamageTarget.Selected, 1)]
         },
-        new SimulationCard(new("CFM_851", EntityKind.Minion, 4, 3, 3))
+        define("CFM_851") with
         {
             Triggers =
             [
@@ -86,281 +109,277 @@ public static class StarterCardCatalog
                     [new EnchantStatsEffect(StatTarget.Source, new(StatModifierMode.Add, Attack: 1, MaximumHealth: 1))])
             ]
         },
-        new(new("CS2_106", EntityKind.Weapon, 2, 3, PrintedDurability: 2)),
-        new(new("CS2_091", EntityKind.Weapon, 1, 1, PrintedDurability: 4)),
-        new(new("CS2_112", EntityKind.Weapon, 5, 5, PrintedDurability: 2)),
-        new(new("CS2_082", EntityKind.Weapon, 1, 1, PrintedDurability: 2)),
-        new SimulationCard(new("CS2_097", EntityKind.Weapon, 4, 4, PrintedDurability: 2))
+        define("CS2_106"),
+        define("CS2_091"),
+        define("CS2_112"),
+        define("CS2_082"),
+        define("CS2_097") with
         {
             Triggers = [new(TriggerTiming.HeroAttacking, TriggerRelation.Friendly, [new HealFriendlyHeroEffect(3)])]
         },
-        new SimulationCard(new("FP1_021", EntityKind.Weapon, 4, 4, PrintedDurability: 2))
+        define("FP1_021") with
         {
             Deathrattle = [new DamageEffect(DamageTarget.AllMinions, 1)]
         },
-        new SimulationCard(new("EX1_066", EntityKind.Minion, 2, 3, 2))
+        define("EX1_066") with
         {
             OnPlay = [new DestroyEnemyWeaponEffect()]
         },
-        new SimulationCard(new("HERO_01bp", EntityKind.HeroPower, 2))
+        define("HERO_01bp") with
         {
             OnPlay = [new GainArmorEffect(2)]
         },
-        new SimulationCard(new("HERO_03bp", EntityKind.HeroPower, 2))
+        define("HERO_03bp") with
         {
             OnPlay = [new EquipWeaponEffect("CS2_082")]
         },
-        new SimulationCard(new("HERO_08bp", EntityKind.HeroPower, 2))
+        define("HERO_08bp") with
         {
             Target = TargetRequirement.Character,
             OnPlay = [new DamageEffect(DamageTarget.Selected, 1)]
         },
-        new SimulationCard(new("HERO_06bp", EntityKind.HeroPower, 2))
+        define("HERO_06bp") with
         {
             OnPlay = [new EnchantStatsEffect(StatTarget.FriendlyHero, new(StatModifierMode.Add, Attack: 1),
                 EnchantmentDuration.CurrentTurn), new GainArmorEffect(1)]
         },
-        new SimulationCard(new("CS2_105", EntityKind.Spell, 2))
+        define("CS2_105") with
         {
             OnPlay = [new EnchantStatsEffect(StatTarget.FriendlyHero, new(StatModifierMode.Add, Attack: 4),
                 EnchantmentDuration.CurrentTurn)]
         },
-        new SimulationCard(new("EX1_581", EntityKind.Spell, 2))
+        define("EX1_581") with
         {
             Target = TargetRequirement.EnemyMinion,
             OnPlay = [new ReturnMinionEffect()]
         },
-        new SimulationCard(new("EX1_144", EntityKind.Spell, 0))
+        define("EX1_144") with
         {
             Target = TargetRequirement.FriendlyMinion,
             OnPlay = [new ReturnMinionEffect(CostDelta: -2)]
         },
-        new SimulationCard(new("EX1_049", EntityKind.Minion, 2, 3, 2))
+        define("EX1_049") with
         {
             Target = TargetRequirement.FriendlyMinion,
             OnPlay = [new ReturnMinionEffect()]
         },
-        new SimulationCard(new("CS2_022", EntityKind.Spell, 4))
+        define("CS2_022") with
         {
             Target = TargetRequirement.Minion,
             OnPlay = [new TransformMinionEffect("CS2_tk1")]
         },
-        new(new("CS2_tk1", EntityKind.Minion, 1, 1, 1)),
-        new SimulationCard(new("EX1_246", EntityKind.Spell, 3))
+        define("CS2_tk1"),
+        define("EX1_246") with
         {
             Target = TargetRequirement.Minion,
             OnPlay = [new TransformMinionEffect("hexfrog")]
         },
-        new SimulationCard(new("hexfrog", EntityKind.Minion, 0, 0, 1)) { Keywords = CardKeywords.Taunt },
-        new SimulationCard(new("CS2_076", EntityKind.Spell, 4))
+        define("hexfrog"),
+        define("CS2_076") with
         {
             Target = TargetRequirement.EnemyMinion,
             OnPlay = [new DestroyMinionEffect()]
         },
-        new SimulationCard(new("CS1_113", EntityKind.Spell, 9))
+        define("CS1_113") with
         {
             Target = TargetRequirement.EnemyMinion,
             OnPlay = [new TakeControlEffect()]
         },
-        new SimulationCard(new("BRM_017", EntityKind.Spell, 2))
+        define("BRM_017") with
         {
             Requirements = PlayRequirements.BoardSpace | PlayRequirements.FriendlyMinionDeath,
             OnPlay = [new ResurrectFriendlyMinionEffect()]
         },
-        new SimulationCard(new("CS2_024", EntityKind.Spell, 2))
+        define("CS2_024") with
         {
             Target = TargetRequirement.Character,
             OnPlay = [new DamageEffect(DamageTarget.Selected, 3), new FreezeEffect(FreezeTarget.Selected)]
         },
-        new SimulationCard(new("CS2_026", EntityKind.Spell, 3))
+        define("CS2_026") with
         {
             OnPlay = [new FreezeEffect(FreezeTarget.EnemyMinions)]
         },
-        new SimulationCard(new("CS2_028", EntityKind.Spell, 6))
+        define("CS2_028") with
         {
             OnPlay = [new DamageEffect(DamageTarget.EnemyMinions, 2), new FreezeEffect(FreezeTarget.EnemyMinions)]
         },
-        new SimulationCard(new("UNG_205", EntityKind.Minion, 1, 2, 1))
+        define("UNG_205") with
         {
             Target = TargetRequirement.EnemyCharacter,
             OnPlay = [new FreezeEffect(FreezeTarget.Selected)]
         },
-        new SimulationCard(new("CS2_033", EntityKind.Minion, 4, 3, 6))
+        define("CS2_033") with
         {
             Triggers = [new(TriggerTiming.Damage, TriggerRelation.Friendly, [new FreezeEffect(FreezeTarget.TriggerSubject)])
             {
                 Focus = TriggerFocus.DamageSource, EntityMatch = TriggerEntityMatch.Self
             }]
         },
-        new SimulationCard(new("GIL_803", EntityKind.Minion, 4, 2, 5))
+        define("GIL_803") with
         {
-            Keywords = CardKeywords.Rush,
             OnPlay = [new EnchantStatsEffect(StatTarget.Source, new(StatModifierMode.Add, Attack: 3), EnchantmentDuration.CurrentTurn)]
         },
-        new SimulationCard(new("CS2_124", EntityKind.Minion, 3, 3, 1)) { Keywords = CardKeywords.Charge },
-        new SimulationCard(new("CS2_169", EntityKind.Minion, 1, 1, 1)) { Keywords = CardKeywords.Windfury },
-        new SimulationCard(new("EX1_033", EntityKind.Minion, 6, 4, 5)) { Keywords = CardKeywords.Windfury },
-        new SimulationCard(new("EX1_567", EntityKind.Weapon, 5, 2, PrintedDurability: 8))
+        define("CS2_124"),
+        define("CS2_169"),
+        define("EX1_033"),
+        define("EX1_567"),
+        define("EX1_238") with
         {
-            Keywords = CardKeywords.Windfury, Overload = 2
-        },
-        new SimulationCard(new("EX1_238", EntityKind.Spell, 1))
-        {
-            Target = TargetRequirement.Character, Overload = 1,
+            Target = TargetRequirement.Character,
             OnPlay = [new DamageEffect(DamageTarget.Selected, 3)]
         },
-        new SimulationCard(new("EX1_241", EntityKind.Spell, 3))
+        define("EX1_241") with
         {
-            Target = TargetRequirement.Character, Overload = 2,
+            Target = TargetRequirement.Character,
             OnPlay = [new DamageEffect(DamageTarget.Selected, 5)]
         },
-        new SimulationCard(new("EX1_259", EntityKind.Spell, 3))
+        define("EX1_259") with
         {
-            Overload = 1, OnPlay = [new DamageEffect(DamageTarget.EnemyMinions, 3)]
+            OnPlay = [new DamageEffect(DamageTarget.EnemyMinions, 3)]
         },
-        new SimulationCard(new("BRM_011", EntityKind.Spell, 2))
+        define("BRM_011") with
         {
             Target = TargetRequirement.Character,
             OnPlay = [new DamageEffect(DamageTarget.Selected, 2), new UnlockOverloadEffect()]
         },
-        new SimulationCard(new("OG_026", EntityKind.Minion, 2, 3, 2))
+        define("OG_026") with
         {
             OnPlay = [new UnlockOverloadEffect()]
         },
-        Secret("EX1_287", 3, new(TriggerTiming.SpellCounterWindow, TriggerRelation.Opponent, [new CounterSpellEffect()])),
-        Secret("EX1_610", 2, new(TriggerTiming.AttackProposed, TriggerRelation.Friendly, [new DamageEffect(DamageTarget.AllEnemies, 2)])
+        Secret(define("EX1_287"), new(TriggerTiming.SpellCounterWindow, TriggerRelation.Opponent, [new CounterSpellEffect()])),
+        Secret(define("EX1_610"), new(TriggerTiming.AttackProposed, TriggerRelation.Friendly, [new DamageEffect(DamageTarget.AllEnemies, 2)])
         {
             Focus = TriggerFocus.AttackDefender, EntityKind = EntityKind.Hero
         }),
-        Secret("EX1_611", 2, new(TriggerTiming.AttackProposed, TriggerRelation.Opponent,
+        Secret(define("EX1_611"), new(TriggerTiming.AttackProposed, TriggerRelation.Opponent,
             [new ReturnMinionEffect(CostDelta: 2, Target: EffectTarget.TriggerSubject)])
         {
             EntityKind = EntityKind.Minion, RequireLivingEntity = true
         }),
-        Secret("EX1_609", 2, new(TriggerTiming.AfterMinionPlayed, TriggerRelation.Opponent, [new DamageEffect(DamageTarget.TriggerSubject, 6)])
+        Secret(define("EX1_609"), new(TriggerTiming.AfterMinionPlayed, TriggerRelation.Opponent, [new DamageEffect(DamageTarget.TriggerSubject, 6)])
         {
             EntityKind = EntityKind.Minion, RequireLivingEntity = true
         }),
-        Secret("EX1_130", 1, new(TriggerTiming.AttackProposed, TriggerRelation.Friendly, [new SummonAttackDefenderEffect("EX1_130a")])
+        Secret(define("EX1_130"), new(TriggerTiming.AttackProposed, TriggerRelation.Friendly, [new SummonAttackDefenderEffect("EX1_130a")])
         {
             Focus = TriggerFocus.AttackDefender, RequiresBoardSpace = true
         }),
-        new(new("EX1_130a", EntityKind.Minion, 1, 2, 1)),
-        Secret("EX1_289", 3, new(TriggerTiming.AttackProposed, TriggerRelation.Friendly, [new GainArmorEffect(8)])
+        define("EX1_130a"),
+        Secret(define("EX1_289"), new(TriggerTiming.AttackProposed, TriggerRelation.Friendly, [new GainArmorEffect(8)])
         {
             Focus = TriggerFocus.AttackDefender, EntityKind = EntityKind.Hero
         }),
-        Secret("EX1_554", 2, new(TriggerTiming.AttackProposed, TriggerRelation.Friendly,
+        Secret(define("EX1_554"), new(TriggerTiming.AttackProposed, TriggerRelation.Friendly,
             [new SummonEffect("EX1_554t"), new SummonEffect("EX1_554t"), new SummonEffect("EX1_554t")])
         {
             Focus = TriggerFocus.AttackDefender, EntityKind = EntityKind.Minion, RequiresBoardSpace = true
         }),
-        new(new("EX1_554t", EntityKind.Minion, 1, 1, 1)),
-        new SimulationCard(new("EX1_277", EntityKind.Spell, 1))
+        define("EX1_554t"),
+        define("EX1_277") with
         {
             OnPlay = [new RandomDamageEffect(RandomCharacterPool.EnemyCharacters, 1, Count: 3)]
         },
-        new SimulationCard(new("CS2_114", EntityKind.Spell, 2))
+        define("CS2_114") with
         {
             MinimumEnemyMinions = 1,
             OnPlay = [new RandomDamageEffect(RandomCharacterPool.EnemyMinions, 2, Count: 2, Mode: RandomDamageMode.DistinctBatch)]
         },
-        new SimulationCard(new("EX1_251", EntityKind.Spell, 1))
+        define("EX1_251") with
         {
-            MinimumEnemyMinions = 1, Overload = 2,
+            MinimumEnemyMinions = 1,
             OnPlay = [new RandomDamageEffect(RandomCharacterPool.EnemyMinions, 2, Count: 2, Mode: RandomDamageMode.DistinctBatch)]
         },
-        new SimulationCard(new("EX1_617", EntityKind.Spell, 3))
+        define("EX1_617") with
         {
             MinimumEnemyMinions = 1, OnPlay = [new DestroyRandomEnemyMinionEffect()]
         },
-        new SimulationCard(new("EX1_407", EntityKind.Spell, 5))
+        define("EX1_407") with
         {
             MinimumTotalMinions = 2, OnPlay = [new DestroyAllButOneMinionEffect()]
         },
-        new SimulationCard(new("NEW1_031", EntityKind.Spell, 3))
+        define("NEW1_031") with
         {
             Requirements = PlayRequirements.BoardSpace,
             OnPlay = [new SummonRandomMinionEffect(["NEW1_032", "NEW1_033", "NEW1_034"])]
         },
-        new SimulationCard(new("NEW1_032", EntityKind.Minion, 3, 4, 4)) { Keywords = CardKeywords.Taunt },
-        new SimulationCard(new("NEW1_033", EntityKind.Minion, 3, 2, 4))
+        define("NEW1_032"),
+        define("NEW1_033") with
         {
             Auras = [new(AuraRecipients.OtherFriendlyMinions, new(StatModifierMode.Add, Attack: 1))]
         },
-        new SimulationCard(new("NEW1_034", EntityKind.Minion, 3, 4, 2)) { Keywords = CardKeywords.Charge },
-        new SimulationCard(new("NEW1_019", EntityKind.Minion, 2, 3, 2))
+        define("NEW1_034"),
+        define("NEW1_019") with
         {
             Triggers = [new(TriggerTiming.AfterMinionSummoned, TriggerRelation.Friendly,
                 [new RandomDamageEffect(RandomCharacterPool.EnemyCharacters, 1)])]
         },
-        new SimulationCard(new("EX1_082", EntityKind.Minion, 2, 3, 2))
+        define("EX1_082") with
         {
             OnPlay = [new RandomDamageEffect(RandomCharacterPool.OtherCharacters, 1, Count: 3)]
         },
-        new SimulationCard(new("GVG_090", EntityKind.Minion, 5, 5, 4))
+        define("GVG_090") with
         {
             OnPlay = [new RandomDamageEffect(RandomCharacterPool.OtherCharacters, 1, Count: 6)]
         },
-        new SimulationCard(new("GAME_005", EntityKind.Spell, 0))
+        define("GAME_005") with
         {
             OnPlay = [new ChangeManaEffect(ManaOperation.GainTemporary, 1)]
         },
-        new SimulationCard(new("EX1_169", EntityKind.Spell, 0))
+        define("EX1_169") with
         {
             OnPlay = [new ChangeManaEffect(ManaOperation.GainTemporary, 1)]
         },
-        new SimulationCard(new("SCH_427", EntityKind.Spell, 0))
+        define("SCH_427") with
         {
-            Overload = 2, OnPlay = [new ChangeManaEffect(ManaOperation.Refresh, 2)]
+            OnPlay = [new ChangeManaEffect(ManaOperation.Refresh, 2)]
         },
-        new SimulationCard(new("CS2_013", EntityKind.Spell, 2))
+        define("CS2_013") with
         {
             OnPlay = [new ChangeManaEffect(ManaOperation.GainEmpty, 1, OverflowCardId: "CS2_013t")]
         },
-        new SimulationCard(new("CS2_013t", EntityKind.Spell, 0))
+        define("CS2_013t") with
         {
             OnPlay = [new DrawEffect(1)]
         },
-        new SimulationCard(new("BT_130", EntityKind.Spell, 4))
+        define("BT_130") with
         {
             OnPlay = [new ChangeManaEffect(ManaOperation.GainEmpty, 2, OverflowCardId: "CS2_013t")]
         },
-        new SimulationCard(new("BOT_054", EntityKind.Spell, 1))
+        define("BOT_054") with
         {
             OnPlay = [new ChangeManaEffect(ManaOperation.GainFilled, 2, ManaRecipient.BothPlayers)]
         },
-        new SimulationCard(new("AT_038", EntityKind.Minion, 2, 2, 3))
+        define("AT_038") with
         {
             OnPlay = [new ChangeManaEffect(ManaOperation.GainEmpty, 1)],
             Deathrattle = [new ChangeManaEffect(ManaOperation.Destroy, 1)]
         },
-        new SimulationCard(new("LOOT_351", EntityKind.Minion, 3, 3, 1))
+        define("LOOT_351") with
         {
             Deathrattle = [new ChangeManaEffect(ManaOperation.GainEmpty, 1)]
         },
-        new SimulationCard(new("EX1_301", EntityKind.Minion, 3, 3, 5))
+        define("EX1_301") with
         {
-            Keywords = CardKeywords.Taunt, OnPlay = [new ChangeManaEffect(ManaOperation.Destroy, 1)]
+            OnPlay = [new ChangeManaEffect(ManaOperation.Destroy, 1)]
         },
-        new SimulationCard(new("LOOT_392", EntityKind.Weapon, 4, 1, PrintedDurability: 5))
+        define("LOOT_392") with
         {
             Deathrattle = [new ChangeManaEffect(ManaOperation.Refresh, int.MaxValue)]
         },
-        new SimulationCard(new("EX1_164", EntityKind.Spell, 5))
+        define("EX1_164") with
         {
             Choices = [new("gainCrystals", [new ChangeManaEffect(ManaOperation.GainFilled, 2)]), new("draw", [new DrawEffect(3)])]
         },
-        new SimulationCard(new("WON_014", EntityKind.Spell, 2))
+        define("WON_014") with
         {
             Choices = [new("gainCrystal", [new ChangeManaEffect(ManaOperation.GainEmpty, 1)]), new("draw", [new DrawEffect(1)])]
         },
-        new SimulationCard(new("CFM_308", EntityKind.Minion, 10, 7, 7))
+        define("CFM_308") with
         {
             Choices = [new("armor", [new GainArmorEffect(10)]), new("refresh", [new ChangeManaEffect(ManaOperation.Refresh, int.MaxValue)])]
         }
     ];
 
-    private static SimulationCard Secret(string cardId, int cost, CardTrigger trigger) =>
-        new(new(cardId, EntityKind.Spell, cost)) { IsSecret = true, Triggers = [trigger] };
+    private static SimulationCard Secret(SimulationCard card, CardTrigger trigger) =>
+        card with { IsSecret = true, Triggers = [trigger] };
 }

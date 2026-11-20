@@ -81,7 +81,7 @@ public sealed record DestroyEnemyWeaponEffect : CardEffect;
 public sealed record EnchantStatsEffect(StatTarget Target, StatModifier Modifier,
     EnchantmentDuration Duration = EnchantmentDuration.Permanent) : CardEffect;
 public sealed record SilenceEffect : CardEffect;
-/// <summary>Uses the death position during a deathrattle and the right edge otherwise.</summary>
+/// <summary>亡语召唤沿用死亡位置，其他情况放到场上最右侧。</summary>
 public sealed record SummonEffect(string CardId, SummonPlacement Placement = SummonPlacement.Default) : CardEffect;
 public sealed record TakeControlEffect : CardEffect;
 public sealed record ReturnMinionEffect(int CostDelta = 0, EffectTarget Target = EffectTarget.Selected) : CardEffect;

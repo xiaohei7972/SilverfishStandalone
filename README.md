@@ -14,6 +14,18 @@ dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulatio
 dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-combat.json
 ```
 
+## 卡牌数据
+
+新模拟器随程序加载构建 `256589` 的 89 项 `starter` 静态卡牌数据。可以用同一个 CLI 把完整的 `CardDefs.xml` 转成可按卡牌 ID 或 DBF ID 查询的 JSON。
+
+```powershell
+$cardDefs = 'D:/script/hbCollectionhb/Hearthbuddy_backed_release/Routines/DefaultRoutine/Silverfish/data/CardDefs.xml'
+dotnet run --project src/Silverfish.Cli -c Release -- import-card-data $cardDefs artifacts/card-data/card-data-256589.json
+dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-mana.json --card-data artifacts/card-data/card-data-256589.json
+```
+
+导出保留构建号、中文和英文的名称与牌面文本，以及实体自身的数字标签。回放和搜索可通过 `--card-data` 为 `starter` 规则提供同一来源的静态属性。卡牌效果由 `StarterCardCatalog` 注册，只有已实现的卡牌能进入模拟。用 `import-card-data <CardDefs.xml> src/Silverfish.Simulation/Data/StarterCardData.json --starter` 可以重新生成内置数据。
+
 **P0 独立化已通过验收。** 2026-11-05 经典银鱼在 Windows 下独立编译为 .NET 8，加载了原版 `CardDB`，并通过了原版 `Ai.autoTester` 固定牌面、JSON 决策和错误输入回归。可执行文件和日志已归档。[私有 Actions #44256337489](https://github.com/xiaohei7972/Hearthbuddy_Silverfish/actions/runs/44256337489)
 
 本项目不采用 Silverfish V2，也不把 StandaloneGameMod 接入作为当前开发阶段的前置条件。

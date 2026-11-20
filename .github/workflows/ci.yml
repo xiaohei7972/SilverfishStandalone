@@ -153,14 +153,14 @@ jobs:
       - name: Replay mana and player choices
         shell: pwsh
         run: |
-          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate samples/simulation-mana.json
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate samples/simulation-mana.json --card-data src/Silverfish.Simulation/Data/StarterCardData.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $replay = ($json -join "`n") | ConvertFrom-Json
           $player = $replay.players[0]
           $nourish = $replay.steps[1].events | Where-Object { $_.kind -eq 'manaRefreshed' }
           $excess = $replay.steps[2].events | Where-Object { $_.kind -eq 'cardGenerated' }
           $bloom = $replay.steps[4].events.kind -join ','
-          if ($player.mana -ne 8 -or $player.manaCrystals -ne 10 -or $player.manaSpent -ne 0 -or
+          if ($replay.cardDataBuild -ne 256589 -or $player.mana -ne 8 -or $player.manaCrystals -ne 10 -or $player.manaSpent -ne 0 -or
               $player.temporaryMana -ne 0 -or $player.overloadLocked -ne 2 -or $player.overloadOwed -ne 0 -or
               $nourish.amount -ne 2 -or $excess.target.value -ne 22 -or
               $replay.steps[3].events[-1].source.value -ne 15 -or $bloom -ne 'cardPlayed,overloadScheduled,manaRefreshed') {
