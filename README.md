@@ -34,7 +34,10 @@ dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulatio
 ```powershell
 dotnet run --project src/Silverfish.Cli -c Release -- import-card-data samples/card-data-demo.xml artifacts/card-data/demo.json
 dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-card-data.json --card-data artifacts/card-data/demo.json
+dotnet run --project src/Silverfish.Cli -c Release -- decide samples/simulation-decision.json --card-data artifacts/card-data/demo.json
 ```
+
+`decide` 接收进行中对局的完整状态、对局 ID、快照序号和调用方提供的候选动作。新模拟器验证候选动作的来源、目标、落点和抉择，再搜索首步并返回原动作 ID。取得动作结果后的新快照可以再次提交。
 
 **P0 独立化已通过验收。** 2026-11-05 经典银鱼在 Windows 下独立编译为 .NET 8，加载了原版 `CardDB`，并通过了原版 `Ai.autoTester` 固定牌面、JSON 决策和错误输入回归。可执行文件和日志已归档。[私有 Actions #44256337489](https://github.com/xiaohei7972/Hearthbuddy_Silverfish/actions/runs/44256337489)
 

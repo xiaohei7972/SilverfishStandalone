@@ -202,6 +202,13 @@ jobs:
                   $attack.kind -ne 'attack' -or $attack.source.value -ne 10 -or $attack.target.value -ne 20) {
                   throw '挂载外置卡牌资料后，回放或搜索结果与预期不符。'
               }
+              $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- decide samples/simulation-decision.json --card-data $catalog
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $decision = ($json -join "`n") | ConvertFrom-Json
+              if ($decision.engine -ne 'simulation-v1' -or $decision.matchId -ne 'training-decision' -or
+                  $decision.snapshotSequence -ne 4 -or $decision.chosenAction.id -ne 'host-equip-11') {
+                  throw '模拟决策未返回预期的快照序号和调用方动作 ID。'
+              }
           } finally {
               Remove-Item -LiteralPath $catalog
           }

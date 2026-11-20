@@ -10,16 +10,18 @@ using Silverfish.Simulation;
 
 Console.OutputEncoding = Encoding.UTF8;
 
-var replay = (args.Length == 2 || (args.Length == 4 && args[2] == "--card-data")) &&
-    args[0] is "simulate" or "plan";
-var plan = replay && args[0] == "plan";
+var simulation = (args.Length == 2 || (args.Length == 4 && args[2] == "--card-data")) &&
+    args[0] is "simulate" or "plan" or "decide";
+var plan = simulation && args[0] == "plan";
+var decide = simulation && args[0] == "decide";
 var import = args.Length is 3 or 4 && args[0] == "import-card-data" &&
     (args.Length == 3 || args[3] == "--starter");
-if ((!replay && !import && args.Length != 1) || args[0] is "--help" or "-h")
+if ((!simulation && !import && args.Length != 1) || args[0] is "--help" or "-h")
 {
     Console.Error.WriteLine("用法  Silverfish.Cli <game-snapshot.json>");
     Console.Error.WriteLine("       Silverfish.Cli simulate <scenario.json> [--card-data <catalog.json>]");
     Console.Error.WriteLine("       Silverfish.Cli plan <scenario.json> [--card-data <catalog.json>]");
+    Console.Error.WriteLine("       Silverfish.Cli decide <decision.json> [--card-data <catalog.json>]");
     Console.Error.WriteLine("       Silverfish.Cli import-card-data <CardDefs.xml> <catalog.json> [--starter]");
     return args.Length == 1 ? 0 : 2;
 }
@@ -40,14 +42,9 @@ try
         return 0;
     }
 
-    await using var stream = File.OpenRead(replay ? args[1] : args[0]);
-    if (replay)
+    await using var stream = File.OpenRead(simulation ? args[1] : args[0]);
+    if (simulation)
     {
-        var scenario = await JsonSerializer.DeserializeAsync<SimulationScenario>(stream, options)
-            ?? throw new InvalidDataException("输入 JSON 必须包含模拟场景。");
-        if (scenario.Cards is null || scenario.CardRules is null || scenario.Players is null ||
-            scenario.Entities is null || scenario.Actions is null || scenario.MinionDeaths is null)
-            throw new InvalidDataException("卡牌、卡牌规则、玩家、实体、动作和随从死亡记录必须使用数组。");
         CardDataCatalog? cardData = null;
         if (args.Length == 4)
         {
@@ -55,9 +52,28 @@ try
             cardData = CardDataCatalog.LoadJson(cardStream);
         }
 
-        var simulator = new GameSimulator(scenario.BindCards(cardData));
-        var state = simulator.CreateGame(scenario.Players, scenario.Entities, scenario.ActivePlayer, scenario.Turn,
-            scenario.MinionDeaths, scenario.RandomState);
+        if (decide)
+        {
+            var requestOptions = new JsonSerializerOptions(options) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
+            var request = await JsonSerializer.DeserializeAsync<SimulationDecisionRequest>(stream, requestOptions)
+                ?? throw new InvalidDataException("输入 JSON 必须包含模拟决策请求。");
+            if (request.SchemaVersion != 1)
+                throw new InvalidDataException($"不支持模拟决策请求版本 {request.SchemaVersion}。");
+            if (request.State is null)
+                throw new InvalidDataException("模拟决策请求必须提供完整对局状态。");
+
+            var (rules, decisionState) = request.State.CreateGame(cardData);
+            var result = new SimulationDecisionEngine(rules).Decide(decisionState, request.MatchId,
+                request.SnapshotSequence, request.Candidates);
+            Console.WriteLine(JsonSerializer.Serialize(result, options));
+            return 0;
+        }
+
+        var scenario = await JsonSerializer.DeserializeAsync<SimulationScenario>(stream, options)
+            ?? throw new InvalidDataException("输入 JSON 必须包含模拟场景。");
+        if (scenario.Actions is null)
+            throw new InvalidDataException("场景动作必须使用数组。");
+        var (simulator, state) = scenario.CreateGame(cardData);
         var steps = new List<SimulationStep>();
         foreach (var action in scenario.Actions)
         {
@@ -92,7 +108,7 @@ catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or J
     ArgumentException or InvalidDataException or InvalidOperationException or KeyNotFoundException or
     FormatException or OverflowException)
 {
-    var operation = import ? "导入卡牌数据" : plan ? "搜索回合" : replay ? "回放场景" : "分析快照";
+    var operation = import ? "导入卡牌数据" : decide ? "模拟决策" : plan ? "搜索回合" : simulation ? "回放场景" : "分析快照";
     Console.Error.WriteLine($"{operation}失败。{DescribeFailure(ex)}");
     return 1;
 }
@@ -159,7 +175,7 @@ static void ImportCardData(string input, string output, bool starterOnly)
     Console.WriteLine($"已将构建 {data.SourceBuild} 的 {data.Cards.Length} 条卡牌资料导出到「{outputPath}」。");
 }
 
-internal sealed record SimulationScenario
+internal record SimulationStateInput
 {
     public string? CardSet { get; init; }
     public SimulationCard[] Cards { get; init; } = [];
@@ -170,9 +186,18 @@ internal sealed record SimulationScenario
     public int Turn { get; init; } = 1;
     public MinionDeath[] MinionDeaths { get; init; } = [];
     public ulong RandomState { get; init; }
-    public required SimulationAction[] Actions { get; init; }
 
-    public IEnumerable<SimulationCard> BindCards(CardDataCatalog? cardData)
+    public (GameSimulator Simulator, GameState State) CreateGame(CardDataCatalog? cardData)
+    {
+        if (Cards is null || CardRules is null || Players is null || Entities is null || MinionDeaths is null)
+            throw new InvalidDataException("卡牌、卡牌规则、玩家、实体和随从死亡记录必须使用数组。");
+
+        var simulator = new GameSimulator(BindCards(cardData));
+        var state = simulator.CreateGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState);
+        return (simulator, state);
+    }
+
+    private IEnumerable<SimulationCard> BindCards(CardDataCatalog? cardData)
     {
         IEnumerable<SimulationCard> builtIn = CardSet switch
         {
@@ -197,6 +222,20 @@ internal sealed record SimulationScenario
             return SimulationCard.FromMetadata(cardData.GetCard(rules.CardId), rules);
         }));
     }
+}
+
+internal sealed record SimulationScenario : SimulationStateInput
+{
+    public required SimulationAction[] Actions { get; init; }
+}
+
+internal sealed record SimulationDecisionRequest
+{
+    public required int SchemaVersion { get; init; }
+    public required string MatchId { get; init; }
+    public required long SnapshotSequence { get; init; }
+    public required SimulationStateInput State { get; init; }
+    public required CandidateAction[] Candidates { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

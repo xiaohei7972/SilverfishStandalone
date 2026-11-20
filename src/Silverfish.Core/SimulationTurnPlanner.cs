@@ -18,7 +18,11 @@ public sealed class SimulationTurnPlanner(GameSimulator simulator, Func<GameStat
 {
     private const int ResolutionWorkPerAction = 64;
 
-    public TurnPlan Plan(GameState root, int depth = 5, int beamWidth = 16, int transitionLimit = 512)
+    public TurnPlan Plan(GameState root, int depth = 5, int beamWidth = 16, int transitionLimit = 512) =>
+        Plan(root, default, depth, beamWidth, transitionLimit);
+
+    internal TurnPlan Plan(GameState root, ImmutableArray<SimulationAction> legalRootActions,
+        int depth = 5, int beamWidth = 16, int transitionLimit = 512)
     {
         if (depth < 1 || beamWidth < 1 || transitionLimit < 1)
             throw new ArgumentOutOfRangeException(nameof(depth), "搜索深度、保留分支数和结算次数上限必须大于零。");
@@ -43,7 +47,7 @@ public sealed class SimulationTurnPlanner(GameSimulator simulator, Func<GameStat
                 return baseline;
 
             Prediction? selected = mayStop ? baseline : null;
-            var actions = simulator.LegalActions(state);
+            var actions = mayStop || legalRootActions.IsDefault ? simulator.LegalActions(state) : legalRootActions;
             var candidates = new List<Candidate>();
             for (var index = 0; index < actions.Length && transitions < limit; index++)
             {

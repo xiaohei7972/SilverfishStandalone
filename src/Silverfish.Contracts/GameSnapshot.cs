@@ -63,6 +63,7 @@ public sealed record HandCardSnapshot
 
 public enum GameActionKind
 {
+    Unknown = -1,
     EndTurn,
     PlayCard,
     Attack,
@@ -70,16 +71,15 @@ public enum GameActionKind
     ChooseOption
 }
 
-/// <summary>
-/// An action supplied by a trusted action enumerator. It is an identifier
-/// and a proposed operation, NOT an instruction for direct client execution.
-/// </summary>
+/// <summary>由调用方提供的候选动作及其标识。</summary>
 public sealed record CandidateAction
 {
     public string Id { get; init; } = string.Empty;
-    public GameActionKind Kind { get; init; }
+    public GameActionKind Kind { get; init; } = GameActionKind.Unknown;
     public int? SourceEntityId { get; init; }
     public int? TargetEntityId { get; init; }
+    public int? Position { get; init; }
+    public string? Choice { get; init; }
     public int ManaCost { get; init; }
     public string Description { get; init; } = string.Empty;
 }

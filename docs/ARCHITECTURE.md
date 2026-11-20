@@ -50,31 +50,19 @@ The offline replay and planner take a fully specified scenario, including both p
 
 ## Components
 
-    Offline JSON or StandaloneGameMod state.snapshot
-                      |
-                      v
-       Snapshot adapter (not yet implemented)
-                      |
-                      v
-         Contracts.GameSnapshot (v1)
-                      |
-             SnapshotValidator
-                      |
-                      v
-          IStrategyEngine.DecideAsync
-             /                    \
-    BaselineStrategyEngine    Future SilverfishPort
-             \                    /
-                      v
-              Contracts.BotDecision
-                      |
-              CLI or future UI
+    Observable offline GameSnapshot       Complete offline state + candidate actions
+                      |                                      |
+                SnapshotValidator                       GameSimulator
+                      |                                      |
+             BaselineStrategyEngine                SimulationDecisionEngine
+                      |                                      |
+                      +---------- Contracts.BotDecision -----+
 
-The strategy interface has no reference to Libmem.NET, Unity, Mono, Hearthbuddy, Triton or the UI. The source and the algorithm can evolve separately.
+The strategy engines operate on offline inputs. Their dependencies are the shared contracts and the independent simulator.
 
 ## Present milestone
 
-The CLI consumes offline JSON fixtures with explicitly enumerated candidate actions. BaselineStrategyEngine ranks them deterministically. This is a working protocol/proof-of-concept, not Silverfish's original game simulator.
+The `decide` command accepts a versioned request containing a complete state and the calling application's candidate IDs. It verifies each candidate against the simulator's exact legal actions, including its position and choice. The turn planner limits its first move to that verified set. Future moves use the resulting simulation states. The response echoes the match ID, snapshot sequence, and the original first-move candidate. The observable snapshot command continues to use baseline scoring with its own input contract.
 
 The offline contract is not identical to CardResearchLab/StandaloneGameMod's state.snapshot payload. A separate, tested versioned translation layer is required before consuming its live data. Do not deserialize state.snapshot directly as Contracts.GameSnapshot.
 

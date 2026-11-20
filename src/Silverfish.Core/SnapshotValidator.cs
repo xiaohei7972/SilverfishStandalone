@@ -35,9 +35,9 @@ public static class SnapshotValidator
             snapshot.OurHand is null || snapshot.LegalActions is null)
             throw new ArgumentException("快照中的集合必须初始化。", nameof(snapshot));
 
-        if (snapshot.LegalActions.Any(a => a is null ||
-            string.IsNullOrWhiteSpace(a.Id) || a.ManaCost < 0))
-            throw new ArgumentException("每个合法动作必须有 ID，且法力费用不能为负数。", nameof(snapshot));
+        if (snapshot.LegalActions.Any(a => a is null || string.IsNullOrWhiteSpace(a.Id) ||
+            a.ManaCost < 0 || !Enum.IsDefined(a.Kind) || a.Kind == GameActionKind.Unknown))
+            throw new ArgumentException("每个合法动作必须有 ID 和有效类型，且法力费用不能为负数。", nameof(snapshot));
 
         if (snapshot.LegalActions.Select(a => a.Id).Distinct(StringComparer.Ordinal).Count() !=
             snapshot.LegalActions.Count)
