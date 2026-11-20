@@ -12,6 +12,7 @@ public sealed partial class GameSimulator
     private const PlayRequirements SupportedPlayRequirements = PlayRequirements.BoardSpace | PlayRequirements.FriendlyMinionDeath;
     private readonly ImmutableDictionary<string, SimulationCard> _cards;
     private readonly int _resolutionLimit;
+    private readonly bool _hasCostAuras;
 
     public GameSimulator(IEnumerable<SimulationCard> cards, int resolutionLimit = 4096)
     {
@@ -42,9 +43,10 @@ public sealed partial class GameSimulator
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield |
                     CardKeywords.Rush | CardKeywords.Windfury)) != 0 ||
                 card.Overload < 0 || (card.Overload > 0 && definition.Kind is EntityKind.Hero or EntityKind.HeroPower) ||
-                card.Triggers.IsDefault || card.Auras.IsDefault || card.Choices.IsDefault ||
+                card.Triggers.IsDefault || card.Auras.IsDefault || card.CostAuras.IsDefault || card.Choices.IsDefault ||
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && !card.Deathrattle.IsEmpty) ||
                 (definition.Kind != EntityKind.Minion && !card.Auras.IsEmpty) ||
+                (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.CostAuras.IsEmpty) ||
                 (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.IsSecret && !card.Triggers.IsEmpty) ||
                 (!card.Choices.IsEmpty && (card.Choices.Length < 2 || card.IsSecret || card.Target != TargetRequirement.None ||
                     !card.OnPlay.IsDefaultOrEmpty || definition.Kind is not (EntityKind.Minion or EntityKind.Spell))) ||
@@ -70,6 +72,10 @@ public sealed partial class GameSimulator
                     aura.Modifier?.Mode != StatModifierMode.Add || !IsValidModifier(aura.Modifier))
                     throw new ArgumentException($"卡牌「{definition.CardId}」的属性光环无效。", nameof(cards));
             }
+            foreach (var aura in card.CostAuras)
+                if (aura is null || !Enum.IsDefined(aura.Recipient) || !Enum.IsDefined(aura.Target) || aura.Delta == 0)
+                    throw new ArgumentException($"卡牌「{definition.CardId}」的费用光环无效。", nameof(cards));
+
             foreach (var trigger in card.Triggers)
             {
                 if (trigger is null || !Enum.IsDefined(trigger.Timing) || !Enum.IsDefined(trigger.Relation) ||
@@ -88,6 +94,7 @@ public sealed partial class GameSimulator
                     hasInPlaySource: IsCharacter(definition.Kind));
             }
         }
+        _hasCostAuras = _cards.Values.Any(card => !card.CostAuras.IsEmpty);
     }
 
     public GameState CreateGame(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
@@ -180,12 +187,13 @@ public sealed partial class GameSimulator
         }
 
         var minions = MinionCount(state, actor);
+        var costAuras = ActiveCostAuras(state, actor);
         foreach (var id in player.In(GameZone.Hand))
         {
             var entity = state.Entities[id];
             var card = Card(entity);
             var createsMinion = card.Definition.Kind == EntityKind.Minion;
-            if (EffectiveCost(entity) > player.Mana ||
+            if (EffectiveCost(entity, card, costAuras) > player.Mana ||
                 (minions >= BoardLimit && createsMinion) ||
                 (card.IsSecret && !CanArmSecret(state, player, entity.CardId)) ||
                 !MeetsPlayRequirements(state, card, minions))
@@ -224,8 +232,9 @@ public sealed partial class GameSimulator
 
         if (player.HeroPowerUsesThisTurn == 0 && player.In(GameZone.HeroPower) is [var powerId])
         {
-            var power = Card(state.Entities[powerId]);
-            if (power.Definition.PrintedCost <= player.Mana && MeetsPlayRequirements(state, power, minions))
+            var entity = state.Entities[powerId];
+            var power = Card(entity);
+            if (EffectiveCost(entity, power, costAuras) <= player.Mana && MeetsPlayRequirements(state, power, minions))
                 foreach (var target in PlayTargets(state, power.Target))
                     actions.Add(new(SimulationActionKind.UseHeroPower, actor, powerId, target));
         }
@@ -298,14 +307,6 @@ public sealed partial class GameSimulator
     {
         var enemies = MinionCount(state, state.OpponentOf(state.ActivePlayer));
         return enemies >= card.MinimumEnemyMinions && friendlyMinions + enemies >= card.MinimumTotalMinions;
-    }
-
-    private int EffectiveCost(GameEntity entity)
-    {
-        long cost = Card(entity).Definition.PrintedCost;
-        foreach (var modifier in entity.CostModifiers)
-            cost += modifier.Delta;
-        return (int)Math.Clamp(cost, 0, int.MaxValue);
     }
 
     private SimulationCard Card(GameEntity entity) => GetCard(entity.CardId);

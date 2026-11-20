@@ -23,8 +23,16 @@ public enum SummonPlacement { Default, Rightmost }
 public enum StatTarget { Selected, Source, FriendlyMinions, AllMinions, FriendlyHero }
 public enum EnchantmentDuration { Permanent, CurrentTurn }
 public enum AuraRecipients { OtherFriendlyMinions, AdjacentFriendlyMinions }
+public enum CostAuraTarget { Hand, Minion, Spell, Weapon, HeroPower }
+public enum CostAuraRecipient { Friendly, Opponent, BothPlayers }
 
 public sealed record StatAura(AuraRecipients Recipients, StatModifier Modifier);
+
+/// <summary>对指定玩家的手牌或英雄技能持续增减费用。</summary>
+public sealed record CostAura(
+    [property: JsonRequired] CostAuraRecipient Recipient,
+    [property: JsonRequired] CostAuraTarget Target,
+    [property: JsonRequired] int Delta);
 
 public enum TriggerTiming
 {
@@ -127,6 +135,7 @@ public record CardRules
     public ImmutableArray<CardEffect> WhenDrawn { get; init; } = [];
     public ImmutableArray<CardTrigger> Triggers { get; init; } = [];
     public ImmutableArray<StatAura> Auras { get; init; } = [];
+    public ImmutableArray<CostAura> CostAuras { get; init; } = [];
 }
 
 public sealed record SimulationCard : CardRules

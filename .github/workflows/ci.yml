@@ -251,6 +251,18 @@ jobs:
               ($result.steps[0].events.kind -join ',') -ne 'cardPlayed,damage,armorGained,damage,triggered,damage') {
               throw '条件分支或触发顺序与预期结果不符。'
           }
+      - name: Replay costs with active auras
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-cost-auras.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = ($json -join "`n") | ConvertFrom-Json
+          $hero = $result.entities | Where-Object { $_.id.value -eq 10 }
+          $opponent = $result.entities | Where-Object { $_.id.value -eq 20 }
+          if ($result.players[0].manaSpent -ne 1 -or $result.players[0].heroPowerUsesThisTurn -ne 1 -or
+              $hero.character.armor -ne 1 -or $opponent.character.health -ne 28) {
+              throw '费用光环下的扣费或结算结果与预期不符。'
+          }
       - name: Run published standalone executable outside the workspace
         shell: pwsh
         run: |

@@ -110,7 +110,7 @@ public sealed partial class GameSimulator
             var effects = option?.Effects ?? card.OnPlay;
             var resolvesEffect = (option?.Target ?? card.Target) == TargetRequirement.None || target is not null;
             var listeners = CaptureListeners();
-            PayMana(playerId, _rules.EffectiveCost(_state.Entities[source]));
+            PayMana(playerId, _rules.EffectiveCost(_state, source));
             var index = position is int slot ? _rules.BoardIndex(_state, playerId, slot) : (int?)null;
             _state = _state.Move(source, new(playerId, card.IsSecret ? GameZone.Secret : GameZone.Play), index);
             _events.Add(new(SimulationEventKind.CardPlayed, playerId, source, target));

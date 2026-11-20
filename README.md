@@ -31,6 +31,7 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-ra
 dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-mana.json
 dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-choices.json
 dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-conditions.json
+dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-cost-auras.json
 dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-combat.json
 ```
 
@@ -51,6 +52,8 @@ dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulatio
 自定义场景可以在 `cardRules` 中以 `cardId` 指定目录条目，并填写对应的结算规则。类型、费用、基础数值、已支持的关键词和过载值由 `--card-data` 指定的目录提供。场景可以同时使用 `cards` 定义独立测试卡。
 
 效果可以通过 `conditional` 按角色生命、伤害、攻击、护甲或指定区域的实体数量选分支。触发器也支持同样的 `condition`，在发动前按当时的状态判断。
+
+场上英雄、随从以及已装备的武器可通过 `costAuras` 改变手牌或英雄技能的费用。合法动作和扣费共用同一计算，费用叠加后最低为零。
 
 ```powershell
 dotnet run --project src/Silverfish.Cli -c Release -- import-card-data samples/card-data-demo.xml artifacts/card-data/demo.json

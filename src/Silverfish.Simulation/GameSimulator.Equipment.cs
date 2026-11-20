@@ -24,7 +24,7 @@ public sealed partial class GameSimulator
         private void UseHeroPower(PlayerId playerId, EntityId source, EntityId? target)
         {
             var power = _rules.Card(_state.Entities[source]);
-            PayMana(playerId, power.Definition.PrintedCost);
+            PayMana(playerId, _rules.EffectiveCost(_state, source));
             _events.Add(new(SimulationEventKind.HeroPowerUsed, playerId, source, target));
             ResolveEffects(new(source, playerId, target), power.OnPlay);
             _state = _state.UpdateResources(_state.Players[playerId] with { HeroPowerUsesThisTurn = 1 });
