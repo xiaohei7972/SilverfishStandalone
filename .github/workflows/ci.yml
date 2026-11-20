@@ -168,3 +168,16 @@ jobs:
           }
       - name: Libmem.NET integration build (Windows x64)
         run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo
+      - name: Replay and plan targeted card choices
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- plan samples/simulation-choices.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $summon = $replay.steps[0].events | Where-Object { $_.kind -eq 'summoned' }
+          $strike = $replay.plan.actions[0]
+          if ($replay.steps[0].action.choice -ne 'deploy' -or $summon.source.value -ne 21 -or
+              $replay.plan.winProbability -ne 1 -or $replay.plan.actions.Count -ne 1 -or
+              $strike.choice -ne 'strike' -or $strike.source.value -ne 12 -or $strike.target.value -ne 20) {
+              throw 'Unexpected targeted choice replay or plan.'
+          }

@@ -100,7 +100,11 @@ public sealed record SummonRandomMinionEffect(ImmutableArray<string> CardIds) : 
 public sealed record ChangeManaEffect(ManaOperation Operation, int Amount, ManaRecipient Recipient = ManaRecipient.Controller,
     string? OverflowCardId = null) : CardEffect;
 
-public sealed record CardPlayChoice(string Id, ImmutableArray<CardEffect> Effects);
+public sealed record CardPlayChoice(string Id, ImmutableArray<CardEffect> Effects)
+{
+    public TargetRequirement Target { get; init; }
+    public PlayRequirements Requirements { get; init; }
+}
 
 public sealed record SimulationCard(CardDefinition Definition)
 {

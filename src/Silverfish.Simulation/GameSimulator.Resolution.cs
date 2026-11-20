@@ -106,7 +106,9 @@ public sealed partial class GameSimulator
         {
             var card = _rules.Card(_state.Entities[source]);
             var kind = card.Definition.Kind;
-            var effects = choice is null ? card.OnPlay : card.Choices.Single(option => option.Id == choice).Effects;
+            var option = choice is null ? null : card.Choices.Single(candidate => candidate.Id == choice);
+            var effects = option?.Effects ?? card.OnPlay;
+            var resolvesEffect = (option?.Target ?? card.Target) == TargetRequirement.None || target is not null;
             var listeners = CaptureListeners();
             PayMana(playerId, _rules.EffectiveCost(_state.Entities[source]));
             var index = position is int slot ? _rules.BoardIndex(_state, playerId, slot) : (int?)null;
@@ -127,7 +129,7 @@ public sealed partial class GameSimulator
                 var weapon = _state.Entities[source];
                 _state = _state.UpdateEntity(weapon with { Weapon = card.CreateWeapon() });
                 AddOverload(playerId, source, card.Overload);
-                if (card.Target == TargetRequirement.None || target is not null)
+                if (resolvesEffect)
                     ResolveEffects(new(source, playerId, target), effects);
                 MarkEquippedWeaponForDestruction(playerId);
                 SetEquippedWeapon(playerId, source);
@@ -147,7 +149,7 @@ public sealed partial class GameSimulator
             AddOverload(playerId, source, card.Overload);
             ResolveDeaths();
 
-            if (card.Target == TargetRequirement.None || target is not null)
+            if (resolvesEffect)
                 ResolveEffects(new(source, playerId, target), effects);
             if (!isMinion && !card.IsSecret)
                 _state = _state.Move(source, new(playerId, GameZone.Graveyard));

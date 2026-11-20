@@ -9,6 +9,7 @@ public sealed partial class GameSimulator
     private const int BoardLimit = 7;
     private const int HandLimit = 10;
     private const int SecretLimit = 5;
+    private const PlayRequirements SupportedPlayRequirements = PlayRequirements.BoardSpace | PlayRequirements.FriendlyMinionDeath;
     private readonly ImmutableDictionary<string, SimulationCard> _cards;
     private readonly int _resolutionLimit;
 
@@ -33,7 +34,7 @@ public sealed partial class GameSimulator
                 (IsCharacter(definition.Kind) && definition.PrintedHealth < 1) ||
                 (definition.Kind == EntityKind.Weapon && definition.PrintedDurability <= 0) ||
                 !Enum.IsDefined(card.Target) ||
-                (card.Requirements & ~(PlayRequirements.BoardSpace | PlayRequirements.FriendlyMinionDeath)) != 0 ||
+                (card.Requirements & ~SupportedPlayRequirements) != 0 ||
                 card.MinimumEnemyMinions is < 0 or > BoardLimit || card.MinimumTotalMinions is < 0 or > BoardLimit * 2 ||
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield |
                     CardKeywords.Rush | CardKeywords.Windfury)) != 0 ||
@@ -48,15 +49,17 @@ public sealed partial class GameSimulator
                     !card.OnPlay.IsDefaultOrEmpty || card.Triggers.Length != 1)))
                 throw new ArgumentException($"Invalid simulation card '{definition.CardId}'.", nameof(cards));
 
-            ValidateEffects(card, card.OnPlay, maySelect: true);
-            ValidateEffects(card, card.Deathrattle, maySelect: false);
-            ValidateEffects(card, card.WhenDrawn, maySelect: false);
+            ValidateEffects(card, card.OnPlay, card.Target, hasInPlaySource: IsCharacter(definition.Kind));
+            ValidateEffects(card, card.Deathrattle);
+            ValidateEffects(card, card.WhenDrawn);
             var choiceIds = new HashSet<string>(StringComparer.Ordinal);
             foreach (var choice in card.Choices)
             {
-                if (choice is null || string.IsNullOrWhiteSpace(choice.Id) || !choiceIds.Add(choice.Id) || choice.Effects.IsDefaultOrEmpty)
+                if (choice is null || string.IsNullOrWhiteSpace(choice.Id) || !choiceIds.Add(choice.Id) ||
+                    !Enum.IsDefined(choice.Target) || (choice.Requirements & ~SupportedPlayRequirements) != 0 ||
+                    choice.Effects.IsDefaultOrEmpty)
                     throw new ArgumentException($"Invalid choice for '{definition.CardId}'.", nameof(cards));
-                ValidateEffects(card, choice.Effects, maySelect: false, hasInPlaySource: definition.Kind == EntityKind.Minion);
+                ValidateEffects(card, choice.Effects, choice.Target, hasInPlaySource: definition.Kind == EntityKind.Minion);
             }
             foreach (var aura in card.Auras)
             {
@@ -76,7 +79,7 @@ public sealed partial class GameSimulator
                         (trigger.EntityMatch != TriggerEntityMatch.Any || trigger.EntityKind is not null || trigger.RequireLivingEntity)) ||
                     trigger.Effects.IsDefaultOrEmpty)
                     throw new ArgumentException($"Invalid trigger on '{definition.CardId}'.", nameof(cards));
-                ValidateEffects(card, trigger.Effects, maySelect: false, timing: trigger.Timing,
+                ValidateEffects(card, trigger.Effects, timing: trigger.Timing,
                     hasInPlaySource: IsCharacter(definition.Kind));
             }
         }
@@ -160,27 +163,38 @@ public sealed partial class GameSimulator
             var card = Card(entity);
             var createsMinion = card.Definition.Kind == EntityKind.Minion;
             if (EffectiveCost(entity) > player.Mana ||
-                (minions >= BoardLimit && (createsMinion || card.OnPlay.Any(effect => effect is TakeControlEffect))) ||
+                (minions >= BoardLimit && createsMinion) ||
                 (card.IsSecret && !CanArmSecret(state, player, entity.CardId)) ||
                 !MeetsPlayRequirements(state, card, minions))
                 continue;
 
-            var targets = PlayTargets(state, card.Target).ToArray();
-            if (card.Definition.Kind is EntityKind.Minion or EntityKind.Weapon && targets.Length == 0)
-                targets = [null];
+            if (card.Choices.IsEmpty)
+                AddPlayActions(card.Target, card.OnPlay, choiceId: null);
+            else
+                foreach (var choice in card.Choices)
+                    if (MeetsPlayRequirements(state, choice.Requirements, minions))
+                        AddPlayActions(choice.Target, choice.Effects, choice.Id);
 
-            IEnumerable<string?> choices = card.Choices.IsEmpty ? [null] : card.Choices.Select(choice => choice.Id);
-            foreach (var target in targets)
-            foreach (var choice in choices)
+            void AddPlayActions(TargetRequirement requirement, ImmutableArray<CardEffect> effects, string? choiceId)
             {
-                if (createsMinion)
+                if (minions >= BoardLimit && effects.Any(effect => effect is TakeControlEffect))
+                    return;
+
+                var targets = PlayTargets(state, requirement);
+                if (card.Definition.Kind is EntityKind.Minion or EntityKind.Weapon)
+                    targets = targets.DefaultIfEmpty();
+
+                foreach (var target in targets)
                 {
-                    for (var position = 0; position <= minions; position++)
-                        actions.Add(new(SimulationActionKind.PlayCard, actor, id, target, position) { Choice = choice });
-                }
-                else
-                {
-                    actions.Add(new(SimulationActionKind.PlayCard, actor, id, target) { Choice = choice });
+                    if (createsMinion)
+                    {
+                        for (var position = 0; position <= minions; position++)
+                            actions.Add(new(SimulationActionKind.PlayCard, actor, id, target, position) { Choice = choiceId });
+                    }
+                    else
+                    {
+                        actions.Add(new(SimulationActionKind.PlayCard, actor, id, target) { Choice = choiceId });
+                    }
                 }
             }
         }
@@ -247,11 +261,14 @@ public sealed partial class GameSimulator
         player.In(GameZone.Secret).Length < SecretLimit && !player.In(GameZone.Secret).Any(id => state.Entities[id].CardId == cardId);
 
     private bool MeetsPlayRequirements(GameState state, SimulationCard card, int minions) =>
-        (!card.Requirements.HasFlag(PlayRequirements.BoardSpace) || minions < BoardLimit) &&
-        (!card.Requirements.HasFlag(PlayRequirements.FriendlyMinionDeath) ||
-            state.MinionDeaths.Any(death => death.Controller == state.ActivePlayer)) &&
+        MeetsPlayRequirements(state, card.Requirements, minions) &&
         ((card.MinimumEnemyMinions == 0 && card.MinimumTotalMinions == 0) ||
             HasRequiredMinions(state, card, minions));
+
+    private static bool MeetsPlayRequirements(GameState state, PlayRequirements requirements, int minions) =>
+        (!requirements.HasFlag(PlayRequirements.BoardSpace) || minions < BoardLimit) &&
+        (!requirements.HasFlag(PlayRequirements.FriendlyMinionDeath) ||
+            state.MinionDeaths.Any(death => death.Controller == state.ActivePlayer));
 
     private bool HasRequiredMinions(GameState state, SimulationCard card, int friendlyMinions)
     {
@@ -289,7 +306,7 @@ public sealed partial class GameSimulator
         return zone.Length;
     }
 
-    private void ValidateEffects(SimulationCard card, ImmutableArray<CardEffect> effects, bool maySelect,
+    private void ValidateEffects(SimulationCard card, ImmutableArray<CardEffect> effects, TargetRequirement target = TargetRequirement.None,
         TriggerTiming? timing = null, bool hasInPlaySource = false)
     {
         if (effects.IsDefault)
@@ -302,8 +319,8 @@ public sealed partial class GameSimulator
             {
                 DamageEffect damage => damage.Amount > 0 && (damage.Target switch
                 {
-                    DamageTarget.Selected => maySelect && card.Target != TargetRequirement.None,
-                    DamageTarget.Source => hasInPlaySource || (maySelect && IsCharacter(card.Definition.Kind)),
+                    DamageTarget.Selected => target != TargetRequirement.None,
+                    DamageTarget.Source => hasInPlaySource,
                     DamageTarget.TriggerSubject => hasCharacterSubject,
                     DamageTarget.EnemyHero or DamageTarget.FriendlyHero or DamageTarget.AllMinions or
                         DamageTarget.EnemyMinions or DamageTarget.AllEnemies => true,
@@ -316,21 +333,21 @@ public sealed partial class GameSimulator
                 DestroyEnemyWeaponEffect => true,
                 EnchantStatsEffect enchant => Enum.IsDefined(enchant.Target) && Enum.IsDefined(enchant.Duration) &&
                     IsValidModifier(enchant.Modifier) &&
-                    (enchant.Target != StatTarget.Selected || (maySelect && card.Target != TargetRequirement.None)) &&
-                    (enchant.Target != StatTarget.Source || hasInPlaySource || (maySelect && IsCharacter(card.Definition.Kind))),
-                SilenceEffect or DestroyMinionEffect => maySelect && TargetsOnlyMinions(card.Target),
+                    (enchant.Target != StatTarget.Selected || target != TargetRequirement.None) &&
+                    (enchant.Target != StatTarget.Source || hasInPlaySource),
+                SilenceEffect or DestroyMinionEffect => TargetsOnlyMinions(target),
                 ReturnMinionEffect returned => returned.Target switch
                 {
-                    EffectTarget.Selected => maySelect && TargetsOnlyMinions(card.Target),
+                    EffectTarget.Selected => TargetsOnlyMinions(target),
                     EffectTarget.TriggerSubject => hasCharacterSubject,
                     _ => false
                 },
-                TransformMinionEffect transform => maySelect && TargetsOnlyMinions(card.Target) &&
+                TransformMinionEffect transform => TargetsOnlyMinions(target) &&
                     GetCard(transform.CardId).Definition.Kind == EntityKind.Minion,
                 ResurrectFriendlyMinionEffect => true,
                 FreezeEffect freeze => freeze.Target switch
                 {
-                    FreezeTarget.Selected => maySelect && card.Target != TargetRequirement.None,
+                    FreezeTarget.Selected => target != TargetRequirement.None,
                     FreezeTarget.TriggerSubject => hasCharacterSubject,
                     FreezeTarget.EnemyMinions => true,
                     _ => false
@@ -347,8 +364,7 @@ public sealed partial class GameSimulator
                     (mana.OverflowCardId is null || (mana.Operation is ManaOperation.GainEmpty or ManaOperation.GainFilled &&
                         GetCard(mana.OverflowCardId).Definition.Kind is EntityKind.Spell or EntityKind.Minion or EntityKind.Weapon)),
                 SummonEffect summon => Enum.IsDefined(summon.Placement) && GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
-                TakeControlEffect => maySelect && card.Definition.Kind == EntityKind.Spell &&
-                    card.Target == TargetRequirement.EnemyMinion,
+                TakeControlEffect => card.Definition.Kind == EntityKind.Spell && target == TargetRequirement.EnemyMinion,
                 _ => false
             };
             if (!valid)

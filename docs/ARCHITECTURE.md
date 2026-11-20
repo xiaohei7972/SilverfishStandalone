@@ -42,9 +42,11 @@ The planner enumerates weighted random paths within its resolution budget and sa
 
 Players keep persistent crystals, spent mana, temporary mana, and overload separately. Available `mana` is derived from those counters and clamped at zero for payment. Temporary mana can exceed the permanent crystal cap, is spent first, and expires at the end of the owner's turn. Refresh fills only empty unlocked capacity and grants temporary mana. Older scenario files can specify `mana` and `manaCrystals` alone. To specify counters directly, supply `manaSpent` and any `temporaryMana` or overload values. The default permanent cap is ten and a fixture can override `maximumManaCrystals`.
 
-Empty crystal gain preserves available mana, filled crystal gain can refill unused capacity at the cap, and configured ramp effects can generate Excess Mana at the permanent cap. Generated cards receive new entity IDs and enter the hand without a draw event. Untargeted Choose One cards expose separate legal actions with a `choice` ID. `samples/simulation-mana.json` replays The Coin, Nourish, Wild Growth, and Lightning Bloom.
+Empty crystal gain preserves available mana, filled crystal gain can refill unused capacity at the cap, and configured ramp effects can generate Excess Mana at the permanent cap. Generated cards receive new entity IDs and enter the hand without a draw event. `samples/simulation-mana.json` replays The Coin, Nourish, Wild Growth, and Lightning Bloom.
 
-The offline replay and planner take a fully specified scenario, including both players' secrets. Hidden information modelling, forced attacks, targeted Choose One options, alternate weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, and advanced summon placements remain future work.
+Each play choice can declare its own target and play requirements. A legal action records the chosen option and any selected target. The simulator applies only that option's effects. `samples/simulation-choices.json` replays an untargeted summon and plans a targeted strike from the same card definition.
+
+The offline replay and planner take a fully specified scenario, including both players' secrets. Hidden information modelling, forced attacks, alternate weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, and advanced summon placements remain future work.
 
 ## Components
 
