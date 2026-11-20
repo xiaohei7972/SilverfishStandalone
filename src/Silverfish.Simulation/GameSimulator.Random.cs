@@ -10,6 +10,8 @@ public sealed partial class GameSimulator
     public SimulationDistribution ApplyDistribution(GameState state, SimulationAction action, int workLimit = 64)
     {
         ValidateWorkLimit(workLimit);
+        if (action is { Kind: SimulationActionKind.ChooseOption })
+            return new([new(Apply(state, action), 1.0)], 1, IsExact: true);
         EnsureLegal(state, action);
         return RunDistribution(state, action, workLimit);
     }

@@ -114,17 +114,20 @@ public sealed partial class GameSimulator
     }
 
     public GameState CreateGame(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
-        PlayerId activePlayer, int turn = 1, IEnumerable<MinionDeath>? minionDeaths = null, ulong randomState = 0) =>
-        ValidateState(GameState.Create(players, entities, activePlayer, turn, minionDeaths, randomState));
+        PlayerId activePlayer, int turn = 1, IEnumerable<MinionDeath>? minionDeaths = null, ulong randomState = 0,
+        PendingEntityChoice? pendingChoice = null) =>
+        ValidateState(GameState.Create(players, entities, activePlayer, turn, minionDeaths, randomState,
+            pendingChoice: pendingChoice));
 
     public IReadOnlyDictionary<string, SimulationCard> Cards => _cards;
 
     public GameState RestoreGame(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities, PlayerId activePlayer,
-        int turn, IEnumerable<MinionDeath> minionDeaths, ulong randomState, GameContinuation continuation)
+        int turn, IEnumerable<MinionDeath> minionDeaths, ulong randomState, GameContinuation continuation,
+        PendingEntityChoice? pendingChoice = null)
     {
         if (continuation is null)
             throw new ArgumentNullException(nameof(continuation), "必须提供存档的结算计数和对局结果。");
-        var saved = GameState.Create(players, entities, activePlayer, turn, minionDeaths, randomState, continuation);
+        var saved = GameState.Create(players, entities, activePlayer, turn, minionDeaths, randomState, continuation, pendingChoice);
         var validated = ValidateState(saved);
         // 存档保存的是结算后的状态，载入时核对属性与光环是否一致。
         if (validated.Entities != saved.Entities)
@@ -191,8 +194,8 @@ public sealed partial class GameSimulator
     {
         if (state is null)
             throw new ArgumentNullException(nameof(state), "必须提供对局状态。");
-        if (state.Outcome != MatchOutcome.InProgress)
-            return [];
+        if (state.Outcome != MatchOutcome.InProgress || state.PendingChoice is not null)
+            return []; // Unknown card effects: no regular moves or fabricated search predictions during CHOICE.
 
         var actions = ImmutableArray.CreateBuilder<SimulationAction>();
         var actor = state.ActivePlayer;
@@ -291,6 +294,23 @@ public sealed partial class GameSimulator
 
     public SimulationResult Apply(GameState state, SimulationAction action)
     {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(action);
+        if (action.Kind == SimulationActionKind.ChooseOption)
+        {
+            // This validates and records the network submission, not the unknown card effect.
+            var packet = state.PendingChoice?.Packet ??
+                throw new InvalidOperationException("没有等待处理的选择包。");
+            if (state.Outcome != MatchOutcome.InProgress || action.Actor != packet.Player ||
+                action.ChoicePacketId != packet.ChoiceId || action.Source is not null ||
+                action.Target is not null || action.Position is not null || action.Choice is not null)
+                throw new InvalidOperationException("选择动作的玩家、包 ID 或额外字段与当前选择包不匹配。");
+            var submitted = state.SubmitChoice(packet.ChoiceId, action.OrderedChoiceTargets);
+            return new(submitted, [new(SimulationEventKind.ChoiceSubmitted, action.Actor, packet.Source)
+            {
+                ChoiceId = packet.ChoiceId, OrderedChoiceTargets = action.OrderedChoiceTargets
+            }]);
+        }
         EnsureLegal(state, action);
         return new Resolution(this, state).Run(action);
     }

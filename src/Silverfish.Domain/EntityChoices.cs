@@ -101,3 +101,42 @@ public sealed class EntityChoiceSelection
         return new(Packet.ChoiceId, OrderedEntityIds);
     }
 }
+
+/// <summary>
+/// Server CHOICE state. A submitted choice is an external handshake, not a
+/// locally resolved card effect. Normal gameplay awaits a new snapshot.
+/// </summary>
+public sealed record PendingEntityChoice(EntityChoicePacket Packet, EntityChoiceSubmission? Submitted = null)
+{
+    public void Validate()
+    {
+        if (Packet is null)
+            throw new ArgumentException("待决选择必须包含完整选择包。", nameof(Packet));
+        Packet.Validate();
+        if (Submitted is { } submission)
+            _ = ValidateSubmission(submission.ChoiceId, submission.OrderedEntityIds);
+    }
+
+    public PendingEntityChoice Submit(int choiceId, ImmutableArray<EntityId> ordered)
+    {
+        if (Submitted is not null)
+            throw new InvalidOperationException("本次选择已经提交，必须等待新快照才能继续。");
+        var confirmed = ValidateSubmission(choiceId, ordered);
+        return this with { Submitted = confirmed };
+    }
+
+    private EntityChoiceSubmission ValidateSubmission(int choiceId, ImmutableArray<EntityId> ordered)
+    {
+        if (ordered.IsDefault)
+            throw new ArgumentException("目标列表尚未初始化。", nameof(ordered));
+        var selection = EntityChoiceSelection.Begin(Packet);
+        var unique = new HashSet<EntityId>();
+        foreach (var target in ordered)
+        {
+            if (!unique.Add(target))
+                throw new ArgumentException("提交目标不得重复。", nameof(ordered));
+            selection = selection.Click(target);
+        }
+        return selection.Confirm(choiceId);
+    }
+}

@@ -15,6 +15,12 @@ public sealed class SimulationDecisionEngine(GameSimulator simulator)
             throw new ArgumentException("决策请求必须提供对局 ID 和非负快照序号。");
         if (candidates is null)
             throw new ArgumentNullException(nameof(candidates), "必须提供候选动作列表。");
+        if (state.PendingChoice is not null)
+            return new BotDecision
+            {
+                MatchId = matchId, SnapshotSequence = snapshotSequence, Engine = EngineName,
+                Reason = "当前存在待决 CHOICE 包，但缺少卡牌效果预演，无法比较选项；不会猜测并提交。"
+            };
 
         var legalActions = simulator.GetLegalActionSet(state);
         var legal = legalActions.Actions.ToHashSet();

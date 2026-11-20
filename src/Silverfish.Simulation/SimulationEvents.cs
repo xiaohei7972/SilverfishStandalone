@@ -13,7 +13,7 @@ public enum SimulationEventKind
     Frozen, Thawed, OverloadScheduled, OverloadUnlocked, SecretArmed, SecretRevealed, SpellCountered, AttackRedirected,
     AttackCancelled, TemporaryManaGained, ManaCrystalsGained, ManaCrystalsDestroyed, ManaRefreshed, CardGenerated,
     LocationActivated, LocationHealthLost, LocationDestroyed, CardDiscarded, DiscardedEffect, Recruited, SpellCastWhenDrawn,
-    CardAddedToDeck, DeckShuffled, AlternateCostPaid, CostTypeChanged
+    CardAddedToDeck, DeckShuffled, AlternateCostPaid, CostTypeChanged, ChoiceSubmitted
 }
 
 public sealed record SimulationEvent(SimulationEventKind Kind, PlayerId? Player = null,
@@ -21,6 +21,8 @@ public sealed record SimulationEvent(SimulationEventKind Kind, PlayerId? Player 
 {
     public TAG_CARD_ALTERNATE_COST? CostType { get; init; }
     public string? EnchantmentCardId { get; init; }
+    public int? ChoiceId { get; init; }
+    public ImmutableArray<EntityId>? OrderedChoiceTargets { get; init; }
 }
 
 public sealed record SimulationResult(GameState State, ImmutableArray<SimulationEvent> Events);

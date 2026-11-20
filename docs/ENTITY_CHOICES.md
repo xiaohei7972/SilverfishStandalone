@@ -31,3 +31,20 @@ dotnet run --project src/Silverfish.Cli -c Release -- choice samples/entity-choi
 本轮是**CHOICE 包适配及有序选择状态机**，不发送任何游戏网络消息，也**不宣称**支持自动预演发现、泰坦、定向多目标卡牌结算。
 
 下一阶段：把 `EntityChoicePacket` 与包含 `matchId` / 快照序号的真实对局响应绑定，在 `GameState` 保存可恢复的 pending choice；使用 `ChooseOption` / 连续选择动作接入模拟器的暂停/恢复栈。需要在真正的选择包录制样本上验证执行顺序、重入、同名实体以及异步失效处理。对 `OPTION_TARGET` 保持独立适配。
+
+## 第二阶段：持久待决状态（PendingEntityChoice）
+
+本阶段在真正的模拟器局面中增加可选的 `pendingChoice` 字段；旧的 `stateVersion=1` 存档省略该字段时保持兼容。状态同时保存原始选择包，以及已提交的有序实体 ID。
+
+- `GameSimulator.CreateGame / RestoreGame` 能载入尚未确认或已经确认的 `PendingEntityChoice`，并检查玩家、选择包、数量、重复项和过期包 ID。
+- `SimulationActionKind.ChooseOption` 的 `choicePacketId` 与 `orderedChoiceTargets` 是独立的选择动作字段，与出牌动作的单目标 `Target` 不混用。
+- `GameSimulator.Apply` 对 `ChooseOption` **只记录提交、发出 `ChoiceSubmitted` 事件**。游戏状态中原有血量、实体、资源、回合及区域不会变化。状态仍然带有 `PendingChoice.Submitted`，必须等待**权威的新局面快照**才能继续模拟；这是有意为之。
+- 不会生成假想的后续动作：待决或已提交选择期间 `LegalActions` 返回空；`SimulationDecisionEngine` 对不能准确估值的选项明确放弃选择。
+- `checkpoint` 可以序列化已提交的选择；`simulate` 能从存档恢复。此阶段不包含真正的卡牌效果工作栈暂停/恢复，亦不连接网络。
+
+```powershell
+dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-pending-choice.json
+dotnet run --project src/Silverfish.Cli -c Release -- checkpoint samples/simulation-pending-choice.json
+```
+
+后续必须在已录制的真实选择包和规则上实现 `PendingResolution` 续跑工作栈，以及 `GENERAL` / `TARGET` 的不同价值估算；在没有这些规则之前**不**将提交候选的能力称为已经能够自主选牌。

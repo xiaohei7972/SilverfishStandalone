@@ -146,7 +146,7 @@ try
         Console.WriteLine(JsonSerializer.Serialize(new
         {
             state.Turn, state.ActivePlayer, state.Outcome, state.Winner,
-            state.MinionDeaths, state.RandomState,
+            state.MinionDeaths, state.RandomState, state.PendingChoice,
             CardDataBuild = cardData?.SourceBuild ?? scenario.CompiledDataBuild,
             Players = state.Players.Values.OrderBy(player => player.Id.Value).ToArray(),
             Entities = state.Entities.Values.OrderBy(entity => entity.Id.Value).ToArray(),
@@ -260,6 +260,7 @@ internal record SimulationStateInput
     public long? NextPlayOrder { get; init; }
     public MatchOutcome? Outcome { get; init; }
     public PlayerId? Winner { get; init; }
+    public PendingEntityChoice? PendingChoice { get; init; }
 
     internal int? CompiledDataBuild => CardSet == "starter" || CardRules.Length != 0 ? CompiledCardData.Build : null;
 
@@ -276,7 +277,8 @@ internal record SimulationStateInput
         NextEntity = state.NextEntity,
         NextPlayOrder = state.NextPlayOrder,
         Outcome = state.Outcome,
-        Winner = state.Winner
+        Winner = state.Winner,
+        PendingChoice = state.PendingChoice
     };
 
     public (GameSimulator Simulator, GameState State) CreateGame(CardDataCatalog? cardData)
@@ -287,8 +289,8 @@ internal record SimulationStateInput
         var continuation = ReadContinuation();
         var simulator = new GameSimulator(BindCards(cardData));
         var state = continuation is null
-            ? simulator.CreateGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState)
-            : simulator.RestoreGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState, continuation);
+            ? simulator.CreateGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState, PendingChoice)
+            : simulator.RestoreGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState, continuation, PendingChoice);
         return (simulator, state);
     }
 

@@ -30,6 +30,33 @@ jobs:
               $selection.isSingleChoice -or !$selection.canConfirm) {
               throw 'EntityChoices selection order or confirmation was incorrect.'
           }
+      - name: Replay pending CHOICE submission and checkpoint restore
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-pending-choice.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = ($json -join "`n") | ConvertFrom-Json
+          if (($result.pendingChoice.submitted.orderedEntityIds.value -join ',') -ne '11,33' -or
+              $result.pendingChoice.packet.choiceId -ne 123 -or
+              $result.steps[0].events[0].kind -ne 'choiceSubmitted' -or
+              @($result.legalActions).Count -ne 0) {
+              throw 'Pending CHOICE submission was not blocked or ordered correctly.'
+          }
+          $temp = [System.IO.Path]::GetTempFileName()
+          try {
+              dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- checkpoint samples/simulation-pending-choice.json |
+                  Set-Content -Encoding utf8 $temp
+              if ($LASTEXITCODE -ne 0) { throw 'Checkpoint creation failed.' }
+              $reloadedJson = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate $temp
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $reloaded = ($reloadedJson -join "`n") | ConvertFrom-Json
+              if (($reloaded.pendingChoice.submitted.orderedEntityIds.value -join ',') -ne '11,33' -or
+                  @($reloaded.legalActions).Count -ne 0) {
+                  throw 'CHOICE checkpoint failed to round-trip.'
+              }
+          } finally {
+              Remove-Item $temp -ErrorAction SilentlyContinue
+          }
       - name: Offline sample
         run: dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- samples/lethal.json
       - name: Replay a combat in the new simulator

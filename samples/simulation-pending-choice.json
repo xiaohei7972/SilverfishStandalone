@@ -1,0 +1,128 @@
+{
+  "cards": [
+    {
+      "definition": {
+        "cardId": "training-hero",
+        "kind": "hero",
+        "printedCost": 0,
+        "printedHealth": 30
+      }
+    }
+  ],
+  "players": [
+    {
+      "id": {
+        "value": 1
+      },
+      "hero": {
+        "value": 10
+      },
+      "mana": 1,
+      "manaCrystals": 1,
+      "zones": {
+        "play": [
+          {
+            "value": 10
+          }
+        ]
+      }
+    },
+    {
+      "id": {
+        "value": 2
+      },
+      "hero": {
+        "value": 20
+      },
+      "zones": {
+        "play": [
+          {
+            "value": 20
+          }
+        ]
+      }
+    }
+  ],
+  "entities": [
+    {
+      "id": {
+        "value": 10
+      },
+      "cardId": "training-hero",
+      "owner": {
+        "value": 1
+      },
+      "controller": {
+        "value": 1
+      },
+      "playOrder": 1,
+      "character": {
+        "attack": 0,
+        "maximumHealth": 30
+      }
+    },
+    {
+      "id": {
+        "value": 20
+      },
+      "cardId": "training-hero",
+      "owner": {
+        "value": 2
+      },
+      "controller": {
+        "value": 2
+      },
+      "playOrder": 2,
+      "character": {
+        "attack": 0,
+        "maximumHealth": 30
+      }
+    }
+  ],
+  "activePlayer": {
+    "value": 1
+  },
+  "pendingChoice": {
+    "packet": {
+      "choiceId": 123,
+      "type": "target",
+      "player": {
+        "value": 1
+      },
+      "source": {
+        "value": 10
+      },
+      "countMin": 2,
+      "countMax": 3,
+      "entities": [
+        {
+          "value": 11
+        },
+        {
+          "value": 22
+        },
+        {
+          "value": 33
+        }
+      ],
+      "unchoosableEntities": []
+    }
+  },
+  "actions": [
+    {
+      "kind": "chooseOption",
+      "actor": {
+        "value": 1
+      },
+      "choicePacketId": 123,
+      "orderedChoiceTargets": [
+        {
+          "value": 11
+        },
+        {
+          "value": 33
+        }
+      ]
+    }
+  ]
+}
