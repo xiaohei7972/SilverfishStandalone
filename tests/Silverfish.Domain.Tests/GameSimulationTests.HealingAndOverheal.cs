@@ -241,4 +241,29 @@ public sealed partial class GameSimulationTests
             }
         ]));
     }
+
+    [Fact]
+    public void SameResolutionHealingCanRescueAHeroAtZeroHealthBeforeDeathChecking()
+    {
+        var simulator = new GameSimulator([
+            Hero,
+            Spell("last-second-recovery") with
+            {
+                OnPlay =
+                [
+                    new DamageEffect(DamageTarget.FriendlyHero, 30),
+                    new HealEffect(HealTarget.FriendlyHero, 2)
+                ]
+            }
+        ]);
+        var root = Create(simulator, First,
+            Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10]), (GameZone.Hand, [11])) },
+            Player(Second, SecondHero), Card(11, "last-second-recovery", First));
+
+        var result = simulator.Apply(root, new(SimulationActionKind.PlayCard, First, new EntityId(11)));
+
+        Assert.Equal(MatchOutcome.InProgress, result.State.Outcome);
+        Assert.Equal(2, result.State.Entities[FirstHero].Character!.Health);
+        Assert.Equal(2, Assert.Single(result.Events, e => e.Kind == SimulationEventKind.Healed).Amount);
+    }
 }

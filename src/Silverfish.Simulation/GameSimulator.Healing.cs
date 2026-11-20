@@ -43,9 +43,11 @@ public sealed partial class GameSimulator
         {
             if (amount <= 0 || !_state.Entities.TryGetValue(target, out var entity) ||
                 _state.LocationOf(target).Zone != GameZone.Play ||
-                entity.Character is not { Health: > 0 } character || _pendingDestruction.Contains(target))
+                entity.Character is not { } character || _pendingDestruction.Contains(target))
                 return null;
 
+            // Death checking is deferred until the resolution phase ends. A
+            // character at zero or negative Health may still be saved by healing.
             var restored = Math.Min(amount, character.Damage);
             var excess = amount - restored;
             if (restored > 0)
