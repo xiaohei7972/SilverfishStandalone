@@ -14,7 +14,7 @@ The replay command starts from a fully specified offline scenario. Its rules cov
 
 `samples/simulation-triggers.json` exercises spell and death timing through the normal replay command. Damage subscriptions can match the damaged entity or the source. Each fixed area or combat batch applies all hits before opening its damage queues. Armor loss produces a damage event, while a shield that absorbs the hit has a separate event. Each successful draw resolves the drawn card's intrinsic effects and other draw listeners before the next attempt. Fatigue dispatches damage, and a burned card never joins the draw queue.
 
-`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The catalogue defines 75 cards, powers, and tokens using the November 2026 data baseline.
+`samples/simulation-damage-draw.json` selects the independently authored `starter` catalogue and replays Arcane Intellect, Acolyte of Pain, and Armorsmith together. The catalogue defines 89 cards, powers, and tokens using the November 2026 data baseline.
 
 Characters keep base attack and maximum health when modifiers first apply. The simulator applies direct enchantments in application order, then adds positional and friendly-board aura grants. Individual grants record their source entity. The simulator refreshes auras when a minion enters play and at resolution checkpoints, including after a death wave removes its minions. Silence clears direct enchantments and the minion's own abilities. Other minions can still provide it with aura grants. Maximum-health changes update current health without dispatching damage or healing events.
 
@@ -40,7 +40,11 @@ Attack proposal listeners use the defender at the start of that proposal. Redire
 
 The planner enumerates weighted random paths within its resolution budget and samples when exact enumeration exceeds its allowance. It uses each outcome's available follow-up actions to estimate the current turn. `replanAfterLastAction` marks the point at which the caller needs to observe the real outcome. `usesSamples` marks a selected forecast that relies on sampling. The planner reports the win probability within its search horizon. The replay seed has no effect on planning probabilities. `samples/simulation-random.json` replays Animal Companion and plans an Arcane Missiles cast with an 87.5% lethal probability.
 
-The offline replay and planner take a fully specified scenario, including both players' secrets. Hidden information modelling, forced attacks, temporary mana generation, alternative weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, and advanced summon placements remain future work.
+Players keep persistent crystals, spent mana, temporary mana, and overload separately. Available `mana` is derived from those counters and clamped at zero for payment. Temporary mana can exceed the permanent crystal cap, is spent first, and expires at the end of the owner's turn. Refresh fills only empty unlocked capacity and grants temporary mana. Older scenario files can specify `mana` and `manaCrystals` alone. To specify counters directly, supply `manaSpent` and any `temporaryMana` or overload values. The default permanent cap is ten and a fixture can override `maximumManaCrystals`.
+
+Empty crystal gain preserves available mana, filled crystal gain can refill unused capacity at the cap, and configured ramp effects can generate Excess Mana at the permanent cap. Generated cards receive new entity IDs and enter the hand without a draw event. Untargeted Choose One cards expose separate legal actions with a `choice` ID. `samples/simulation-mana.json` replays The Coin, Nourish, Wild Growth, and Lightning Bloom.
+
+The offline replay and planner take a fully specified scenario, including both players' secrets. Hidden information modelling, forced attacks, targeted Choose One options, alternate weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, and advanced summon placements remain future work.
 
 ## Components
 

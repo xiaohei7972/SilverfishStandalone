@@ -13,6 +13,19 @@ public readonly record struct EntityLocation(PlayerId Player, GameZone Zone);
 
 public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int ManaCrystals = 0, int Fatigue = 0)
 {
+    private readonly int _initialMana = Mana;
+
+    public int Mana
+    {
+        get => ManaSpent is int spent
+            ? (int)Math.Clamp((long)ManaCrystals + TemporaryMana - OverloadLocked - spent, 0, int.MaxValue)
+            : _initialMana;
+        init => _initialMana = value;
+    }
+
+    public int? ManaSpent { get; init; }
+    public int TemporaryMana { get; init; }
+    public int MaximumManaCrystals { get; init; } = 10;
     public EntityId? EquippedWeapon { get; init; }
     public int HeroPowerUsesThisTurn { get; init; }
     public int OverloadOwed { get; init; }
@@ -84,7 +97,8 @@ public sealed class GameState
     internal static GameState Create(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
         PlayerId activePlayer, int turn, IEnumerable<MinionDeath>? minionDeaths, ulong randomState)
     {
-        var byPlayer = players.ToImmutableDictionary(p => (p ?? throw new ArgumentException("Null player.")).Id);
+        var byPlayer = players.Select(p => NormalizeMana(p ?? throw new ArgumentException("Null player.")))
+            .ToImmutableDictionary(p => p.Id);
         var byEntity = entities.ToImmutableDictionary(e => (e ?? throw new ArgumentException("Null entity.")).Id);
         if (byPlayer.Count != 2 || !byPlayer.ContainsKey(activePlayer) || turn < 1)
             throw new ArgumentException("A match needs two players, an active player, and a positive turn number.");
@@ -93,7 +107,6 @@ public sealed class GameState
         var playOrders = new HashSet<long>();
         foreach (var player in byPlayer.Values)
         {
-            ValidateResources(player);
             if (!player.In(GameZone.Play).Contains(player.Hero) ||
                 !byEntity.TryGetValue(player.Hero, out var hero) || hero.Character is null)
                 throw new ArgumentException($"Player {player.Id.Value} must have a hero in play.");
@@ -194,22 +207,31 @@ public sealed class GameState
             ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
     }
 
-    internal GameState AddToPlay(GameEntity entity, int index)
+    internal GameState AddToPlay(GameEntity entity, int index) => AddEntity(entity, GameZone.Play, index);
+
+    internal GameState AddToHand(GameEntity entity) => AddEntity(entity, GameZone.Hand);
+
+    private GameState AddEntity(GameEntity entity, GameZone zone, int? index = null)
     {
         ValidateEntity(entity, Players);
-        if (entity.Id.Value != NextEntity || (entity.Character is null && entity.Weapon is null))
-            throw new ArgumentException("A new character or weapon needs the next unused entity ID.");
+        var entersPlay = zone == GameZone.Play;
+        if (entity.Id.Value != NextEntity || entersPlay != (entity.Character is not null || entity.Weapon is not null))
+            throw new ArgumentException("A new entity needs the next unused ID and components compatible with its zone.");
+
         var player = Players[entity.Controller];
-        player = SetZone(player, GameZone.Play, player.In(GameZone.Play).Insert(index, entity.Id));
+        var contents = player.In(zone);
+        player = SetZone(player, zone, contents.Insert(index ?? contents.Length, entity.Id));
         return new GameState(Players.SetItem(player.Id, player),
-            Entities.Add(entity.Id, entity with { PlayOrder = NextPlayOrder }),
-            _locations.Add(entity.Id, new(player.Id, GameZone.Play)), ActivePlayer, Turn,
-            checked(NextEntity + 1), checked(NextPlayOrder + 1), Outcome, Winner, MinionDeaths, RandomState);
+            Entities.Add(entity.Id, entity with { PlayOrder = entersPlay ? NextPlayOrder : null }),
+            _locations.Add(entity.Id, new(player.Id, zone)), ActivePlayer, Turn,
+            checked(NextEntity + 1), entersPlay ? checked(NextPlayOrder + 1) : NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
     }
 
-    internal GameState SetResources(PlayerId id, int mana, int manaCrystals, int fatigue)
+    internal GameState UpdateResources(PlayerState player)
     {
-        var player = Players[id] with { Mana = mana, ManaCrystals = manaCrystals, Fatigue = fatigue };
+        var current = Players[player.Id];
+        if (player.Zones != current.Zones || player.Hero != current.Hero || player.EquippedWeapon != current.EquippedWeapon || player.ManaSpent is null)
+            throw new ArgumentException("A resource update requires the same zones, hero and weapon, and explicit mana counters.", nameof(player));
         ValidateResources(player);
         return UpdatePlayer(player);
     }
@@ -219,19 +241,6 @@ public sealed class GameState
         if (LocationOf(id) != new EntityLocation(player, GameZone.Play) || Entities[id].Weapon is not { Durability: > 0 })
             throw new ArgumentException("An equipped weapon needs positive durability and must be in play.", nameof(id));
         return UpdatePlayer(Players[player] with { EquippedWeapon = id });
-    }
-
-    internal GameState SetHeroPowerUses(PlayerId player, int uses) =>
-        UpdatePlayer(Players[player] with { HeroPowerUsesThisTurn = uses });
-
-    internal GameState SetMana(PlayerId id, int mana, int crystals, int overloadOwed, int overloadLocked)
-    {
-        var player = Players[id] with
-        {
-            Mana = mana, ManaCrystals = crystals, OverloadOwed = overloadOwed, OverloadLocked = overloadLocked
-        };
-        ValidateResources(player);
-        return UpdatePlayer(player);
     }
 
     private GameState UpdatePlayer(PlayerState player) =>
@@ -264,10 +273,24 @@ public sealed class GameState
 
     private static void ValidateResources(PlayerState player)
     {
-        if (player.Zones is null || player.Id.Value < 1 || player.Mana < 0 || player.ManaCrystals is < 0 or > 10 ||
-            player.Mana > 10 || player.Fatigue < 0 || player.HeroPowerUsesThisTurn is < 0 or > 1 ||
-            player.OverloadLocked < 0 || player.OverloadOwed < 0)
+        if (player.Zones is null || player.Id.Value < 1 || player.Mana < 0 || player.ManaCrystals < 0 ||
+            player.MaximumManaCrystals < 1 || player.ManaCrystals > player.MaximumManaCrystals ||
+            player.Fatigue < 0 || player.HeroPowerUsesThisTurn is < 0 or > 1 || player.ManaSpent is < 0 ||
+            player.TemporaryMana < 0 || player.OverloadLocked < 0 || player.OverloadOwed < 0)
             throw new ArgumentException("Invalid player ID or resource values.");
+    }
+
+    private static PlayerState NormalizeMana(PlayerState player)
+    {
+        ValidateResources(player);
+        if (player.ManaSpent is not null)
+            return player with { Mana = 0 };
+
+        // Replay inputs that predate the counters supply only displayed mana. Preserve it while retaining overload debt.
+        var unspent = (long)player.ManaCrystals + player.TemporaryMana - player.OverloadLocked;
+        var spent = Math.Max(0, unspent - player.Mana);
+        var temporary = player.Mana == 0 ? 0 : Math.Max(0, player.Mana - unspent);
+        return player with { Mana = 0, ManaSpent = checked((int)spent), TemporaryMana = checked(player.TemporaryMana + (int)temporary) };
     }
 
     private static void ValidateEntity(GameEntity entity, IReadOnlyDictionary<PlayerId, PlayerState> players)

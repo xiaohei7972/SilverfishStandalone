@@ -301,6 +301,63 @@ public static class StarterCardCatalog
         new SimulationCard(new("GVG_090", EntityKind.Minion, 5, 5, 4))
         {
             OnPlay = [new RandomDamageEffect(RandomCharacterPool.OtherCharacters, 1, Count: 6)]
+        },
+        new SimulationCard(new("GAME_005", EntityKind.Spell, 0))
+        {
+            OnPlay = [new ChangeManaEffect(ManaOperation.GainTemporary, 1)]
+        },
+        new SimulationCard(new("EX1_169", EntityKind.Spell, 0))
+        {
+            OnPlay = [new ChangeManaEffect(ManaOperation.GainTemporary, 1)]
+        },
+        new SimulationCard(new("SCH_427", EntityKind.Spell, 0))
+        {
+            Overload = 2, OnPlay = [new ChangeManaEffect(ManaOperation.Refresh, 2)]
+        },
+        new SimulationCard(new("CS2_013", EntityKind.Spell, 2))
+        {
+            OnPlay = [new ChangeManaEffect(ManaOperation.GainEmpty, 1, OverflowCardId: "CS2_013t")]
+        },
+        new SimulationCard(new("CS2_013t", EntityKind.Spell, 0))
+        {
+            OnPlay = [new DrawEffect(1)]
+        },
+        new SimulationCard(new("BT_130", EntityKind.Spell, 4))
+        {
+            OnPlay = [new ChangeManaEffect(ManaOperation.GainEmpty, 2, OverflowCardId: "CS2_013t")]
+        },
+        new SimulationCard(new("BOT_054", EntityKind.Spell, 1))
+        {
+            OnPlay = [new ChangeManaEffect(ManaOperation.GainFilled, 2, ManaRecipient.BothPlayers)]
+        },
+        new SimulationCard(new("AT_038", EntityKind.Minion, 2, 2, 3))
+        {
+            OnPlay = [new ChangeManaEffect(ManaOperation.GainEmpty, 1)],
+            Deathrattle = [new ChangeManaEffect(ManaOperation.Destroy, 1)]
+        },
+        new SimulationCard(new("LOOT_351", EntityKind.Minion, 3, 3, 1))
+        {
+            Deathrattle = [new ChangeManaEffect(ManaOperation.GainEmpty, 1)]
+        },
+        new SimulationCard(new("EX1_301", EntityKind.Minion, 3, 3, 5))
+        {
+            Keywords = CardKeywords.Taunt, OnPlay = [new ChangeManaEffect(ManaOperation.Destroy, 1)]
+        },
+        new SimulationCard(new("LOOT_392", EntityKind.Weapon, 4, 1, PrintedDurability: 5))
+        {
+            Deathrattle = [new ChangeManaEffect(ManaOperation.Refresh, int.MaxValue)]
+        },
+        new SimulationCard(new("EX1_164", EntityKind.Spell, 5))
+        {
+            Choices = [new("gainCrystals", [new ChangeManaEffect(ManaOperation.GainFilled, 2)]), new("draw", [new DrawEffect(3)])]
+        },
+        new SimulationCard(new("WON_014", EntityKind.Spell, 2))
+        {
+            Choices = [new("gainCrystal", [new ChangeManaEffect(ManaOperation.GainEmpty, 1)]), new("draw", [new DrawEffect(1)])]
+        },
+        new SimulationCard(new("CFM_308", EntityKind.Minion, 10, 7, 7))
+        {
+            Choices = [new("armor", [new GainArmorEffect(10)]), new("refresh", [new ChangeManaEffect(ManaOperation.Refresh, int.MaxValue)])]
         }
     ];
 

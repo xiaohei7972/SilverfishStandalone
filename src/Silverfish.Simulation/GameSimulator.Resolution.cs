@@ -21,7 +21,7 @@ public sealed partial class GameSimulator
                     EndTurn(action.Actor);
                     break;
                 case SimulationActionKind.PlayCard:
-                    Play(action.Actor, action.Source!.Value, action.Target, action.Position);
+                    Play(action.Actor, action.Source!.Value, action.Target, action.Position, action.Choice);
                     break;
                 case SimulationActionKind.Attack:
                     Attack(action.Actor, action.Source!.Value, action.Target!.Value);
@@ -47,11 +47,17 @@ public sealed partial class GameSimulator
 
             ThawAtTurnEnd(outgoing);
             ExpireTurnEnchantments();
+            var previous = _state.Players[outgoing];
+            if (previous.TemporaryMana != 0)
+                _state = _state.UpdateResources(previous with { TemporaryMana = 0 });
             _state = _state.PassTurn();
             var next = _state.Players[_state.ActivePlayer];
-            var crystals = Math.Min(next.ManaCrystals + 1, 10);
-            _state = _state.SetMana(next.Id, Math.Max(0, crystals - next.OverloadOwed), crystals, 0, next.OverloadOwed);
-            _state = _state.SetHeroPowerUses(next.Id, 0);
+            _state = _state.UpdateResources(next with
+            {
+                ManaCrystals = next.ManaCrystals + Math.Min(1, next.MaximumManaCrystals - next.ManaCrystals),
+                ManaSpent = 0, TemporaryMana = 0, OverloadLocked = next.OverloadOwed, OverloadOwed = 0,
+                HeroPowerUsesThisTurn = 0
+            });
             foreach (var id in next.In(GameZone.Play))
             {
                 if (_state.Entities[id].Character is { } character)
@@ -74,7 +80,7 @@ public sealed partial class GameSimulator
             if (deck.IsEmpty)
             {
                 var fatigue = checked(player.Fatigue + 1);
-                _state = _state.SetResources(playerId, player.Mana, player.ManaCrystals, fatigue);
+                _state = _state.UpdateResources(player with { Fatigue = fatigue });
                 _events.Add(new(SimulationEventKind.Fatigue, playerId, Target: player.Hero, Amount: fatigue));
                 PushOccurrence(work, Damage(null, player.Hero, fatigue));
                 return;
@@ -96,10 +102,11 @@ public sealed partial class GameSimulator
             }
         }
 
-        private void Play(PlayerId playerId, EntityId source, EntityId? target, int? position)
+        private void Play(PlayerId playerId, EntityId source, EntityId? target, int? position, string? choice)
         {
             var card = _rules.Card(_state.Entities[source]);
             var kind = card.Definition.Kind;
+            var effects = choice is null ? card.OnPlay : card.Choices.Single(option => option.Id == choice).Effects;
             var listeners = CaptureListeners();
             PayMana(playerId, _rules.EffectiveCost(_state.Entities[source]));
             var index = position is int slot ? _rules.BoardIndex(_state, playerId, slot) : (int?)null;
@@ -121,7 +128,7 @@ public sealed partial class GameSimulator
                 _state = _state.UpdateEntity(weapon with { Weapon = card.CreateWeapon() });
                 AddOverload(playerId, source, card.Overload);
                 if (card.Target == TargetRequirement.None || target is not null)
-                    ResolveEffects(new(source, playerId, target), card.OnPlay);
+                    ResolveEffects(new(source, playerId, target), effects);
                 MarkEquippedWeaponForDestruction(playerId);
                 SetEquippedWeapon(playerId, source);
                 return;
@@ -141,7 +148,7 @@ public sealed partial class GameSimulator
             ResolveDeaths();
 
             if (card.Target == TargetRequirement.None || target is not null)
-                ResolveEffects(new(source, playerId, target), card.OnPlay);
+                ResolveEffects(new(source, playerId, target), effects);
             if (!isMinion && !card.IsSecret)
                 _state = _state.Move(source, new(playerId, GameZone.Graveyard));
             ResolveDeaths();
@@ -225,29 +232,6 @@ public sealed partial class GameSimulator
             var character = _state.Entities[hero].Character!;
             _state = _state.UpdateCharacter(hero, character with { Armor = checked(character.Armor + amount) });
             _events.Add(new(SimulationEventKind.ArmorGained, context.Controller, context.Source, hero, amount));
-        }
-
-        private void AddOverload(PlayerId player, EntityId source, int amount)
-        {
-            if (amount == 0)
-                return;
-
-            var resources = _state.Players[player];
-            var owed = checked(resources.OverloadOwed + amount);
-            _state = _state.SetMana(player, resources.Mana, resources.ManaCrystals, owed, resources.OverloadLocked);
-            _events.Add(new(SimulationEventKind.OverloadScheduled, player, source, Amount: amount));
-        }
-
-        private void UnlockOverload(EffectContext context)
-        {
-            var before = _state.Players[context.Controller];
-            if (before is { OverloadLocked: 0, OverloadOwed: 0 })
-                return;
-
-            var restored = Math.Min(before.ManaCrystals, before.OverloadLocked);
-            var mana = Math.Min(10, before.Mana + restored);
-            _state = _state.SetMana(before.Id, mana, before.ManaCrystals, 0, 0);
-            _events.Add(new(SimulationEventKind.OverloadUnlocked, context.Controller, context.Source, Amount: mana - before.Mana));
         }
 
         private void ExecuteEffect(Stack<Work> work, EffectContext context, CardEffect effect)
@@ -344,6 +328,9 @@ public sealed partial class GameSimulator
                     break;
                 case SummonRandomMinionEffect summon:
                     SummonRandomMinion(work, context.Controller, summon);
+                    break;
+                case ChangeManaEffect mana:
+                    ChangeMana(context, mana);
                     break;
             }
         }

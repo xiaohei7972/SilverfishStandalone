@@ -150,5 +150,21 @@ jobs:
               $replay.plan.actions[0].source.value -ne 12 -or $replay.plan.transitions -gt 512) {
               throw 'Unexpected seeded summon or random outcome plan.'
           }
+      - name: Replay mana and player choices
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- simulate samples/simulation-mana.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $player = $replay.players[0]
+          $nourish = $replay.steps[1].events | Where-Object { $_.kind -eq 'manaRefreshed' }
+          $excess = $replay.steps[2].events | Where-Object { $_.kind -eq 'cardGenerated' }
+          $bloom = $replay.steps[4].events.kind -join ','
+          if ($player.mana -ne 8 -or $player.manaCrystals -ne 10 -or $player.manaSpent -ne 0 -or
+              $player.temporaryMana -ne 0 -or $player.overloadLocked -ne 2 -or $player.overloadOwed -ne 0 -or
+              $nourish.amount -ne 2 -or $excess.target.value -ne 22 -or
+              $replay.steps[3].events[-1].source.value -ne 15 -or $bloom -ne 'cardPlayed,overloadScheduled,manaRefreshed') {
+              throw 'Unexpected mana, choice, or generated card result.'
+          }
       - name: Libmem.NET integration build (Windows x64)
         run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo

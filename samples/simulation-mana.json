@@ -1,0 +1,36 @@
+{
+  "cardSet": "starter",
+  "cards": [
+    { "definition": { "cardId": "training-hero", "kind": "hero", "printedCost": 0, "printedHealth": 30 } }
+  ],
+  "players": [
+    { "id": { "value": 1 }, "hero": { "value": 10 }, "manaCrystals": 10, "manaSpent": 0,
+      "zones": { "play": [{ "value": 10 }], "hand": [{ "value": 11 }, { "value": 12 }, { "value": 13 }, { "value": 14 }],
+                 "deck": [{ "value": 15 }, { "value": 16 }] } },
+    { "id": { "value": 2 }, "hero": { "value": 20 }, "manaCrystals": 1,
+      "zones": { "play": [{ "value": 20 }], "deck": [{ "value": 21 }] } }
+  ],
+  "entities": [
+    { "id": { "value": 10 }, "cardId": "training-hero", "owner": { "value": 1 }, "controller": { "value": 1 },
+      "playOrder": 1, "character": { "attack": 0, "maximumHealth": 30 } },
+    { "id": { "value": 20 }, "cardId": "training-hero", "owner": { "value": 2 }, "controller": { "value": 2 },
+      "playOrder": 2, "character": { "attack": 0, "maximumHealth": 30 } },
+    { "id": { "value": 11 }, "cardId": "GAME_005", "owner": { "value": 1 }, "controller": { "value": 1 } },
+    { "id": { "value": 12 }, "cardId": "EX1_164", "owner": { "value": 1 }, "controller": { "value": 1 } },
+    { "id": { "value": 13 }, "cardId": "CS2_013", "owner": { "value": 1 }, "controller": { "value": 1 } },
+    { "id": { "value": 14 }, "cardId": "SCH_427", "owner": { "value": 1 }, "controller": { "value": 1 } },
+    { "id": { "value": 15 }, "cardId": "CS2_231", "owner": { "value": 1 }, "controller": { "value": 1 } },
+    { "id": { "value": 16 }, "cardId": "CS2_231", "owner": { "value": 1 }, "controller": { "value": 1 } },
+    { "id": { "value": 21 }, "cardId": "CS2_231", "owner": { "value": 2 }, "controller": { "value": 2 } }
+  ],
+  "activePlayer": { "value": 1 },
+  "actions": [
+    { "kind": "playCard", "actor": { "value": 1 }, "source": { "value": 11 } },
+    { "kind": "playCard", "actor": { "value": 1 }, "source": { "value": 12 }, "choice": "gainCrystals" },
+    { "kind": "playCard", "actor": { "value": 1 }, "source": { "value": 13 } },
+    { "kind": "playCard", "actor": { "value": 1 }, "source": { "value": 22 } },
+    { "kind": "playCard", "actor": { "value": 1 }, "source": { "value": 14 } },
+    { "kind": "endTurn", "actor": { "value": 1 } },
+    { "kind": "endTurn", "actor": { "value": 2 } }
+  ]
+}

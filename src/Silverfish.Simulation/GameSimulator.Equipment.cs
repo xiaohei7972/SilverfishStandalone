@@ -27,15 +27,9 @@ public sealed partial class GameSimulator
             PayMana(playerId, power.Definition.PrintedCost);
             _events.Add(new(SimulationEventKind.HeroPowerUsed, playerId, source, target));
             ResolveEffects(new(source, playerId, target), power.OnPlay);
-            _state = _state.SetHeroPowerUses(playerId, 1);
+            _state = _state.UpdateResources(_state.Players[playerId] with { HeroPowerUsesThisTurn = 1 });
             ResolveDeaths();
             RunTriggers(new(TriggerTiming.AfterHeroPowerUsed, playerId, source), CaptureListeners());
-        }
-
-        private void PayMana(PlayerId playerId, int cost)
-        {
-            var player = _state.Players[playerId];
-            _state = _state.SetResources(playerId, player.Mana - cost, player.ManaCrystals, player.Fatigue);
         }
 
         private void CreateAndEquipWeapon(PlayerId player, string cardId)

@@ -140,4 +140,46 @@ public sealed class SimulationTurnPlannerTests
         Assert.True(twoPly.ReplanAfterLastAction);
         Assert.InRange(twoPly.Transitions, 2, 32);
     }
+
+    [Fact]
+    public void PlannerCanSelectTheDrawChoiceThatEnablesLethal()
+    {
+        var simulator = new GameSimulator([
+            .. StarterCardCatalog.Cards, new(new("hero", EntityKind.Hero, 0, PrintedHealth: 30)),
+            new SimulationCard(new("test-bolt", EntityKind.Spell, 0)) { OnPlay = [new DamageEffect(DamageTarget.EnemyHero, 1)] }
+        ]);
+        var first = new PlayerId(1);
+        var second = new PlayerId(2);
+        var firstHero = new EntityId(10);
+        var secondHero = new EntityId(20);
+        var nourish = new EntityId(11);
+        var bolt = new EntityId(12);
+        var nextDraw = new EntityId(21);
+        var root = simulator.CreateGame([
+            new PlayerState(first, firstHero, Mana: 5, ManaCrystals: 5)
+            {
+                Zones = ImmutableDictionary<GameZone, ImmutableArray<EntityId>>.Empty.Add(GameZone.Play, [firstHero])
+                    .Add(GameZone.Hand, [nourish]).Add(GameZone.Deck, [bolt, new EntityId(13), new EntityId(14)])
+            },
+            new PlayerState(second, secondHero)
+            {
+                Zones = ImmutableDictionary<GameZone, ImmutableArray<EntityId>>.Empty.Add(GameZone.Play, [secondHero])
+                    .Add(GameZone.Deck, [nextDraw])
+            }
+        ], [
+            new GameEntity(firstHero, "hero", first, first) { PlayOrder = 1, Character = new(0, 30) },
+            new GameEntity(secondHero, "hero", second, second) { PlayOrder = 2, Character = new(0, 30, Damage: 29) },
+            new GameEntity(nourish, "EX1_164", first, first), new GameEntity(bolt, "test-bolt", first, first),
+            new GameEntity(new EntityId(13), "CS2_231", first, first), new GameEntity(new EntityId(14), "CS2_231", first, first),
+            new GameEntity(nextDraw, "CS2_231", second, second)
+        ], first);
+
+        var plan = new SimulationTurnPlanner(simulator, SimulationMaterialEvaluator.Evaluate).Plan(root, depth: 2);
+        Assert.Equal(new SimulationAction[]
+        {
+            new(SimulationActionKind.PlayCard, first, nourish) { Choice = "draw" },
+            new(SimulationActionKind.PlayCard, first, bolt)
+        }, plan.Actions);
+        Assert.Equal(first, plan.Winner);
+    }
 }

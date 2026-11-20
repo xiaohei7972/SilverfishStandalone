@@ -17,6 +17,8 @@ public enum FreezeTarget { Selected, EnemyMinions, TriggerSubject }
 public enum EffectTarget { Selected, TriggerSubject }
 public enum RandomCharacterPool { EnemyCharacters, EnemyMinions, OtherCharacters }
 public enum RandomDamageMode { Sequential, DistinctBatch }
+public enum ManaOperation { GainTemporary, GainEmpty, GainFilled, Refresh, Destroy }
+public enum ManaRecipient { Controller, BothPlayers }
 public enum SummonPlacement { Default, Rightmost }
 public enum StatTarget { Selected, Source, FriendlyMinions, AllMinions, FriendlyHero }
 public enum EnchantmentDuration { Permanent, CurrentTurn }
@@ -67,6 +69,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(DestroyRandomEnemyMinionEffect), "destroyRandomEnemyMinion")]
 [JsonDerivedType(typeof(DestroyAllButOneMinionEffect), "destroyAllButOneMinion")]
 [JsonDerivedType(typeof(SummonRandomMinionEffect), "summonRandomMinion")]
+[JsonDerivedType(typeof(ChangeManaEffect), "changeMana")]
 public abstract record CardEffect;
 
 public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect;
@@ -94,6 +97,10 @@ public sealed record RandomDamageEffect(RandomCharacterPool Pool, int Amount, in
 public sealed record DestroyRandomEnemyMinionEffect : CardEffect;
 public sealed record DestroyAllButOneMinionEffect : CardEffect;
 public sealed record SummonRandomMinionEffect(ImmutableArray<string> CardIds) : CardEffect;
+public sealed record ChangeManaEffect(ManaOperation Operation, int Amount, ManaRecipient Recipient = ManaRecipient.Controller,
+    string? OverflowCardId = null) : CardEffect;
+
+public sealed record CardPlayChoice(string Id, ImmutableArray<CardEffect> Effects);
 
 public sealed record SimulationCard(CardDefinition Definition)
 {
@@ -105,6 +112,7 @@ public sealed record SimulationCard(CardDefinition Definition)
     public int Overload { get; init; }
     public bool IsSecret { get; init; }
     public ImmutableArray<CardEffect> OnPlay { get; init; } = [];
+    public ImmutableArray<CardPlayChoice> Choices { get; init; } = [];
     public ImmutableArray<CardEffect> Deathrattle { get; init; } = [];
     public ImmutableArray<CardEffect> WhenDrawn { get; init; } = [];
     public ImmutableArray<CardTrigger> Triggers { get; init; } = [];

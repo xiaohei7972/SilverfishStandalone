@@ -38,10 +38,12 @@ public sealed partial class GameSimulator
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield |
                     CardKeywords.Rush | CardKeywords.Windfury)) != 0 ||
                 card.Overload < 0 || (card.Overload > 0 && definition.Kind is EntityKind.Hero or EntityKind.HeroPower) ||
-                card.Triggers.IsDefault || card.Auras.IsDefault ||
+                card.Triggers.IsDefault || card.Auras.IsDefault || card.Choices.IsDefault ||
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && !card.Deathrattle.IsEmpty) ||
                 (definition.Kind != EntityKind.Minion && !card.Auras.IsEmpty) ||
                 (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.IsSecret && !card.Triggers.IsEmpty) ||
+                (!card.Choices.IsEmpty && (card.Choices.Length < 2 || card.IsSecret || card.Target != TargetRequirement.None ||
+                    !card.OnPlay.IsDefaultOrEmpty || definition.Kind is not (EntityKind.Minion or EntityKind.Spell))) ||
                 (card.IsSecret && (definition.Kind != EntityKind.Spell || card.Target != TargetRequirement.None ||
                     !card.OnPlay.IsDefaultOrEmpty || card.Triggers.Length != 1)))
                 throw new ArgumentException($"Invalid simulation card '{definition.CardId}'.", nameof(cards));
@@ -49,6 +51,13 @@ public sealed partial class GameSimulator
             ValidateEffects(card, card.OnPlay, maySelect: true);
             ValidateEffects(card, card.Deathrattle, maySelect: false);
             ValidateEffects(card, card.WhenDrawn, maySelect: false);
+            var choiceIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var choice in card.Choices)
+            {
+                if (choice is null || string.IsNullOrWhiteSpace(choice.Id) || !choiceIds.Add(choice.Id) || choice.Effects.IsDefaultOrEmpty)
+                    throw new ArgumentException($"Invalid choice for '{definition.CardId}'.", nameof(cards));
+                ValidateEffects(card, choice.Effects, maySelect: false, hasInPlaySource: definition.Kind == EntityKind.Minion);
+            }
             foreach (var aura in card.Auras)
             {
                 if (aura is null || !Enum.IsDefined(aura.Recipients) ||
@@ -160,16 +169,18 @@ public sealed partial class GameSimulator
             if (card.Definition.Kind is EntityKind.Minion or EntityKind.Weapon && targets.Length == 0)
                 targets = [null];
 
+            IEnumerable<string?> choices = card.Choices.IsEmpty ? [null] : card.Choices.Select(choice => choice.Id);
             foreach (var target in targets)
+            foreach (var choice in choices)
             {
                 if (createsMinion)
                 {
                     for (var position = 0; position <= minions; position++)
-                        actions.Add(new(SimulationActionKind.PlayCard, actor, id, target, position));
+                        actions.Add(new(SimulationActionKind.PlayCard, actor, id, target, position) { Choice = choice });
                 }
                 else
                 {
-                    actions.Add(new(SimulationActionKind.PlayCard, actor, id, target));
+                    actions.Add(new(SimulationActionKind.PlayCard, actor, id, target) { Choice = choice });
                 }
             }
         }
@@ -332,6 +343,9 @@ public sealed partial class GameSimulator
                 DestroyRandomEnemyMinionEffect or DestroyAllButOneMinionEffect => true,
                 SummonRandomMinionEffect summon => !summon.CardIds.IsDefaultOrEmpty &&
                     summon.CardIds.All(id => GetCard(id).Definition.Kind == EntityKind.Minion),
+                ChangeManaEffect mana => mana.Amount > 0 && Enum.IsDefined(mana.Operation) && Enum.IsDefined(mana.Recipient) &&
+                    (mana.OverflowCardId is null || (mana.Operation is ManaOperation.GainEmpty or ManaOperation.GainFilled &&
+                        GetCard(mana.OverflowCardId).Definition.Kind is EntityKind.Spell or EntityKind.Minion or EntityKind.Weapon)),
                 SummonEffect summon => Enum.IsDefined(summon.Placement) && GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
                 TakeControlEffect => maySelect && card.Definition.Kind == EntityKind.Spell &&
                     card.Target == TargetRequirement.EnemyMinion,
