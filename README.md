@@ -1,5 +1,8 @@
 # SilverfishStandalone
 
+**执行原则**：AI 只产生行动意图，真正执行应通过鼠标/键盘模拟输入，不调用 `Network.SendOption`、`Network.SendChoices` 等接口。现已新增 `UiChoiceInputPlanner`，将有序目标映射为点击/确认/等待的语义步骤；当前尚未实现真正的 Windows 输入驱动。详见 [UI 模拟输入执行边界](docs/UI_INPUT_EXECUTION.md)。
+
+
 ## CHOICE 有序多目标选择（第一、二阶段）
 
 `Silverfish.Cli choice samples/entity-choice-targets.json` 可在离线环境核验 EntityChoices 的数量范围、禁选实体、点击顺序、取消重排以及确认提交与包 ID 检查。现已支持把待决选择保存到局面、提交有序选择动作及 checkpoint 恢复；提交不会假定卡牌效果已结算，仍需等待后续权威局面快照；当前尚未接入真实游戏选择包和效果暂停/恢复；`OPTION_TARGET` 与 `CHOICE` 分离。详见 [EntityChoices 说明](docs/ENTITY_CHOICES.md)。示例：`dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-pending-choice.json`。

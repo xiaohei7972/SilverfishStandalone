@@ -298,7 +298,7 @@ public sealed partial class GameSimulator
         ArgumentNullException.ThrowIfNull(action);
         if (action.Kind == SimulationActionKind.ChooseOption)
         {
-            // This validates and records the network submission, not the unknown card effect.
+            // Local selection intent only: no simulated OS input or game network/API submission occurs here.
             var packet = state.PendingChoice?.Packet ??
                 throw new InvalidOperationException("没有等待处理的选择包。");
             if (state.Outcome != MatchOutcome.InProgress || action.Actor != packet.Player ||

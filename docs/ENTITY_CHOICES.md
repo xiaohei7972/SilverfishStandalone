@@ -48,3 +48,7 @@ dotnet run --project src/Silverfish.Cli -c Release -- checkpoint samples/simulat
 ```
 
 后续必须在已录制的真实选择包和规则上实现 `PendingResolution` 续跑工作栈，以及 `GENERAL` / `TARGET` 的不同价值估算；在没有这些规则之前**不**将提交候选的能力称为已经能够自主选牌。
+
+## 执行路径澄清：不通过 API 提交
+
+使用 `SimulationActionKind.ChooseOption` 是描述 AI 意图，不等于执行一次网络提交。选择真实执行时应交给 `UiChoiceInputPlanner` 构造按顺序点击实体、确认按钮检测和新状态校验的输入计划。所有实际操作只能由独立 UI 模拟输入执行器完成（例如 Windows `SendInput`），禁止直接调用游戏协议或客户端 `Network.SendChoices`。详见 [UI_INPUT_EXECUTION.md](UI_INPUT_EXECUTION.md)。
