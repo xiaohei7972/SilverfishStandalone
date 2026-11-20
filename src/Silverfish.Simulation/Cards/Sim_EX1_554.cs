@@ -2,10 +2,9 @@ using Silverfish.Domain;
 
 namespace Silverfish.Simulation.Cards;
 
+[CardSim("EX1_554")]
 internal static class Sim_EX1_554
 {
-    internal const string CardId = "EX1_554";
-
     internal static CardRules Rules { get; } = new()
     {
         IsSecret = true,

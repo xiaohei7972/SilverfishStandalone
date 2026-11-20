@@ -1,9 +1,8 @@
 namespace Silverfish.Simulation.Cards;
 
+[CardSim("EX1_251")]
 internal static class Sim_EX1_251
 {
-    internal const string CardId = "EX1_251";
-
     internal static CardRules Rules { get; } = new()
     {
         MinimumEnemyMinions = 1,

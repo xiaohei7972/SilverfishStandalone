@@ -59,7 +59,7 @@ dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulatio
 dotnet run --project src/Silverfish.Cli -c Release -- generate-sim $cardDefs artifacts/card-sims CS2_092 CS2_092e
 ```
 
-现有文件会保留。实现后将普通牌加入 `StarterCardCatalog.Registered`，附魔由对应单卡的 Sim 引用。新增普通牌时，用完整 XML 重新生成内置 `StarterCardData.json`。
+现有文件会保留。普通卡骨架预填了注释形式的 `[CardSim("卡牌ID")]`，完成规则后取消注释。编译后，模拟器按特性里的卡牌 ID 绑定规则和静态数据。附魔由对应单卡的 Sim 引用。新增普通牌时，用完整 XML 重新生成内置 `StarterCardData.json`。
 
 自定义场景可以在 `cardRules` 中以 `cardId` 指定目录条目，并填写对应的结算规则。类型、费用、基础数值、已支持的关键词和过载值由 `--card-data` 指定的目录提供。场景可以同时使用 `cards` 定义独立测试卡。
 

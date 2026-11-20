@@ -1,9 +1,8 @@
 namespace Silverfish.Simulation.Cards;
 
+[CardSim("EX1_130")]
 internal static class Sim_EX1_130
 {
-    internal const string CardId = "EX1_130";
-
     internal static CardRules Rules { get; } = new()
     {
         IsSecret = true,

@@ -52,16 +52,16 @@ internal static class CardSimGenerator
         var suffix = enchantment ? ".Enchantments" : "";
         var declaration = enchantment ? "StatEnchantmentRule Rule" : "CardRules Rules";
         var instruction = enchantment ? "在此定义附魔数值和持续期。" : "在此声明本卡的目标、触发和效果。";
+        var registration = enchantment ? "// 规则由施加附魔的单卡 Sim 引用。" : $"// [CardSim(\"{id}\")]";
         var content = $$"""
             namespace Silverfish.Simulation.Cards{{suffix}};
 
+            {{registration}}
             internal static class Sim_{{id}}
             {
-                internal const string CardId = "{{id}}";
-
                 // {{instruction}}
                 internal static {{declaration}} =>
-                    throw new InvalidOperationException($"卡牌「{CardId}」的 Sim 尚未实现。");
+                    throw new InvalidOperationException("卡牌「{{id}}」的 Sim 尚未实现。");
             }
             """;
         return (Path.Combine(directory, $"Sim_{id}.cs"), content + "\n");

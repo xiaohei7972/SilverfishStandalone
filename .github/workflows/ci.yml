@@ -279,8 +279,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $normal = Join-Path $cards 'Sim_TestCard.cs'
           $enchantment = Join-Path $cards 'Enchantments/Sim_TestBuff.cs'
-          if ((Get-Content -Raw $normal) -notmatch 'CardRules Rules' -or (Get-Content -Raw $enchantment) -notmatch 'StatEnchantmentRule Rule') {
+          $normalSource = Get-Content -Raw $normal
+          $enchantmentSource = Get-Content -Raw $enchantment
+          if ($normalSource -notmatch 'CardRules Rules' -or $enchantmentSource -notmatch 'StatEnchantmentRule Rule') {
               throw 'Sim 骨架没有按普通卡和附魔分别生成。'
+          }
+          if ($normalSource -cnotmatch '(?m)^// \[CardSim\("TestCard"\)\]\r?$' -or
+              $normalSource -match '\bconst\s+string\s+CardId\b' -or $enchantmentSource -match '\[CardSim\(') {
+              throw '普通卡骨架应预填注释形式的 CardSim 卡牌 ID，附魔骨架由单卡直接引用。'
           }
           Add-Content $enchantment '// 保留手写规则。'
           $before = (Get-FileHash $enchantment).Hash

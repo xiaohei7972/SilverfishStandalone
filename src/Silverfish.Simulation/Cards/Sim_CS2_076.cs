@@ -1,9 +1,8 @@
 namespace Silverfish.Simulation.Cards;
 
+[CardSim("CS2_076")]
 internal static class Sim_CS2_076
 {
-    internal const string CardId = "CS2_076";
-
     internal static CardRules Rules { get; } = new()
     {
         Target = TargetRequirement.EnemyMinion,

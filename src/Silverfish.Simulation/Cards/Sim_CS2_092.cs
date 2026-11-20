@@ -2,10 +2,9 @@ using Silverfish.Simulation.Cards.Enchantments;
 
 namespace Silverfish.Simulation.Cards;
 
+[CardSim("CS2_092")]
 internal static class Sim_CS2_092
 {
-    internal const string CardId = "CS2_092";
-
     internal static CardRules Rules { get; } = new()
     {
         Target = TargetRequirement.Minion,
