@@ -177,7 +177,9 @@ public sealed partial class GameSimulator
 
             var weapon = isHero ? _state.Players[player].EquippedWeapon : null;
             var retaliation = _rules.EffectiveAttack(_state, _state.Entities[target]);
-            var hit = Damage(source, target, _rules.EffectiveAttack(_state, attacker));
+            // The hero makes the attack, but an equipped weapon can grant
+            // Poisonous/Lifesteal to the outgoing combat damage.
+            var hit = Damage(source, target, _rules.EffectiveAttack(_state, attacker), weapon);
             var counter = Damage(target, source, retaliation);
 
             // 先记录双方受到的伤害，再处理伤害事件的触发队列。
@@ -190,10 +192,11 @@ public sealed partial class GameSimulator
             SpendWeaponDurability(weapon);
         }
 
-        private Occurrence? Damage(EntityId? source, EntityId target, int amount)
+        private Occurrence? Damage(EntityId? source, EntityId target, int amount, EntityId? attackingWeapon = null)
         {
-            if (amount == 0 || _state.LocationOf(target).Zone != GameZone.Play)
+            if (amount <= 0 || _state.LocationOf(target).Zone != GameZone.Play)
                 return null;
+
             var entity = _state.Entities[target];
             var character = entity.Character!;
             if (character.DivineShield)
@@ -204,14 +207,61 @@ public sealed partial class GameSimulator
             }
 
             var absorbed = Math.Min(character.Armor, amount);
+            var healthDamage = amount - absorbed;
+            // Exact lethal and excess damage compare the target's Health before
+            // this hit, after Armor was deducted; they apply only on our source's turn.
+            var fromActivePlayer = source is EntityId attacker &&
+                _state.Entities.TryGetValue(attacker, out var attackingEntity) &&
+                attackingEntity.Controller == _state.ActivePlayer;
+            TriggerTiming? lethalTiming = null;
+            if (fromActivePlayer && character.Health > 0)
+            {
+                if (healthDamage > character.Health)
+                    lethalTiming = TriggerTiming.Overkill;
+                else if (healthDamage == character.Health)
+                    lethalTiming = TriggerTiming.HonorableKill;
+            }
+
             _state = _state.UpdateCharacter(target, character with
             {
                 Armor = character.Armor - absorbed,
-                Damage = checked(character.Damage + (amount - absorbed))
+                Damage = checked(character.Damage + healthDamage)
             });
-            _events.Add(new(SimulationEventKind.Damage, entity.Controller, source, target, amount));
+            _events.Add(new(SimulationEventKind.Damage, entity.Controller, source, target, amount)
+            {
+                DamageToArmor = absorbed, DamageToHealth = healthDamage,
+                IsOverkill = lethalTiming == TriggerTiming.Overkill,
+                IsHonorableKill = lethalTiming == TriggerTiming.HonorableKill
+            });
+
+            // DamageSource remains the actual character for trigger filtering.
+            // Only the keyword lookup additionally considers the weapon used by the attacking hero.
+            var poisonous = HasDamageKeyword(CardKeywords.Poisonous);
+            var lifesteal = HasDamageKeyword(CardKeywords.Lifesteal);
+            if (poisonous && _rules.Card(entity).Definition.Kind == EntityKind.Minion)
+                _pendingDestruction.Add(target);
+
+            if (lifesteal && source is EntityId sourceId &&
+                _state.Entities.TryGetValue(sourceId, out var sourceEntity))
+            {
+                // The source controller, not necessarily the current player, receives healing.
+                var keywordOwner = attackingWeapon is EntityId weaponId &&
+                    _state.Entities.TryGetValue(weaponId, out var weaponEntity) &&
+                    _rules.HasKeyword(weaponEntity, CardKeywords.Lifesteal) ? weaponId : sourceId;
+                HealFriendlyHero(new(keywordOwner, sourceEntity.Controller), amount);
+            }
+
             return new(TriggerTiming.Damage, entity.Controller, target,
-                source is EntityId sourceId ? new(sourceId, _state.Entities[sourceId].Controller) : null, amount);
+                source is EntityId triggerSource ? new(triggerSource, _state.Entities[triggerSource].Controller) : null,
+                amount, LethalBonus: lethalTiming,
+                AttackingWeapon: attackingWeapon is EntityId w && _state.Entities.TryGetValue(w, out var heldWeapon)
+                    ? new(w, heldWeapon.Controller) : null);
+
+            bool HasDamageKeyword(CardKeywords keyword) =>
+                (source is EntityId s && _state.Entities.TryGetValue(s, out var damageSource) &&
+                    _rules.HasKeyword(damageSource, keyword)) ||
+                (attackingWeapon is EntityId w && _state.Entities.TryGetValue(w, out var equipped) &&
+                    _rules.HasKeyword(equipped, keyword));
         }
 
         private static void PushOccurrence(Stack<Work> work, Occurrence? occurrence)
@@ -292,6 +342,9 @@ public sealed partial class GameSimulator
                     break;
                 case HealFriendlyHeroEffect heal:
                     HealFriendlyHero(context, heal.Amount);
+                    break;
+                case HealEffect heal:
+                    HealCharacters(work, context, heal);
                     break;
                 case EquipWeaponEffect equip:
                     CreateAndEquipWeapon(context.Controller, equip.CardId);

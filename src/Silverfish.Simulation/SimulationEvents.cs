@@ -13,7 +13,7 @@ public enum SimulationEventKind
     Frozen, Thawed, OverloadScheduled, OverloadUnlocked, SecretArmed, SecretRevealed, SpellCountered, AttackRedirected,
     AttackCancelled, TemporaryManaGained, ManaCrystalsGained, ManaCrystalsDestroyed, ManaRefreshed, CardGenerated,
     LocationActivated, LocationHealthLost, LocationDestroyed, CardDiscarded, DiscardedEffect, Recruited, SpellCastWhenDrawn,
-    CardAddedToDeck, DeckShuffled, AlternateCostPaid, CostTypeChanged
+    CardAddedToDeck, DeckShuffled, AlternateCostPaid, CostTypeChanged, ChoiceSubmitted, Overhealed
 }
 
 public sealed record SimulationEvent(SimulationEventKind Kind, PlayerId? Player = null,
@@ -21,6 +21,16 @@ public sealed record SimulationEvent(SimulationEventKind Kind, PlayerId? Player 
 {
     public TAG_CARD_ALTERNATE_COST? CostType { get; init; }
     public string? EnchantmentCardId { get; init; }
+    public int? ChoiceId { get; init; }
+    public ImmutableArray<EntityId>? OrderedChoiceTargets { get; init; }
+    /// <summary>Damage actually assigned to armor, before health.</summary>
+    public int? DamageToArmor { get; init; }
+    /// <summary>Damage assigned to health (including lethal excess).</summary>
+    public int? DamageToHealth { get; init; }
+    /// <summary>Damage exceeded the character's previous Health on the source's turn.</summary>
+    public bool IsOverkill { get; init; }
+    /// <summary>Damage equaled the character's previous Health on the source's turn.</summary>
+    public bool IsHonorableKill { get; init; }
 }
 
 public sealed record SimulationResult(GameState State, ImmutableArray<SimulationEvent> Events);

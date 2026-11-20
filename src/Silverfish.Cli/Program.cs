@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -12,6 +13,7 @@ using Silverfish.Simulation;
 Console.OutputEncoding = Encoding.UTF8;
 
 var command = args.FirstOrDefault();
+var choiceReplay = command == "choice" && args.Length == 2;
 var simulationCommand = command is "simulate" or "plan" or "decide" or "checkpoint";
 var simulation = simulationCommand && (args.Length == 2 || (args.Length == 4 && args[2] == "--card-data"));
 var plan = simulation && command == "plan";
@@ -23,13 +25,14 @@ var generateSim = command == "generate-sim" && args.Length >= 4;
 var snapshotInput = args.Length == 1 && !simulationCommand && command is not ("import-card-data" or "generate-sim") &&
     command is not null && !command.StartsWith('-');
 var help = args.Length == 1 && command is "--help" or "-h";
-if (help || (!simulation && !import && !generateSim && !snapshotInput))
+if (help || (!simulation && !import && !generateSim && !snapshotInput && !choiceReplay))
 {
     var output = help ? Console.Out : Console.Error;
     if (!help)
         output.WriteLine("命令或参数无效。");
     output.WriteLine("用法  Silverfish.Cli <对局快照.json>");
     output.WriteLine("       Silverfish.Cli simulate <回放场景.json> [--card-data <卡牌目录.json>]");
+    output.WriteLine("       Silverfish.Cli choice <选择包.json>");
     output.WriteLine("       Silverfish.Cli plan <搜索场景.json> [--card-data <卡牌目录.json>]");
     output.WriteLine("       Silverfish.Cli decide <决策请求.json> [--card-data <卡牌目录.json>]");
     output.WriteLine("       Silverfish.Cli checkpoint <回放场景.json> [--card-data <卡牌目录.json>]");
@@ -59,7 +62,41 @@ try
         return 0;
     }
 
-    await using var stream = File.OpenRead(simulation ? args[1] : args[0]);
+    await using var stream = File.OpenRead(simulation || choiceReplay ? args[1] : args[0]);
+    if (choiceReplay)
+    {
+        var strictOptions = new JsonSerializerOptions(options) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
+        var request = await JsonSerializer.DeserializeAsync<EntityChoiceReplayRequest>(stream, strictOptions)
+            ?? throw new InvalidDataException("选择包 JSON 不能为空。");
+        if (request.SchemaVersion != 1)
+            throw new InvalidDataException($"不支持选择包版本 {request.SchemaVersion}。");
+        if (request.Entities is null || request.UnchoosableEntities is null || request.Clicks is null)
+            throw new InvalidDataException("候选、不可选和点击列表必须是数组。");
+
+        var packet = new EntityChoicePacket(request.ChoiceId, request.ChoiceType, new(request.PlayerId),
+            request.SourceEntityId is int source ? new EntityId(source) : null,
+            request.CountMin, request.CountMax,
+            request.Entities.Select(id => new EntityId(id)).ToImmutableArray(),
+            request.UnchoosableEntities.Select(id => new EntityId(id)).ToImmutableArray());
+        var selection = EntityChoiceSelection.Begin(packet);
+        foreach (var id in request.Clicks)
+            selection = selection.Click(new EntityId(id));
+        var submission = request.Confirm ? selection.Confirm(request.SubmitChoiceId ?? request.ChoiceId) : null;
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            packet.ChoiceId, packet.Type, packet.CountMin, packet.CountMax,
+            IsSingleChoice = packet.IsSingleChoice(), selection.CanConfirm,
+            selection.IsSingleChoiceSubmissionCandidate,
+            SelectedEntityIds = selection.OrderedEntityIds.Select(id => id.Value).ToArray(),
+            Submission = submission is null ? null : new
+            {
+                submission.ChoiceId,
+                EntityIds = submission.OrderedEntityIds.Select(id => id.Value).ToArray()
+            }
+        }, options));
+        return 0;
+    }
+
     if (simulation)
     {
         CardDataCatalog? cardData = null;
@@ -109,7 +146,7 @@ try
         Console.WriteLine(JsonSerializer.Serialize(new
         {
             state.Turn, state.ActivePlayer, state.Outcome, state.Winner,
-            state.MinionDeaths, state.RandomState,
+            state.MinionDeaths, state.RandomState, state.PendingChoice,
             CardDataBuild = cardData?.SourceBuild ?? scenario.CompiledDataBuild,
             Players = state.Players.Values.OrderBy(player => player.Id.Value).ToArray(),
             Entities = state.Entities.Values.OrderBy(entity => entity.Id.Value).ToArray(),
@@ -132,7 +169,7 @@ catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or J
     ArgumentException or InvalidDataException or InvalidOperationException or KeyNotFoundException or
     FormatException or OverflowException)
 {
-    var operation = generateSim ? "生成 Sim" : import ? "导入卡牌数据" : decide ? "模拟决策" : plan ? "搜索回合" :
+    var operation = choiceReplay ? "处理选择包" : generateSim ? "生成 Sim" : import ? "导入卡牌数据" : decide ? "模拟决策" : plan ? "搜索回合" :
         checkpoint ? "保存对局" : simulation ? "回放场景" : "分析快照";
     Console.Error.WriteLine($"{operation}失败。{DescribeFailure(ex)}");
     return 1;
@@ -223,6 +260,7 @@ internal record SimulationStateInput
     public long? NextPlayOrder { get; init; }
     public MatchOutcome? Outcome { get; init; }
     public PlayerId? Winner { get; init; }
+    public PendingEntityChoice? PendingChoice { get; init; }
 
     internal int? CompiledDataBuild => CardSet == "starter" || CardRules.Length != 0 ? CompiledCardData.Build : null;
 
@@ -239,7 +277,8 @@ internal record SimulationStateInput
         NextEntity = state.NextEntity,
         NextPlayOrder = state.NextPlayOrder,
         Outcome = state.Outcome,
-        Winner = state.Winner
+        Winner = state.Winner,
+        PendingChoice = state.PendingChoice
     };
 
     public (GameSimulator Simulator, GameState State) CreateGame(CardDataCatalog? cardData)
@@ -250,8 +289,8 @@ internal record SimulationStateInput
         var continuation = ReadContinuation();
         var simulator = new GameSimulator(BindCards(cardData));
         var state = continuation is null
-            ? simulator.CreateGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState)
-            : simulator.RestoreGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState, continuation);
+            ? simulator.CreateGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState, PendingChoice)
+            : simulator.RestoreGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState, continuation, PendingChoice);
         return (simulator, state);
     }
 
@@ -317,3 +356,20 @@ internal sealed record CatalogCardRules : CardRules
 }
 
 internal sealed record SimulationStep(SimulationAction Action, IReadOnlyList<SimulationEvent> Events);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record EntityChoiceReplayRequest
+{
+    public int SchemaVersion { get; init; }
+    public int ChoiceId { get; init; }
+    public EntityChoiceType ChoiceType { get; init; }
+    public int PlayerId { get; init; }
+    public int? SourceEntityId { get; init; }
+    public int CountMin { get; init; }
+    public int CountMax { get; init; }
+    public int[] Entities { get; init; } = [];
+    public int[] UnchoosableEntities { get; init; } = [];
+    public int[] Clicks { get; init; } = [];
+    public bool Confirm { get; init; }
+    public int? SubmitChoiceId { get; init; }
+}
