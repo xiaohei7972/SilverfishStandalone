@@ -23,6 +23,10 @@ public sealed record SimulationEvent(SimulationEventKind Kind, PlayerId? Player 
     public string? EnchantmentCardId { get; init; }
     public int? ChoiceId { get; init; }
     public ImmutableArray<EntityId>? OrderedChoiceTargets { get; init; }
+    /// <summary>Damage actually assigned to armor, before health.</summary>
+    public int? DamageToArmor { get; init; }
+    /// <summary>Damage assigned to health (including lethal excess).</summary>
+    public int? DamageToHealth { get; init; }
 }
 
 public sealed record SimulationResult(GameState State, ImmutableArray<SimulationEvent> Events);

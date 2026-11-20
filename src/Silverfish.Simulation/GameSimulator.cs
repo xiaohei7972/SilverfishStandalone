@@ -44,7 +44,8 @@ public sealed partial class GameSimulator
                 (card.Requirements & ~SupportedPlayRequirements) != 0 ||
                 card.MinimumEnemyMinions is < 0 or > BoardLimit || card.MinimumTotalMinions is < 0 or > BoardLimit * 2 ||
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield |
-                    CardKeywords.Rush | CardKeywords.Windfury | CardKeywords.CastsWhenDrawn)) != 0 ||
+                    CardKeywords.Rush | CardKeywords.Windfury | CardKeywords.CastsWhenDrawn |
+                    CardKeywords.Poisonous | CardKeywords.Lifesteal)) != 0 ||
                 (card.Keywords.HasFlag(CardKeywords.CastsWhenDrawn) && definition.Kind != EntityKind.Spell) ||
                 card.Overload < 0 || (card.Overload > 0 && definition.Kind is EntityKind.Hero or EntityKind.HeroPower) ||
                 card.Triggers.IsDefault || card.Auras.IsDefault || card.CostAuras.IsDefault || card.Choices.IsDefault ||

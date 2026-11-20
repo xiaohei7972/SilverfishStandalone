@@ -6,7 +6,7 @@ using Silverfish.Domain.Client;
 namespace Silverfish.Simulation;
 
 [Flags]
-public enum CardKeywords { None = 0, Taunt = 1, Charge = 2, DivineShield = 4, Rush = 8, Windfury = 16, CastsWhenDrawn = 32 }
+public enum CardKeywords { None = 0, Taunt = 1, Charge = 2, DivineShield = 4, Rush = 8, Windfury = 16, CastsWhenDrawn = 32, Poisonous = 64, Lifesteal = 128 }
 
 public enum TargetRequirement { None, Character, EnemyCharacter, EnemyMinion, FriendlyMinion, Minion, FriendlyCharacter }
 
@@ -243,6 +243,8 @@ public sealed record SimulationCard : CardRules
             (metadata.GetTag(GAME_TAG.DIVINE_SHIELD) > 0 ? CardKeywords.DivineShield : CardKeywords.None) |
             (metadata.GetTag(GAME_TAG.CHARGE) > 0 ? CardKeywords.Charge : CardKeywords.None) |
             (metadata.GetTag(GAME_TAG.RUSH) > 0 ? CardKeywords.Rush : CardKeywords.None) |
+            (metadata.GetTag(GAME_TAG.POISONOUS) > 0 ? CardKeywords.Poisonous : CardKeywords.None) |
+            (metadata.GetTag(GAME_TAG.LIFESTEAL) > 0 ? CardKeywords.Lifesteal : CardKeywords.None) |
             (castsWhenDrawn ? CardKeywords.CastsWhenDrawn : CardKeywords.None);
         return new(definition, rules ?? EmptyRules) { Keywords = keywords, Overload = metadata.GetTag(GAME_TAG.OVERLOAD) };
     }
