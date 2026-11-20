@@ -9,25 +9,14 @@ public static class StarterCardCatalog
     private static readonly Lazy<ImmutableArray<SimulationCard>> BuiltInCards = new(() =>
     {
         using var stream = typeof(StarterCardCatalog).Assembly.GetManifestResourceStream("Silverfish.Simulation.StarterCardData.json")
-            ?? throw new InvalidOperationException("The built-in starter card data is missing.");
+            ?? throw new InvalidOperationException("缺少内置 starter 卡牌数据。");
         return FromCardData(CardDataCatalog.LoadJson(stream));
     });
 
     public static ImmutableArray<SimulationCard> Cards => BuiltInCards.Value;
 
     public static ImmutableArray<SimulationCard> FromCardData(CardDataCatalog catalog) =>
-        CreateCards(cardId => CreateCard(catalog.GetCard(cardId)));
-
-    private static SimulationCard CreateCard(CardMetadata metadata)
-    {
-        const int windfury = 189, taunt = 190, divineShield = 194, charge = 197, overload = 215, rush = 791;
-        var keywords = (metadata.GetTag(windfury) > 0 ? CardKeywords.Windfury : CardKeywords.None) |
-            (metadata.GetTag(taunt) > 0 ? CardKeywords.Taunt : CardKeywords.None) |
-            (metadata.GetTag(divineShield) > 0 ? CardKeywords.DivineShield : CardKeywords.None) |
-            (metadata.GetTag(charge) > 0 ? CardKeywords.Charge : CardKeywords.None) |
-            (metadata.GetTag(rush) > 0 ? CardKeywords.Rush : CardKeywords.None);
-        return new(metadata.ToDefinition()) { Keywords = keywords, Overload = metadata.GetTag(overload) };
-    }
+        CreateCards(cardId => SimulationCard.FromMetadata(catalog.GetCard(cardId)));
 
     private static ImmutableArray<SimulationCard> CreateCards(Func<string, SimulationCard> define) =>
     [

@@ -21,7 +21,7 @@ public sealed class SimulationTurnPlanner(GameSimulator simulator, Func<GameStat
     public TurnPlan Plan(GameState root, int depth = 5, int beamWidth = 16, int transitionLimit = 512)
     {
         if (depth < 1 || beamWidth < 1 || transitionLimit < 1)
-            throw new ArgumentOutOfRangeException(nameof(depth), "Search limits must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(depth), "搜索深度、保留分支数和结算次数上限必须大于零。");
 
         var perspective = root.ActivePlayer;
         var transitions = 0;

@@ -155,7 +155,7 @@ public sealed partial class GameSimulationTests
         var error = Assert.Throws<InvalidOperationException>(() =>
             simulator.Apply(state, new(SimulationActionKind.Attack, First, new EntityId(11), new EntityId(21))));
 
-        Assert.Contains("resolution budget", error.Message);
+        Assert.Contains("结算预算", error.Message);
         Assert.Equal(GameZone.Play, state.LocationOf(new EntityId(21)).Zone);
         Assert.Equal(4, state.Entities.Count);
     }

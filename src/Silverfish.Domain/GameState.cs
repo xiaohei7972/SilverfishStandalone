@@ -97,11 +97,32 @@ public sealed class GameState
     internal static GameState Create(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
         PlayerId activePlayer, int turn, IEnumerable<MinionDeath>? minionDeaths, ulong randomState)
     {
-        var byPlayer = players.Select(p => NormalizeMana(p ?? throw new ArgumentException("Null player.")))
-            .ToImmutableDictionary(p => p.Id);
-        var byEntity = entities.ToImmutableDictionary(e => (e ?? throw new ArgumentException("Null entity.")).Id);
+        if (players is null)
+            throw new ArgumentNullException(nameof(players), "必须提供玩家列表。");
+        if (entities is null)
+            throw new ArgumentNullException(nameof(entities), "必须提供实体列表。");
+
+        var playerIndex = ImmutableDictionary.CreateBuilder<PlayerId, PlayerState>();
+        foreach (var player in players)
+        {
+            if (player is null)
+                throw new ArgumentException("玩家列表中存在空条目。", nameof(players));
+            if (!playerIndex.TryAdd(player.Id, NormalizeMana(player)))
+                throw new ArgumentException($"玩家 ID {player.Id.Value} 重复。", nameof(players));
+        }
+        var byPlayer = playerIndex.ToImmutable();
+
+        var entityIndex = ImmutableDictionary.CreateBuilder<EntityId, GameEntity>();
+        foreach (var entity in entities)
+        {
+            if (entity is null)
+                throw new ArgumentException("实体列表中存在空条目。", nameof(entities));
+            if (!entityIndex.TryAdd(entity.Id, entity))
+                throw new ArgumentException($"实体 ID {entity.Id} 重复。", nameof(entities));
+        }
+        var byEntity = entityIndex.ToImmutable();
         if (byPlayer.Count != 2 || !byPlayer.ContainsKey(activePlayer) || turn < 1)
-            throw new ArgumentException("A match needs two players, an active player, and a positive turn number.");
+            throw new ArgumentException("对局需要两名玩家、有效的当前回合玩家和大于零的回合数。");
 
         var locations = ImmutableDictionary.CreateBuilder<EntityId, EntityLocation>();
         var playOrders = new HashSet<long>();
@@ -109,37 +130,37 @@ public sealed class GameState
         {
             if (!player.In(GameZone.Play).Contains(player.Hero) ||
                 !byEntity.TryGetValue(player.Hero, out var hero) || hero.Character is null)
-                throw new ArgumentException($"Player {player.Id.Value} must have a hero in play.");
+                throw new ArgumentException($"玩家 {player.Id.Value} 必须有一名在场英雄。");
             if (player.EquippedWeapon is EntityId equipped && (!player.In(GameZone.Play).Contains(equipped) ||
                 !byEntity.TryGetValue(equipped, out var weapon) || weapon.Weapon is not { Durability: > 0 }))
-                throw new ArgumentException($"Player {player.Id.Value} has an invalid equipped weapon.");
+                throw new ArgumentException($"玩家 {player.Id.Value} 装备的武器无效。");
             if (player.In(GameZone.HeroPower).Length > 1 ||
                 (player.In(GameZone.HeroPower).IsEmpty && player.HeroPowerUsesThisTurn != 0))
-                throw new ArgumentException($"Player {player.Id.Value} has an invalid hero power slot.");
+                throw new ArgumentException($"玩家 {player.Id.Value} 的英雄技能区域或使用次数无效。");
 
             foreach (var zone in player.Zones)
             {
                 if (!Enum.IsDefined(zone.Key) || zone.Value.IsDefault)
-                    throw new ArgumentException("Each zone must be initialized and have a known kind.");
+                    throw new ArgumentException($"玩家 {player.Id.Value} 存在未初始化或类型未知的区域。");
 
                 foreach (var id in zone.Value)
                 {
                     if (!byEntity.TryGetValue(id, out var entity))
-                        throw new ArgumentException($"Zone references absent entity {id}.");
+                        throw new ArgumentException($"区域引用了不存在的实体 {id}。");
                     ValidateEntity(entity, byPlayer);
                     if (entity.Controller != player.Id || !locations.TryAdd(id, new(player.Id, zone.Key)))
-                        throw new ArgumentException($"Entity {id} needs exactly one zone for its controller.");
+                        throw new ArgumentException($"实体 {id} 必须位于其控制者的一个且仅一个区域中。");
 
                     var hasActiveOrder = zone.Key == GameZone.Secret ||
                         (zone.Key == GameZone.Play && (entity.Character is not null || entity.Weapon is not null));
                     if (hasActiveOrder &&
                         (entity.PlayOrder is not > 0 || !playOrders.Add(entity.PlayOrder.Value)))
-                        throw new ArgumentException($"In-play entity {id} needs a unique positive entry order.");
+                        throw new ArgumentException($"实体 {id} 的进场顺序必须为正数，且不能与其他实体重复。");
                 }
             }
         }
         if (locations.Count != byEntity.Count)
-            throw new ArgumentException("Every registered entity must have a zone.");
+            throw new ArgumentException("每个已登记的实体都必须位于一个区域。");
 
         var deaths = minionDeaths?.ToImmutableList() ?? ImmutableList<MinionDeath>.Empty;
         var deathTurn = 1;
@@ -147,7 +168,7 @@ public sealed class GameState
         {
             if (death is null || death.Turn < deathTurn || death.Turn > turn || string.IsNullOrWhiteSpace(death.CardId) ||
                 !byEntity.ContainsKey(death.Entity) || !byPlayer.ContainsKey(death.Controller))
-                throw new ArgumentException("Invalid minion death history.", nameof(minionDeaths));
+                throw new ArgumentException("随从死亡记录无效。", nameof(minionDeaths));
             deathTurn = death.Turn;
         }
 
@@ -161,7 +182,7 @@ public sealed class GameState
     public PlayerId OpponentOf(PlayerId player)
     {
         if (!Players.ContainsKey(player))
-            throw new KeyNotFoundException($"Unknown player {player.Value}.");
+            throw new KeyNotFoundException($"对局中找不到玩家 {player.Value}。");
         return Players.Keys.Single(id => id != player);
     }
 
@@ -171,7 +192,7 @@ public sealed class GameState
         var origin = LocationOf(id);
         var entity = Entities[id];
         if (Players[origin.Player].Hero == id && destination.Player != origin.Player)
-            throw new InvalidOperationException("The hero slot cannot be transferred as a card.");
+            throw new InvalidOperationException("英雄不能作为卡牌转移。");
 
         var sourcePlayer = Players[origin.Player];
         if (sourcePlayer.EquippedWeapon == id && origin != destination)
@@ -201,7 +222,7 @@ public sealed class GameState
     {
         if (!Entities.TryGetValue(entity.Id, out var current) || entity.Owner != current.Owner ||
             entity.Controller != current.Controller || entity.PlayOrder != current.PlayOrder)
-            throw new ArgumentException("Entity identity and location can only change through structural edits.", nameof(entity));
+            throw new ArgumentException("实体标识和位置只能通过对局结构操作更改。", nameof(entity));
         ValidateEntity(entity, Players);
         return new GameState(Players, Entities.SetItem(entity.Id, entity), _locations,
             ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
@@ -216,7 +237,7 @@ public sealed class GameState
         ValidateEntity(entity, Players);
         var entersPlay = zone == GameZone.Play;
         if (entity.Id.Value != NextEntity || entersPlay != (entity.Character is not null || entity.Weapon is not null))
-            throw new ArgumentException("A new entity needs the next unused ID and components compatible with its zone.");
+            throw new ArgumentException("新实体必须使用下一个可用 ID，且其组件必须符合所在区域的要求。");
 
         var player = Players[entity.Controller];
         var contents = player.In(zone);
@@ -231,7 +252,7 @@ public sealed class GameState
     {
         var current = Players[player.Id];
         if (player.Zones != current.Zones || player.Hero != current.Hero || player.EquippedWeapon != current.EquippedWeapon || player.ManaSpent is null)
-            throw new ArgumentException("A resource update requires the same zones, hero and weapon, and explicit mana counters.", nameof(player));
+            throw new ArgumentException("更新资源时需要保留区域、英雄和武器，并明确提供法力计数。", nameof(player));
         ValidateResources(player);
         return UpdatePlayer(player);
     }
@@ -239,7 +260,7 @@ public sealed class GameState
     internal GameState EquipWeapon(PlayerId player, EntityId id)
     {
         if (LocationOf(id) != new EntityLocation(player, GameZone.Play) || Entities[id].Weapon is not { Durability: > 0 })
-            throw new ArgumentException("An equipped weapon needs positive durability and must be in play.", nameof(id));
+            throw new ArgumentException("武器必须位于场上，且耐久大于零，才能装备。", nameof(id));
         return UpdatePlayer(Players[player] with { EquippedWeapon = id });
     }
 
@@ -259,7 +280,7 @@ public sealed class GameState
     internal GameState Finish(PlayerId? winner)
     {
         if (winner is PlayerId id && !Players.ContainsKey(id))
-            throw new ArgumentException("The winner must be a player in this match.", nameof(winner));
+            throw new ArgumentException("胜者必须是本局的玩家。", nameof(winner));
         return new GameState(Players, Entities, _locations, ActivePlayer, Turn, NextEntity, NextPlayOrder,
             winner is null ? MatchOutcome.Draw : MatchOutcome.Won, winner, MinionDeaths, RandomState);
     }
@@ -267,7 +288,7 @@ public sealed class GameState
     private static PlayerState SetZone(PlayerState player, GameZone zone, ImmutableArray<EntityId> contents)
     {
         if (!Enum.IsDefined(zone))
-            throw new ArgumentOutOfRangeException(nameof(zone));
+            throw new ArgumentOutOfRangeException(nameof(zone), "对局区域无效。");
         return player with { Zones = player.Zones.SetItem(zone, contents) };
     }
 
@@ -277,7 +298,7 @@ public sealed class GameState
             player.MaximumManaCrystals < 1 || player.ManaCrystals > player.MaximumManaCrystals ||
             player.Fatigue < 0 || player.HeroPowerUsesThisTurn is < 0 or > 1 || player.ManaSpent is < 0 ||
             player.TemporaryMana < 0 || player.OverloadLocked < 0 || player.OverloadOwed < 0)
-            throw new ArgumentException("Invalid player ID or resource values.");
+            throw new ArgumentException("玩家 ID 或资源数值无效。");
     }
 
     private static PlayerState NormalizeMana(PlayerState player)
@@ -298,12 +319,12 @@ public sealed class GameState
         if (entity.Id.Value < 0 || string.IsNullOrWhiteSpace(entity.CardId) ||
             !players.ContainsKey(entity.Owner) || !players.ContainsKey(entity.Controller) || entity.PlayOrder is < 1 ||
             entity.Enchantments.IsDefault || entity.AuraGrants.IsDefault || entity.CostModifiers.IsDefault)
-            throw new ArgumentException("Invalid entity identity, owner, controller, or entry order.");
+            throw new ArgumentException($"实体 {entity.Id} 的标识、拥有者、控制者或进场顺序无效。");
         if (entity.Character is { } character)
             ValidateCharacter(character);
         if (entity.Weapon is { } weapon && (entity.Character is not null || weapon.Attack < 0 || weapon.Durability < 0 ||
             weapon.MaximumDurability < 1 || weapon.Durability > weapon.MaximumDurability || weapon.AttacksThisTurn < 0))
-            throw new ArgumentException("Invalid weapon stats.");
+            throw new ArgumentException($"实体 {entity.Id} 的武器属性无效。");
     }
 
     private static void ValidateCharacter(CharacterState character)
@@ -311,6 +332,6 @@ public sealed class GameState
         if (character.Attack < 0 || character.MaximumHealth < 1 || character.Damage < 0 ||
             character.Armor < 0 || character.AttacksThisTurn < 0 ||
             character.BaseAttack is < 0 || character.BaseMaximumHealth is < 1)
-            throw new ArgumentException("Invalid character stats.");
+            throw new ArgumentException("角色属性无效。");
     }
 }

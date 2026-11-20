@@ -2,10 +2,7 @@ using Silverfish.Contracts;
 
 namespace Silverfish.Core;
 
-/// <summary>
-/// Strategy implementations consume complete snapshots and never acquire game
-/// process handles, use game assemblies, or execute game actions.
-/// </summary>
+/// <summary>根据完整快照返回动作建议。读取进程和执行游戏动作由调用方负责。</summary>
 public interface IStrategyEngine
 {
     string Name { get; }

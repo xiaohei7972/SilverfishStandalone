@@ -106,14 +106,13 @@ public sealed record CardPlayChoice(string Id, ImmutableArray<CardEffect> Effect
     public PlayRequirements Requirements { get; init; }
 }
 
-public sealed record SimulationCard(CardDefinition Definition)
+/// <summary>与卡牌印刷属性分开定义的结算规则。</summary>
+public record CardRules
 {
-    public CardKeywords Keywords { get; init; }
     public TargetRequirement Target { get; init; }
     public PlayRequirements Requirements { get; init; }
     public int MinimumEnemyMinions { get; init; }
     public int MinimumTotalMinions { get; init; }
-    public int Overload { get; init; }
     public bool IsSecret { get; init; }
     public ImmutableArray<CardEffect> OnPlay { get; init; } = [];
     public ImmutableArray<CardPlayChoice> Choices { get; init; } = [];
@@ -121,6 +120,35 @@ public sealed record SimulationCard(CardDefinition Definition)
     public ImmutableArray<CardEffect> WhenDrawn { get; init; } = [];
     public ImmutableArray<CardTrigger> Triggers { get; init; } = [];
     public ImmutableArray<StatAura> Auras { get; init; } = [];
+}
+
+public sealed record SimulationCard : CardRules
+{
+    private static readonly CardRules EmptyRules = new();
+
+    public SimulationCard(CardDefinition Definition) => this.Definition = Definition;
+
+    private SimulationCard(CardDefinition definition, CardRules rules) : base(rules) => Definition = definition;
+
+    public CardDefinition Definition { get; init; }
+    public CardKeywords Keywords { get; init; }
+    public int Overload { get; init; }
+
+    public void Deconstruct(out CardDefinition definition) => definition = Definition;
+
+    public static SimulationCard FromMetadata(CardMetadata metadata, CardRules? rules = null)
+    {
+        if (metadata is null)
+            throw new ArgumentNullException(nameof(metadata), "必须提供卡牌资料。");
+
+        const int windfury = 189, taunt = 190, divineShield = 194, charge = 197, overload = 215, rush = 791;
+        var keywords = (metadata.GetTag(windfury) > 0 ? CardKeywords.Windfury : CardKeywords.None) |
+            (metadata.GetTag(taunt) > 0 ? CardKeywords.Taunt : CardKeywords.None) |
+            (metadata.GetTag(divineShield) > 0 ? CardKeywords.DivineShield : CardKeywords.None) |
+            (metadata.GetTag(charge) > 0 ? CardKeywords.Charge : CardKeywords.None) |
+            (metadata.GetTag(rush) > 0 ? CardKeywords.Rush : CardKeywords.None);
+        return new(metadata.ToDefinition(), rules ?? EmptyRules) { Keywords = keywords, Overload = metadata.GetTag(overload) };
+    }
 
     internal CharacterState CreateCharacter() => new(Definition.PrintedAttack, Definition.PrintedHealth,
         Exhausted: Definition.Kind == EntityKind.Minion,

@@ -55,19 +55,19 @@ public sealed class CardDataCatalog
     private CardDataCatalog(int sourceBuild, IEnumerable<CardMetadata> cards)
     {
         if (sourceBuild <= 0)
-            throw new InvalidDataException("Card data requires a positive source build.");
+            throw new InvalidDataException("卡牌数据的来源构建号必须大于零。");
 
         var byCardId = ImmutableDictionary.CreateBuilder<string, CardMetadata>(StringComparer.Ordinal);
         var byDbfId = ImmutableDictionary.CreateBuilder<int, CardMetadata>();
         foreach (var card in cards)
         {
             if (card is null || string.IsNullOrWhiteSpace(card.CardId) || card.DbfId <= 0 || card.Tags is null)
-                throw new InvalidDataException("Card metadata must contain a card ID, positive DBF ID and numeric tags.");
+                throw new InvalidDataException("卡牌资料必须包含卡牌 ID、正整数 DBF ID 和数值标签。");
             if (!byCardId.TryAdd(card.CardId, card) || !byDbfId.TryAdd(card.DbfId, card))
-                throw new InvalidDataException($"Duplicate card ID or DBF ID for '{card.CardId}' ({card.DbfId}).");
+                throw new InvalidDataException($"卡牌「{card.CardId}」（DBF ID {card.DbfId}）的卡牌 ID 或 DBF ID 重复。");
         }
         if (byCardId.Count == 0)
-            throw new InvalidDataException("Card data must contain at least one card.");
+            throw new InvalidDataException("卡牌目录至少要包含一张卡牌。");
 
         SourceBuild = sourceBuild;
         _byCardId = byCardId.ToImmutable();
@@ -79,10 +79,10 @@ public sealed class CardDataCatalog
     public ImmutableArray<CardMetadata> Cards { get; }
 
     public CardMetadata GetCard(string cardId) => _byCardId.TryGetValue(cardId, out var card)
-        ? card : throw new InvalidDataException($"Card '{cardId}' is missing from build {SourceBuild}.");
+        ? card : throw new InvalidDataException($"构建 {SourceBuild} 的目录中找不到卡牌「{cardId}」。");
 
     public CardMetadata GetCard(int dbfId) => _byDbfId.TryGetValue(dbfId, out var card)
-        ? card : throw new InvalidDataException($"DBF ID {dbfId} is missing from build {SourceBuild}.");
+        ? card : throw new InvalidDataException($"构建 {SourceBuild} 的目录中找不到 DBF ID {dbfId}。");
 
     public CardDataCatalog SelectCards(IEnumerable<string> cardIds) => new(SourceBuild, cardIds.Select(GetCard));
 
@@ -91,15 +91,15 @@ public sealed class CardDataCatalog
         using var reader = XmlReader.Create(source, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit });
         var root = XDocument.Load(reader).Root;
         if (root?.Name != "CardDefs" || (int?)root.Attribute("build") is not int build)
-            throw new InvalidDataException("Expected a CardDefs document with a build number.");
+            throw new InvalidDataException("请输入带有构建号的 CardDefs 文档。");
 
         return new(build, root.Elements("Entity").Select(ReadCard));
     }
 
     private static CardMetadata ReadCard(XElement entity)
     {
-        var cardId = (string?)entity.Attribute("CardID") ?? throw new InvalidDataException("An XML entity has no CardID.");
-        var dbfId = (int?)entity.Attribute("ID") ?? throw new InvalidDataException($"Card '{cardId}' has no DBF ID.");
+        var cardId = (string?)entity.Attribute("CardID") ?? throw new InvalidDataException("有卡牌实体缺少 CardID。");
+        var dbfId = (int?)entity.Attribute("ID") ?? throw new InvalidDataException($"卡牌「{cardId}」缺少 DBF ID。");
         var tags = ImmutableSortedDictionary.CreateBuilder<int, int>();
         LocalizedCardText? name = null;
         LocalizedCardText? text = null;
@@ -117,7 +117,7 @@ public sealed class CardDataCatalog
                     text = localized;
             }
             if (id is int key && (int?)tag.Attribute("value") is int value && !tags.TryAdd(key, value))
-                throw new InvalidDataException($"Card '{cardId}' has duplicate numeric tag {key}.");
+                throw new InvalidDataException($"卡牌「{cardId}」的数值标签 {key} 重复。");
         }
         return new(cardId, dbfId, name, text, tags.ToImmutable());
     }
@@ -126,7 +126,7 @@ public sealed class CardDataCatalog
     {
         var data = JsonSerializer.Deserialize<CatalogFile>(source, JsonOptions);
         if (data is null || data.SchemaVersion != SchemaVersion || data.Cards.IsDefault)
-            throw new InvalidDataException($"Expected card data schema version {SchemaVersion}.");
+            throw new InvalidDataException($"卡牌目录必须使用格式版本 {SchemaVersion} 并包含 cards 列表。");
         return new(data.SourceBuild, data.Cards);
     }
 

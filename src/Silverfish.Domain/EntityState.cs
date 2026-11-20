@@ -79,32 +79,32 @@ public sealed record EntityState
     public void Validate()
     {
         if (Id.Value < 0)
-            throw new ArgumentException("An entity must have a known non-negative ID.");
+            throw new ArgumentException("实体必须有非负 ID。");
         if (string.IsNullOrWhiteSpace(CardId))
-            throw new ArgumentException("CardId is required.");
+            throw new ArgumentException("实体必须提供 CardId。");
         if (Kind == EntityKind.Unknown || Side == PlayerSide.Unknown || Zone == EntityZone.Unknown)
-            throw new ArgumentException("Kind, side and zone must be explicit.");
+            throw new ArgumentException("实体必须明确指定类型、所属阵营和区域。");
         if (Position < 0)
-            throw new ArgumentException("Zone position cannot be negative.");
+            throw new ArgumentException("实体在区域内的位置不能为负数。");
         if (Combat is { } c && (c.Attack < 0 || c.Health < 0 ||
             c.MaximumHealth < 1 || c.Health > c.MaximumHealth ||
             c.Armor < 0 || c.AttacksThisTurn < 0))
-            throw new ArgumentException("Invalid combat stats.");
+            throw new ArgumentException("实体的战斗属性无效。");
         if (Cost is { } cost && (cost.PrintedCost < 0 || cost.CurrentCost < 0))
-            throw new ArgumentException("Invalid mana cost.");
+            throw new ArgumentException("实体的法力费用无效。");
         if (Equipment is { } w && (w.Attack < 0 || w.Durability < 0 ||
             w.MaximumDurability < 1 || w.Durability > w.MaximumDurability ||
             w.AttacksThisTurn < 0))
-            throw new ArgumentException("Invalid weapon stats.");
+            throw new ArgumentException("武器属性无效。");
 
         if (Zone == EntityZone.Battlefield &&
             Kind is EntityKind.Hero or EntityKind.Minion && Combat is null)
-            throw new ArgumentException("A battlefield hero or minion needs combat stats.");
+            throw new ArgumentException("场上的英雄和随从必须提供战斗属性。");
         if (Zone == EntityZone.Weapon && Equipment is null)
-            throw new ArgumentException("An equipped weapon needs weapon stats.");
+            throw new ArgumentException("已装备的武器必须提供武器属性。");
         if (EnchantmentCardIds.IsDefault)
-            throw new ArgumentException("EnchantmentCardIds cannot be an uninitialized array.");
+            throw new ArgumentException("必须初始化附魔卡牌 ID 列表。");
         if (Keywords is null || Counters is null || RawTags is null)
-            throw new ArgumentException("Mechanics collections cannot be null.");
+            throw new ArgumentException("必须提供标签、关键词和计数器集合。");
     }
 }

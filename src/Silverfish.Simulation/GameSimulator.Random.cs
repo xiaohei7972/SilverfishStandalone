@@ -9,7 +9,8 @@ public sealed partial class GameSimulator
     /// <remarks>预测保留输入的回放种子。实际推进对局时调用 Apply。</remarks>
     public SimulationDistribution ApplyDistribution(GameState state, SimulationAction action, int workLimit = 64)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(workLimit, 1);
+        if (workLimit < 1)
+            throw new ArgumentOutOfRangeException(nameof(workLimit), "随机结算预算必须大于零。");
         EnsureLegal(state, action);
         var paths = new Stack<RandomPath>();
         paths.Push(new([], 1));
@@ -112,7 +113,7 @@ public sealed partial class GameSimulator
                 RandomCharacterPool.EnemyCharacters => _state.Players[enemy].In(GameZone.Play),
                 RandomCharacterPool.OtherCharacters => _state.Players.Values.SelectMany(player => player.In(GameZone.Play))
                     .Where(id => id != context.Source),
-                _ => throw new InvalidOperationException("Unknown random damage pool.")
+                _ => throw new InvalidOperationException("无法识别随机伤害的目标范围。")
             };
             return candidates.Where(id => IsLivingCharacter(id)).OrderBy(id => _state.Entities[id].PlayOrder);
         }

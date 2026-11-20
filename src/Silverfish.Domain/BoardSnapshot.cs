@@ -16,14 +16,16 @@ public sealed class BoardSnapshot
 
     public static BoardSnapshot Create(IEnumerable<EntityState> entities)
     {
-        ArgumentNullException.ThrowIfNull(entities);
+        if (entities is null)
+            throw new ArgumentNullException(nameof(entities), "必须提供快照实体集合。");
         var builder = ImmutableDictionary.CreateBuilder<EntityId, EntityState>();
         foreach (var entity in entities)
         {
-            ArgumentNullException.ThrowIfNull(entity);
+            if (entity is null)
+                throw new ArgumentNullException(nameof(entity), "快照实体不能为空。");
             entity.Validate();
             if (builder.ContainsKey(entity.Id))
-                throw new ArgumentException($"Duplicate entity ID {entity.Id}.");
+                throw new ArgumentException($"实体 ID {entity.Id} 重复。");
             builder.Add(entity.Id, entity);
         }
         return new BoardSnapshot(builder.ToImmutable());
@@ -32,17 +34,18 @@ public sealed class BoardSnapshot
     public EntityState Get(EntityId id) =>
         _entities.TryGetValue(id, out var entity)
             ? entity
-            : throw new KeyNotFoundException($"Entity {id} is not in this snapshot.");
+            : throw new KeyNotFoundException($"此快照中找不到实体 {id}。");
 
     public bool TryGet(EntityId id, out EntityState? entity)
         => _entities.TryGetValue(id, out entity);
 
     public BoardSnapshot Replace(EntityState entity)
     {
-        ArgumentNullException.ThrowIfNull(entity);
+        if (entity is null)
+            throw new ArgumentNullException(nameof(entity), "必须提供要替换的实体。");
         entity.Validate();
         if (!_entities.ContainsKey(entity.Id))
-            throw new KeyNotFoundException($"Cannot replace absent entity {entity.Id}.");
+            throw new KeyNotFoundException($"无法替换快照中缺失的实体 {entity.Id}。");
         return new BoardSnapshot(_entities.SetItem(entity.Id, entity));
     }
 
@@ -55,7 +58,7 @@ public sealed class BoardSnapshot
     public BoardSnapshot Remove(EntityId id)
     {
         if (!_entities.ContainsKey(id))
-            throw new KeyNotFoundException($"Cannot remove absent entity {id}.");
+            throw new KeyNotFoundException($"无法移除快照中缺失的实体 {id}。");
         return new BoardSnapshot(_entities.Remove(id));
     }
 }

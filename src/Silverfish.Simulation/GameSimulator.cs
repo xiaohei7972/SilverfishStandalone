@@ -15,15 +15,18 @@ public sealed partial class GameSimulator
 
     public GameSimulator(IEnumerable<SimulationCard> cards, int resolutionLimit = 4096)
     {
-        ArgumentNullException.ThrowIfNull(cards);
-        ArgumentOutOfRangeException.ThrowIfLessThan(resolutionLimit, 1);
+        if (cards is null)
+            throw new ArgumentNullException(nameof(cards), "必须提供模拟卡牌目录。");
+        if (resolutionLimit < 1)
+            throw new ArgumentOutOfRangeException(nameof(resolutionLimit), "结算预算必须大于零。");
         _resolutionLimit = resolutionLimit;
         var catalog = ImmutableDictionary.CreateBuilder<string, SimulationCard>(StringComparer.Ordinal);
         foreach (var card in cards)
         {
             if (card?.Definition is not { } definition || string.IsNullOrWhiteSpace(definition.CardId))
-                throw new ArgumentException("A simulation card needs a definition and card ID.", nameof(cards));
-            catalog.Add(definition.CardId, card);
+                throw new ArgumentException("模拟卡牌必须提供定义和卡牌 ID。", nameof(cards));
+            if (!catalog.TryAdd(definition.CardId, card))
+                throw new ArgumentException($"模拟卡牌 ID「{definition.CardId}」重复。", nameof(cards));
         }
         _cards = catalog.ToImmutable();
         foreach (var card in _cards.Values)
@@ -47,7 +50,7 @@ public sealed partial class GameSimulator
                     !card.OnPlay.IsDefaultOrEmpty || definition.Kind is not (EntityKind.Minion or EntityKind.Spell))) ||
                 (card.IsSecret && (definition.Kind != EntityKind.Spell || card.Target != TargetRequirement.None ||
                     !card.OnPlay.IsDefaultOrEmpty || card.Triggers.Length != 1)))
-                throw new ArgumentException($"Invalid simulation card '{definition.CardId}'.", nameof(cards));
+                throw new ArgumentException($"模拟卡牌「{definition.CardId}」的定义无效。", nameof(cards));
 
             ValidateEffects(card, card.OnPlay, card.Target, hasInPlaySource: IsCharacter(definition.Kind));
             ValidateEffects(card, card.Deathrattle);
@@ -58,14 +61,14 @@ public sealed partial class GameSimulator
                 if (choice is null || string.IsNullOrWhiteSpace(choice.Id) || !choiceIds.Add(choice.Id) ||
                     !Enum.IsDefined(choice.Target) || (choice.Requirements & ~SupportedPlayRequirements) != 0 ||
                     choice.Effects.IsDefaultOrEmpty)
-                    throw new ArgumentException($"Invalid choice for '{definition.CardId}'.", nameof(cards));
+                    throw new ArgumentException($"卡牌「{definition.CardId}」的抉择选项无效。", nameof(cards));
                 ValidateEffects(card, choice.Effects, choice.Target, hasInPlaySource: definition.Kind == EntityKind.Minion);
             }
             foreach (var aura in card.Auras)
             {
                 if (aura is null || !Enum.IsDefined(aura.Recipients) ||
                     aura.Modifier?.Mode != StatModifierMode.Add || !IsValidModifier(aura.Modifier))
-                    throw new ArgumentException($"Invalid stat aura on '{definition.CardId}'.", nameof(cards));
+                    throw new ArgumentException($"卡牌「{definition.CardId}」的属性光环无效。", nameof(cards));
             }
             foreach (var trigger in card.Triggers)
             {
@@ -78,7 +81,7 @@ public sealed partial class GameSimulator
                     (trigger.Timing is TriggerTiming.TurnStarted or TriggerTiming.TurnEnded &&
                         (trigger.EntityMatch != TriggerEntityMatch.Any || trigger.EntityKind is not null || trigger.RequireLivingEntity)) ||
                     trigger.Effects.IsDefaultOrEmpty)
-                    throw new ArgumentException($"Invalid trigger on '{definition.CardId}'.", nameof(cards));
+                    throw new ArgumentException($"卡牌「{definition.CardId}」的触发规则无效。", nameof(cards));
                 ValidateEffects(card, trigger.Effects, timing: trigger.Timing,
                     hasInPlaySource: IsCharacter(definition.Kind));
             }
@@ -93,15 +96,15 @@ public sealed partial class GameSimulator
         {
             if (GetCard(death.CardId).Definition.Kind != EntityKind.Minion ||
                 Card(state.Entities[death.Entity]).Definition.Kind != EntityKind.Minion)
-                throw new ArgumentException("Death history must reference minions.", nameof(minionDeaths));
+                throw new ArgumentException("死亡记录必须引用随从。", nameof(minionDeaths));
         }
         foreach (var player in state.Players.Values)
         {
             if (player.In(GameZone.Hand).Length > HandLimit || MinionCount(state, player.Id) > BoardLimit)
-                throw new ArgumentException("An initial zone exceeds its capacity.");
+                throw new ArgumentException($"玩家 {player.Id.Value} 的初始手牌数或场上随从数超过上限。");
             var secrets = player.In(GameZone.Secret);
             if (secrets.Length > SecretLimit || secrets.Select(id => state.Entities[id].CardId).Distinct(StringComparer.Ordinal).Count() != secrets.Length)
-                throw new ArgumentException("An initial secret zone exceeds its capacity or contains a duplicate.");
+                throw new ArgumentException($"玩家 {player.Id.Value} 的初始奥秘数量超过上限，或存在重复的奥秘。");
         }
 
         foreach (var entity in state.Entities.Values)
@@ -121,9 +124,9 @@ public sealed partial class GameSimulator
                 (location.Zone != GameZone.Hand && !entity.CostModifiers.IsEmpty) ||
                 ((location.Zone != GameZone.Play || entity.Character is null) &&
                     (!entity.Enchantments.IsEmpty || !entity.AuraGrants.IsEmpty)))
-                throw new ArgumentException($"Entity {entity.Id} is incompatible with its card definition or zone.");
+                throw new ArgumentException($"实体 {entity.Id} 的状态与卡牌定义或所在区域不符。");
             if (entity.CostModifiers.Any(cost => cost is null || !state.Entities.ContainsKey(cost.Source) || cost.Delta == 0))
-                throw new ArgumentException($"Entity {entity.Id} has an invalid mana cost modifier.");
+                throw new ArgumentException($"实体 {entity.Id} 的费用修正无效。");
             ValidateStatLayers(state, entity);
         }
         return RefreshAuras(state);
@@ -131,7 +134,8 @@ public sealed partial class GameSimulator
 
     public ImmutableArray<SimulationAction> LegalActions(GameState state)
     {
-        ArgumentNullException.ThrowIfNull(state);
+        if (state is null)
+            throw new ArgumentNullException(nameof(state), "必须提供对局状态。");
         if (state.Outcome != MatchOutcome.InProgress)
             return [];
 
@@ -219,9 +223,10 @@ public sealed partial class GameSimulator
 
     private void EnsureLegal(GameState state, SimulationAction action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        if (action is null)
+            throw new ArgumentNullException(nameof(action), "必须提供要结算的动作。");
         if (!LegalActions(state).Contains(action))
-            throw new InvalidOperationException($"Illegal action {action.Kind} for player {action.Actor.Value}.");
+            throw new InvalidOperationException($"玩家 {action.Actor.Value} 当前不能执行动作「{action.Kind}」。");
     }
 
     private IEnumerable<EntityId?> PlayTargets(GameState state, TargetRequirement requirement)
@@ -287,7 +292,7 @@ public sealed partial class GameSimulator
     private SimulationCard Card(GameEntity entity) => GetCard(entity.CardId);
     private SimulationCard GetCard(string cardId) => _cards.TryGetValue(cardId, out var card)
         ? card
-        : throw new ArgumentException($"Card '{cardId}' has no implementation in this rules catalog.");
+        : throw new ArgumentException($"此规则目录缺少卡牌「{cardId}」的模拟实现。");
 
     private int MinionCount(GameState state, PlayerId player) => BoardMinions(state, player).Count();
 
@@ -310,7 +315,7 @@ public sealed partial class GameSimulator
         TriggerTiming? timing = null, bool hasInPlaySource = false)
     {
         if (effects.IsDefault)
-            throw new ArgumentException("Effect arrays must be initialized.");
+            throw new ArgumentException($"卡牌「{card.Definition.CardId}」的效果列表必须初始化。");
         var hasCharacterSubject = timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
             TriggerTiming.AfterMinionPlayed or TriggerTiming.Damage or TriggerTiming.HeroAttacking or TriggerTiming.AttackProposed;
         foreach (var effect in effects)
@@ -368,7 +373,7 @@ public sealed partial class GameSimulator
                 _ => false
             };
             if (!valid)
-                throw new ArgumentException($"Invalid effect on '{card.Definition.CardId}'.");
+                throw new ArgumentException($"卡牌「{card.Definition.CardId}」的效果定义无效。");
         }
     }
 }

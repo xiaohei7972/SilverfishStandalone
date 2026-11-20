@@ -1,9 +1,6 @@
 namespace Silverfish.Contracts;
 
-/// <summary>
-/// A transport-independent, observable game state. Version 1 is intentionally
-/// small; it does not attempt to represent all rules of modern Hearthstone.
-/// </summary>
+/// <summary>与传输方式无关的可观察对局快照。版本 1 提供候选动作决策所需的基础字段。</summary>
 public sealed record GameSnapshot
 {
     public int SchemaVersion { get; init; } = 1;
@@ -12,7 +9,7 @@ public sealed record GameSnapshot
     public GamePhase Phase { get; init; }
     public bool IsOurTurn { get; init; }
     public int AvailableMana { get; init; }
-    // Optional snapshot fields; required by the limited classic BoardTester adapter.
+    // 这些字段在快照中可选，经典 BoardTester 适配器需要它们。
     public int? MaximumMana { get; init; }
     public int? EnemyHandCount { get; init; }
     public int? EnemyDeckCount { get; init; }
@@ -48,7 +45,7 @@ public sealed record MinionSnapshot
 {
     public int EntityId { get; init; }
     public string CardId { get; init; } = string.Empty;
-    // Only used by the legacy Chinese BoardTester text format.
+    // 供经典 BoardTester 的中文文本格式使用。
     public string CardNameZh { get; init; } = string.Empty;
     public int Attack { get; init; }
     public int Health { get; init; }

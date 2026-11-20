@@ -2,10 +2,7 @@ using Silverfish.Contracts;
 
 namespace Silverfish.Core;
 
-/// <summary>
-/// Small deterministic pipeline smoke-test engine. This is NOT Silverfish's
-/// original playfield simulation, search, or card evaluator.
-/// </summary>
+/// <summary>按固定规则为输入的候选动作打分，用于验证快照决策接口。</summary>
 public sealed class BaselineStrategyEngine : IStrategyEngine
 {
     public string Name => "baseline-v1-not-silverfish";
@@ -14,14 +11,15 @@ public sealed class BaselineStrategyEngine : IStrategyEngine
         GameSnapshot snapshot,
         CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        if (cancellationToken.IsCancellationRequested)
+            throw new OperationCanceledException("快照决策已取消。", cancellationToken);
         SnapshotValidator.Validate(snapshot);
 
         if (!snapshot.IsOurTurn || snapshot.Phase != GamePhase.Main)
-            return Task.FromResult(NoDecision(snapshot, "No main-phase decision is required."));
+            return Task.FromResult(NoDecision(snapshot, "当前阶段无需选择动作。"));
 
         if (snapshot.LegalActions.Count == 0)
-            return Task.FromResult(NoDecision(snapshot, "No supplied legal action candidates."));
+            return Task.FromResult(NoDecision(snapshot, "快照未提供可选动作。"));
 
         var ranking = snapshot.LegalActions
             .Select(action => new ScoredAction
@@ -41,7 +39,7 @@ public sealed class BaselineStrategyEngine : IStrategyEngine
             Engine = Name,
             ChosenAction = best.Action,
             Score = best.Score,
-            Reason = "Baseline fixture scoring only; not a Silverfish search result.",
+            Reason = "根据快照中的候选动作进行基线评分。",
             Alternatives = ranking.Take(5).ToArray()
         });
     }
@@ -78,8 +76,7 @@ public sealed class BaselineStrategyEngine : IStrategyEngine
             var effectiveHealth = Math.Max(0, snapshot.EnemyHero.Health) +
                                   Math.Max(0, snapshot.EnemyHero.Armor);
 
-            // Simple direct-damage approximation. It does not model immunity,
-            // secrets, prevention, reactive triggers or other game mechanics.
+            // 基线只按当前攻击力与英雄的生命和护甲估算直接伤害。
             return (attack > 0 && attack >= effectiveHealth ? 10000 : 0) + 50 + attack * 10;
         }
 

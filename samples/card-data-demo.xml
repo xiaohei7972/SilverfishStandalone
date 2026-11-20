@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CardDefs build="1">
+  <Entity CardID="training-blade" ID="9001">
+    <Tag enumID="202" value="7" />
+    <Tag enumID="48" value="2" />
+    <Tag enumID="47" value="2" />
+    <Tag enumID="45" value="2" />
+  </Entity>
+</CardDefs>

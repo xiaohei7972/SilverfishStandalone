@@ -262,7 +262,7 @@ public sealed partial class GameSimulator
                         DamageTarget.TriggerSubject => context.Subject!.Value,
                         DamageTarget.FriendlyHero => _state.Players[context.Controller].Hero,
                         DamageTarget.EnemyHero => _state.Players[_state.OpponentOf(context.Controller)].Hero,
-                        _ => throw new InvalidOperationException("Unknown damage target.")
+                        _ => throw new InvalidOperationException("无法识别伤害目标。")
                     };
                     PushOccurrence(work, Damage(context.Source, target, damage.Amount));
                     break;
@@ -418,7 +418,7 @@ public sealed partial class GameSimulator
         private void SpendResolutionStep()
         {
             if (_remainingSteps-- <= 0)
-                throw new InvalidOperationException("The action exceeded the simulator's resolution budget.");
+                throw new InvalidOperationException("动作超出模拟器的结算预算。");
         }
     }
 }

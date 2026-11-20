@@ -181,3 +181,27 @@ jobs:
               $strike.choice -ne 'strike' -or $strike.source.value -ne 12 -or $strike.target.value -ne 20) {
               throw 'Unexpected targeted choice replay or plan.'
           }
+      - name: Replay and plan with catalog-backed custom rules
+        shell: pwsh
+        run: |
+          $catalog = [System.IO.Path]::GetTempFileName()
+          try {
+              $import = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- import-card-data samples/card-data-demo.xml $catalog
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              if (($import -join "`n") -notmatch '已将构建 1 的 1 条卡牌资料导出') {
+                  throw '导入命令未显示预期的中文提示。'
+              }
+              $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -- plan samples/simulation-card-data.json --card-data $catalog
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $replay = ($json -join "`n") | ConvertFrom-Json
+              $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+              $weapon = $replay.entities | Where-Object { $_.id.value -eq 11 }
+              $attack = $replay.plan.actions[0]
+              if ($replay.cardDataBuild -ne 1 -or $replay.players[0].mana -ne 0 -or $hero.character.armor -ne 2 -or
+                  $weapon.weapon.durability -ne 2 -or $replay.plan.winProbability -ne 1 -or
+                  $attack.kind -ne 'attack' -or $attack.source.value -ne 10 -or $attack.target.value -ne 20) {
+                  throw '挂载外置卡牌资料后，回放或搜索结果与预期不符。'
+              }
+          } finally {
+              Remove-Item -LiteralPath $catalog
+          }

@@ -21,14 +21,14 @@ public sealed partial class GameSimulator
             if (enchantment is null || !state.Entities.ContainsKey(enchantment.Source) ||
                 !IsValidModifier(enchantment.Modifier) ||
                 (enchantment.ExpiresAfterTurn is int turn && turn < state.Turn))
-                throw new ArgumentException($"Entity {entity.Id} has an invalid stat enchantment.");
+                throw new ArgumentException($"实体 {entity.Id} 的属性附魔无效。");
         }
 
         foreach (var aura in entity.AuraGrants)
         {
             if (aura is null || !state.Entities.TryGetValue(aura.Source, out var source) || aura.Index < 0 ||
                 aura.Index >= Card(source).Auras.Length || aura.Modifier != Card(source).Auras[aura.Index].Modifier)
-                throw new ArgumentException($"Entity {entity.Id} has an invalid aura grant.");
+                throw new ArgumentException($"实体 {entity.Id} 获得的光环无效。");
         }
     }
 
@@ -133,7 +133,7 @@ public sealed partial class GameSimulator
                 StatTarget.FriendlyMinions => _rules.BoardMinions(_state, context.Controller),
                 StatTarget.AllMinions => _state.Players.Values.SelectMany(player => _rules.BoardMinions(_state, player.Id))
                     .OrderBy(id => _state.Entities[id].PlayOrder),
-                _ => throw new InvalidOperationException("Unknown stat enchantment target.")
+                _ => throw new InvalidOperationException("无法识别属性附魔的目标。")
             };
             var expires = effect.Duration == EnchantmentDuration.CurrentTurn ? _state.Turn : (int?)null;
             foreach (var id in targets.ToArray())

@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml;
@@ -6,6 +8,8 @@ using Silverfish.Core;
 using Silverfish.Domain;
 using Silverfish.Simulation;
 
+Console.OutputEncoding = Encoding.UTF8;
+
 var replay = (args.Length == 2 || (args.Length == 4 && args[2] == "--card-data")) &&
     args[0] is "simulate" or "plan";
 var plan = replay && args[0] == "plan";
@@ -13,7 +17,7 @@ var import = args.Length is 3 or 4 && args[0] == "import-card-data" &&
     (args.Length == 3 || args[3] == "--starter");
 if ((!replay && !import && args.Length != 1) || args[0] is "--help" or "-h")
 {
-    Console.Error.WriteLine("Usage: Silverfish.Cli <game-snapshot.json>");
+    Console.Error.WriteLine("用法  Silverfish.Cli <game-snapshot.json>");
     Console.Error.WriteLine("       Silverfish.Cli simulate <scenario.json> [--card-data <catalog.json>]");
     Console.Error.WriteLine("       Silverfish.Cli plan <scenario.json> [--card-data <catalog.json>]");
     Console.Error.WriteLine("       Silverfish.Cli import-card-data <CardDefs.xml> <catalog.json> [--starter]");
@@ -23,6 +27,7 @@ if ((!replay && !import && args.Length != 1) || args[0] is "--help" or "-h")
 var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
 {
     WriteIndented = true,
+    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
 };
@@ -39,26 +44,18 @@ try
     if (replay)
     {
         var scenario = await JsonSerializer.DeserializeAsync<SimulationScenario>(stream, options)
-            ?? throw new InvalidDataException("Input JSON must contain a simulation scenario.");
-        if (scenario.Cards is null || scenario.Players is null || scenario.Entities is null || scenario.Actions is null || scenario.MinionDeaths is null)
-            throw new InvalidDataException("Cards, players, entities, actions and minion deaths must be arrays.");
+            ?? throw new InvalidDataException("输入 JSON 必须包含模拟场景。");
+        if (scenario.Cards is null || scenario.CardRules is null || scenario.Players is null ||
+            scenario.Entities is null || scenario.Actions is null || scenario.MinionDeaths is null)
+            throw new InvalidDataException("卡牌、卡牌规则、玩家、实体、动作和随从死亡记录必须使用数组。");
         CardDataCatalog? cardData = null;
         if (args.Length == 4)
         {
-            if (scenario.CardSet != "starter")
-                throw new InvalidDataException("--card-data requires a scenario with the starter card set.");
             using var cardStream = File.OpenRead(args[3]);
             cardData = CardDataCatalog.LoadJson(cardStream);
         }
 
-        IEnumerable<SimulationCard> cards = scenario.CardSet switch
-        {
-            null => scenario.Cards,
-            "starter" when cardData is not null => StarterCardCatalog.FromCardData(cardData).Concat(scenario.Cards),
-            "starter" => StarterCardCatalog.Cards.Concat(scenario.Cards),
-            _ => throw new InvalidDataException($"Unknown card set '{scenario.CardSet}'.")
-        };
-        var simulator = new GameSimulator(cards);
+        var simulator = new GameSimulator(scenario.BindCards(cardData));
         var state = simulator.CreateGame(scenario.Players, scenario.Entities, scenario.ActivePlayer, scenario.Turn,
             scenario.MinionDeaths, scenario.RandomState);
         var steps = new List<SimulationStep>();
@@ -84,19 +81,49 @@ try
     }
 
     var snapshot = await JsonSerializer.DeserializeAsync<GameSnapshot>(stream, options)
-        ?? throw new InvalidDataException("Input JSON must contain a game snapshot object.");
+        ?? throw new InvalidDataException("输入 JSON 必须包含对局快照。");
 
     IStrategyEngine engine = new BaselineStrategyEngine();
     var decision = await engine.DecideAsync(snapshot);
     Console.WriteLine(JsonSerializer.Serialize(decision, options));
     return 0;
 }
-catch (Exception ex) when (ex is IOException or JsonException or XmlException or ArgumentException or
-    InvalidDataException or InvalidOperationException or FormatException or OverflowException)
+catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or XmlException or
+    ArgumentException or InvalidDataException or InvalidOperationException or KeyNotFoundException or
+    FormatException or OverflowException)
 {
-    var operation = import ? "import card data" : replay ? "simulate scenario" : "analyze snapshot";
-    Console.Error.WriteLine($"Cannot {operation}: {ex.Message}");
+    var operation = import ? "导入卡牌数据" : plan ? "搜索回合" : replay ? "回放场景" : "分析快照";
+    Console.Error.WriteLine($"{operation}失败。{DescribeFailure(ex)}");
     return 1;
+}
+
+static string DescribeFailure(Exception error) => error switch
+{
+    JsonException json => $"JSON 格式或字段值无效。字段 {json.Path ?? "$"}，第 {(json.LineNumber ?? 0) + 1} 行，" +
+        $"第 {(json.BytePositionInLine ?? 0) + 1} 个字节。",
+    XmlException xml => $"XML 格式无效。第 {xml.LineNumber} 行，第 {xml.LinePosition} 列。",
+    FileNotFoundException { FileName: { } path } => $"找不到文件「{path}」。",
+    FileNotFoundException => "找不到输入文件。",
+    DirectoryNotFoundException => "文件所在的目录不存在。",
+    UnauthorizedAccessException => "没有访问文件的权限。",
+    InvalidDataException => error.Message,
+    IOException => $"读写文件失败（错误代码 0x{error.HResult:X8}）。",
+    OverflowException => "数值超出可处理的范围。",
+    FormatException => "有字段的数值格式无效。",
+    KeyNotFoundException => "找不到引用的玩家、实体或区域。",
+    ArgumentException { ParamName: "path" or "fileName" } => "文件路径无效。",
+    ArgumentException { ParamName: { } name } argument => DescribeArgument(argument, name),
+    _ => error.Message
+};
+
+static string DescribeArgument(ArgumentException error, string name)
+{
+    // 运行时会按操作系统语言追加参数名。用中文显示该信息。
+    var suffix = new ArgumentException("_", name).Message[1..];
+    var message = error.Message;
+    return message.EndsWith(suffix, StringComparison.Ordinal)
+        ? $"{message[..^suffix.Length]}（参数 {name}）"
+        : $"参数 {name} 无效。";
 }
 
 static void ImportCardData(string input, string output, bool starterOnly)
@@ -104,7 +131,7 @@ static void ImportCardData(string input, string output, bool starterOnly)
     var outputPath = Path.GetFullPath(output);
     var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
     if (string.Equals(Path.GetFullPath(input), outputPath, comparison))
-        throw new ArgumentException("The output catalog must use a different path from the input XML.");
+        throw new ArgumentException("输出目录文件必须与输入 XML 使用不同的路径。");
 
     CardDataCatalog data;
     using (var source = File.OpenRead(input))
@@ -129,13 +156,14 @@ static void ImportCardData(string input, string output, bool starterOnly)
     {
         File.Delete(temporaryPath);
     }
-    Console.WriteLine($"Exported {data.Cards.Length} cards from build {data.SourceBuild} to {outputPath}");
+    Console.WriteLine($"已将构建 {data.SourceBuild} 的 {data.Cards.Length} 条卡牌资料导出到「{outputPath}」。");
 }
 
 internal sealed record SimulationScenario
 {
     public string? CardSet { get; init; }
     public SimulationCard[] Cards { get; init; } = [];
+    public CatalogCardRules[] CardRules { get; init; } = [];
     public required PlayerState[] Players { get; init; }
     public required GameEntity[] Entities { get; init; }
     public required PlayerId ActivePlayer { get; init; }
@@ -143,6 +171,38 @@ internal sealed record SimulationScenario
     public MinionDeath[] MinionDeaths { get; init; } = [];
     public ulong RandomState { get; init; }
     public required SimulationAction[] Actions { get; init; }
+
+    public IEnumerable<SimulationCard> BindCards(CardDataCatalog? cardData)
+    {
+        IEnumerable<SimulationCard> builtIn = CardSet switch
+        {
+            null => [],
+            "starter" when cardData is not null => StarterCardCatalog.FromCardData(cardData),
+            "starter" => StarterCardCatalog.Cards,
+            _ => throw new InvalidDataException($"无法识别卡牌集「{CardSet}」。")
+        };
+        if (CardRules.Length == 0)
+        {
+            if (cardData is not null && CardSet is null)
+                throw new InvalidDataException("使用 --card-data 时，场景必须指定 starter 卡牌集或提供 cardRules 条目。");
+            return builtIn.Concat(Cards);
+        }
+
+        if (cardData is null)
+            throw new InvalidDataException("使用 cardRules 时，请通过 --card-data <catalog.json> 指定卡牌目录。");
+        return builtIn.Concat(Cards).Concat(CardRules.Select(rules =>
+        {
+            if (string.IsNullOrWhiteSpace(rules?.CardId))
+                throw new InvalidDataException("每条 cardRules 规则必须提供 cardId。");
+            return SimulationCard.FromMetadata(cardData.GetCard(rules.CardId), rules);
+        }));
+    }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record CatalogCardRules : CardRules
+{
+    public required string CardId { get; init; }
 }
 
 internal sealed record SimulationStep(SimulationAction Action, IReadOnlyList<SimulationEvent> Events);
