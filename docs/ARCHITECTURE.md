@@ -2,6 +2,8 @@
 
 ## Independent simulation engine
 
+`SilverfishStandalone.sln` builds the independent simulator, its CLI, and its tests. The Windows x64 publish profile bundles the CLI with the .NET runtime and embedded starter data. The historical diagnostics build in a separate CI job.
+
 `Silverfish.Domain.GameState` stores stable player and entity IDs. Each player owns ordered zone indexes. The entity table stores the card reference, owner, controller and character state. An inverse index provides zone lookup. A structural edit replaces the related indexes together. Changing control preserves the entity ID and entrance order.
 
 The October 2026 client source provides a reference for identity, ownership and ordering. Its `GameState` looks up entities by ID, `Player` reaches its zones through `ZoneMgr`, and `Zone` maintains an ordered collection. The simulator keeps those relationships in immutable values so search branches can share unchanged state. Card resolution lives in `Silverfish.Simulation` and evaluation lives in `Silverfish.Core`.

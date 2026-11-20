@@ -1,5 +1,23 @@
 # SilverfishStandalone
 
+## 构建与发布
+
+使用 .NET 8 SDK 构建新模拟器和 CLI，并运行独立模拟器的测试。
+
+```powershell
+dotnet build SilverfishStandalone.sln -c Release
+dotnet test SilverfishStandalone.sln -c Release --no-build
+```
+
+发布内含 .NET 运行时的 Windows x64 单文件可执行程序。
+
+```powershell
+dotnet publish src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -p:PublishProfile=WindowsX64 -o artifacts/standalone-win-x64
+.\artifacts\standalone-win-x64\Silverfish.Cli.exe plan samples/simulation-random.json
+```
+
+## 回放样例
+
 新模拟器按玩家、区域和实体 ID 建模。可以用下面的命令回放从抽牌到亡语的完整样例，并查看最终局面、结算事件和可选动作。
 
 ```powershell
@@ -93,7 +111,12 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan artifacts/checkpoint.
 ## 快速回归
 
 ```powershell
-dotnet test tests/Silverfish.Domain.Tests/Silverfish.Domain.Tests.csproj -c Release
+dotnet test SilverfishStandalone.sln -c Release
+```
+
+经典导入工具的回归入口如下。
+
+```powershell
 python tools/test_import_classic.py
 python tools/test_normalize_classic.py
 ```
