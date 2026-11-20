@@ -22,7 +22,13 @@ public sealed partial class GameSimulator
             throw new ArgumentOutOfRangeException(nameof(workLimit), "随机结算预算必须大于零。");
     }
 
-    private SimulationDistribution RunDistribution(GameState state, SimulationAction action, int workLimit)
+    private SimulationDistribution RunDistribution(GameState state, SimulationAction action, int workLimit) =>
+        RunDistributionCore(randomChoice => new Resolution(this, state, randomChoice).Run(action), workLimit);
+
+    // This shared exact-branch / seeded-independent-sampling engine also supports
+    // explicit choice previews without leaking the live replay's random seed.
+    private static SimulationDistribution RunDistributionCore(
+        Func<Func<int, int>, SimulationResult> resolve, int workLimit)
     {
         var paths = new Stack<RandomPath>();
         paths.Push(new([], 1));
@@ -38,7 +44,7 @@ public sealed partial class GameSimulator
             resolutions++;
             try
             {
-                var result = new Resolution(this, state, Select).Run(action);
+                var result = resolve(Select);
                 outcomes.Add(new(result, path.Probability));
             }
             catch (UnresolvedRandomChoice choice)
@@ -64,7 +70,7 @@ public sealed partial class GameSimulator
         for (var index = 0; index < samples; index++)
         {
             var randomized = false;
-            var result = new Resolution(this, state, Sample).Run(action);
+            var result = resolve(Sample);
             resolutions++;
             if (!randomized)
                 return new([new(result, 1)], resolutions, IsExact: true);

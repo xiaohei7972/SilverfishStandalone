@@ -52,3 +52,35 @@ dotnet run --project src/Silverfish.Cli -c Release -- checkpoint samples/simulat
 ## 执行路径澄清：不通过 API 提交
 
 使用 `SimulationActionKind.ChooseOption` 是描述 AI 意图，不等于执行一次网络提交。选择真实执行时应交给 `UiChoiceInputPlanner` 构造按顺序点击实体、确认按钮检测和新状态校验的输入计划。所有实际操作由游戏内 `IInput / InputCollection` 虚拟输入执行器完成（参考 Ember 的 `VirtualInput`、`VirtualPointer`），不移动 Windows 系统鼠标，禁止使用 `SendInput` 等桌面输入驱动，也禁止直接调用游戏协议或客户端 `Network.SendChoices`。详见 [UI_INPUT_EXECUTION.md](UI_INPUT_EXECUTION.md)。
+
+## 第三阶段：已知效果离线预演（非权威状态）
+
+本阶段新增 **显式已知规则** 下的选择效果预测，但 `Apply(ChooseOption)` **仍然只提交意图**，继续等待新的权威快照；`SimulationDecisionEngine` 对未知选择保持拒绝猜测。预演不会更改传入的 `GameState`，返回的仍是标记为已提交的**假想分支**，不能作为客户端真实状态或后续动作的依据。
+
+- `ChoicePreviewRules` 是每个选择包的**独立规则输入**，必须匹配 `ChoiceId` 和 `EntityChoiceType`。若没有覆盖所有可选实体、缺少来源卡、或者不是已支持的 `GENERAL` / `TARGET`，预演拒绝执行。
+- `GENERAL` 可以为每个被展示的 EntityId 绑定明确的 `CardEffect` 数组；例如，已核实的发现候选通过 `CreateCardEffect("已知CardId")` 加入假想手牌。**不能**仅根据 CHOICE 的实体 ID 推断其 CardId 或效果。
+- `TARGET` 在已存在于局面中的场上角色之间执行有序选择，按提交顺序逐个结算明确的 `PerTargetEffects`；每次结算均走现有伤害、触发器、死亡和亡语流程。 `OPTION_TARGET` 仍然是另外一种动作，不混用。
+- `GameSimulator.PreviewChoiceDistribution` 利用模拟器同一套概率分支引擎，尝试精确枚举随机结果；预算不足时返回采样分布并标记非精确。`PreviewChoice` 只允许结果唯一且概率精确为 1 的选择。
+- `EntityChoiceForecastPlanner` 枚举所有合法的**有序**选法（包括允许的空选），按用户提供的局面评估函数对精确的选择效果分布打分；若组合数超过 `candidateLimit`，或某个选择的随机结果无法精确枚举，则**拒绝返回可能误导的最佳选择**。
+- 真实客户端发来下一个连续选择包后，可以用**新权威快照**再预演下一轮；本阶段没有自动伪造下一次 CHOICE 包，也没有通用的服务端结算暂停/恢复栈。特殊发现、泰坦、目标顺序和复杂效果仍须按真实卡牌逐张补规则并验证。
+
+示例（调用方已先核实发现候选和实际卡牌效果）：
+
+```csharp
+var rules = new ChoicePreviewRules(choiceId, EntityChoiceType.General)
+{
+    PerOptionEffects = ImmutableDictionary<EntityId, ImmutableArray<CardEffect>>.Empty
+        .Add(candidateA, [new CreateCardEffect("KNOWN_CARD_A")])
+        .Add(candidateB, [new CreateCardEffect("KNOWN_CARD_B")])
+};
+var forecast = new EntityChoiceForecastPlanner(simulator, SimulationMaterialEvaluator.Evaluate)
+    .Plan(pendingGameState, rules);
+if (forecast.IsComplete && forecast.Action is { } choice)
+{
+    // 这里只产生离线决策；Apply(choice) 仍不会自动执行卡牌效果或操作游戏客户端。
+    var intent = simulator.Apply(pendingGameState, choice);
+}
+```
+
+此阶段的 `CreateCardEffect` 是已知规则预演的具体例子，不代表所有发现都必然走这一种效果路径，也不证明程序能从未知客户端包自动识别候选卡。
+

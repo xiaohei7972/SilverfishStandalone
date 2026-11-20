@@ -152,6 +152,12 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan artifacts/checkpoint.
 
 群体治疗先完成所有目标的生命变化，再依照实体顺序处理 Overheal 触发器；治疗来源可以是敌方角色，但奖励归属于被治疗随从的控制者。现阶段覆盖通用模拟规则和固定测试，单张 Overheal 卡牌的具体奖励仍需逐张录入及校验。
 
+## 已知 CHOICE 效果的独立预演
+
+新增 `GameSimulator.PreviewChoiceDistribution` / `PreviewChoice` 和 `EntityChoiceForecastPlanner`：只有外部明确提供全部候选选项对应的 `ChoicePreviewRules`，才能离线试算 `GENERAL`（例如发现后获得一张已知卡）或 `TARGET`（按顺序逐个目标结算）的效果。随机结果按预算枚举，合法的有序选法按评估函数比较；如果不知道效果、缺包 ID、组合超预算或随机分支不精确，AI 不会猜测答案。
+
+**预演结果始终是假想状态。** `Apply(ChooseOption)` 行为未变：只提交有序实体 ID 意图，并等待下一份权威局面快照；不自动串联生成新的 CHOICE 包、不调用网络接口或控制 Windows 鼠标。详见 [EntityChoices 第三阶段](docs/ENTITY_CHOICES.md)。
+
 ## 后续重构路线
 
 1. 以已验收的 2026-11-05 版及固定牌面决策作为回归基线。
