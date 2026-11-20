@@ -30,6 +30,7 @@ dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulatio
 dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-random.json
 dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-mana.json
 dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-choices.json
+dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-conditions.json
 dotnet run --project src/Silverfish.Cli -c Release -- plan samples/simulation-combat.json
 ```
 
@@ -48,6 +49,8 @@ dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulatio
 武器和地标的初始耐久只读取 `HEALTH`（45）。只有旧耐久标签的条目仍可在导出的原始标签中查询。
 
 自定义场景可以在 `cardRules` 中以 `cardId` 指定目录条目，并填写对应的结算规则。类型、费用、基础数值、已支持的关键词和过载值由 `--card-data` 指定的目录提供。场景可以同时使用 `cards` 定义独立测试卡。
+
+效果可以通过 `conditional` 按角色生命、伤害、攻击、护甲或指定区域的实体数量选分支。触发器也支持同样的 `condition`，在发动前按当时的状态判断。
 
 ```powershell
 dotnet run --project src/Silverfish.Cli -c Release -- import-card-data samples/card-data-demo.xml artifacts/card-data/demo.json

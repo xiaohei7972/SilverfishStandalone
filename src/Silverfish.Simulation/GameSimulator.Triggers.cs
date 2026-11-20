@@ -130,6 +130,7 @@ public sealed partial class GameSimulator
                                     !CanCounterSpell(trigger.Context.Subject!.Value)) ||
                                 (listener.Trigger.RequiresBoardSpace && _rules.MinionCount(_state, listener.Controller) >= BoardLimit) ||
                                 (trigger.LivingEntity is EntityId living && !IsLivingCharacter(living)) ||
+                                (listener.Trigger.Condition is { } condition && !MeetsCondition(trigger.Context, condition)) ||
                                 !_activeTriggers.Add(listener.Id))
                                 break;
                             work.Push(new Complete(listener.Id));

@@ -44,6 +44,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
     public EntityKind? EntityKind { get; init; }
     public bool RequireLivingEntity { get; init; }
     public bool RequiresBoardSpace { get; init; }
+    public EffectCondition? Condition { get; init; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
@@ -70,6 +71,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(DestroyAllButOneMinionEffect), "destroyAllButOneMinion")]
 [JsonDerivedType(typeof(SummonRandomMinionEffect), "summonRandomMinion")]
 [JsonDerivedType(typeof(ChangeManaEffect), "changeMana")]
+[JsonDerivedType(typeof(ConditionalEffect), "conditional")]
 public abstract record CardEffect;
 
 public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect;
@@ -99,6 +101,11 @@ public sealed record DestroyAllButOneMinionEffect : CardEffect;
 public sealed record SummonRandomMinionEffect(ImmutableArray<string> CardIds) : CardEffect;
 public sealed record ChangeManaEffect(ManaOperation Operation, int Amount, ManaRecipient Recipient = ManaRecipient.Controller,
     string? OverflowCardId = null) : CardEffect;
+
+public sealed record ConditionalEffect(EffectCondition Condition, ImmutableArray<CardEffect> Then) : CardEffect
+{
+    public ImmutableArray<CardEffect> Otherwise { get; init; } = [];
+}
 
 public sealed record CardPlayChoice(string Id, ImmutableArray<CardEffect> Effects)
 {

@@ -80,6 +80,8 @@ public sealed partial class GameSimulator
                     (trigger.Timing is TriggerTiming.SpellCounterWindow or TriggerTiming.AttackProposed && !card.IsSecret) ||
                     (trigger.Timing is TriggerTiming.TurnStarted or TriggerTiming.TurnEnded &&
                         (trigger.EntityMatch != TriggerEntityMatch.Any || trigger.EntityKind is not null || trigger.RequireLivingEntity)) ||
+                    (trigger.Condition is not null && !IsValidCondition(trigger.Condition, TargetRequirement.None,
+                        HasCharacterSubject(trigger.Timing), IsCharacter(definition.Kind))) ||
                     trigger.Effects.IsDefaultOrEmpty)
                     throw new ArgumentException($"卡牌「{definition.CardId}」的触发规则无效。", nameof(cards));
                 ValidateEffects(card, trigger.Effects, timing: trigger.Timing,
@@ -333,10 +335,24 @@ public sealed partial class GameSimulator
     {
         if (effects.IsDefault)
             throw new ArgumentException($"卡牌「{card.Definition.CardId}」的效果列表必须初始化。");
-        var hasCharacterSubject = timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
-            TriggerTiming.AfterMinionPlayed or TriggerTiming.Damage or TriggerTiming.HeroAttacking or TriggerTiming.AttackProposed;
-        foreach (var effect in effects)
+        if (effects.IsEmpty)
+            return;
+        var hasCharacterSubject = HasCharacterSubject(timing);
+        var pending = new Stack<CardEffect>(effects);
+        while (pending.TryPop(out var effect))
         {
+            if (effect is ConditionalEffect conditional &&
+                IsValidCondition(conditional.Condition, target, hasCharacterSubject, hasInPlaySource) &&
+                !conditional.Then.IsDefault && !conditional.Otherwise.IsDefault &&
+                (!conditional.Then.IsEmpty || !conditional.Otherwise.IsEmpty))
+            {
+                foreach (var otherwise in conditional.Otherwise)
+                    pending.Push(otherwise);
+                foreach (var then in conditional.Then)
+                    pending.Push(then);
+                continue;
+            }
+
             var valid = effect switch
             {
                 DamageEffect damage => damage.Amount > 0 && (damage.Target switch
@@ -393,4 +409,8 @@ public sealed partial class GameSimulator
                 throw new ArgumentException($"卡牌「{card.Definition.CardId}」的效果定义无效。");
         }
     }
+
+    private static bool HasCharacterSubject(TriggerTiming? timing) =>
+        timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
+            TriggerTiming.AfterMinionPlayed or TriggerTiming.Damage or TriggerTiming.HeroAttacking or TriggerTiming.AttackProposed;
 }

@@ -50,6 +50,8 @@ Empty crystal gain preserves available mana, filled crystal gain can refill unus
 
 Each play choice can declare its own target and play requirements. A legal action records the chosen option and any selected target. The simulator applies only that option's effects. `samples/simulation-choices.json` replays an untargeted summon and plans a targeted strike from the same card definition.
 
+Conditional effects compare a living character's current stats or count entities in a player's zone. Each branch uses the same effect queue and preserves the parent effect context. Triggers evaluate their optional conditions immediately before activation. A secret whose condition fails stays armed. `samples/simulation-conditions.json` exercises a branch based on damage just dealt and a listener that checks the resulting armor.
+
 The offline replay and planner take a fully specified scenario, including both players' secrets. Hidden information modelling, forced attacks, alternate weapon durability rules, extra hero power uses, hero replacement, cost auras, conditional auras, automatic spell consumption and replacement draws, and advanced summon placements remain future work.
 
 ## Components

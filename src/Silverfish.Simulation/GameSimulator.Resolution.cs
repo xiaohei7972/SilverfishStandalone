@@ -334,6 +334,10 @@ public sealed partial class GameSimulator
                 case ChangeManaEffect mana:
                     ChangeMana(context, mana);
                     break;
+                case ConditionalEffect conditional:
+                    var branch = MeetsCondition(context, conditional.Condition) ? conditional.Then : conditional.Otherwise;
+                    PushEffects(work, context, branch);
+                    break;
             }
         }
 

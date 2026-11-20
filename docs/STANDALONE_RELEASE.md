@@ -5,6 +5,7 @@
 ```powershell
 .\Silverfish.Cli.exe --help
 .\Silverfish.Cli.exe simulate samples/simulation-combat.json
+.\Silverfish.Cli.exe simulate samples/simulation-conditions.json
 .\Silverfish.Cli.exe plan samples/simulation-random.json
 ```
 

@@ -239,6 +239,18 @@ jobs:
           } finally {
               Remove-Item -LiteralPath $directInput, $resumedInput
           }
+      - name: Replay conditional effects and trigger activation
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-conditions.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = ($json -join "`n") | ConvertFrom-Json
+          $hero = $result.entities | Where-Object { $_.id.value -eq 10 }
+          $unit = $result.entities | Where-Object { $_.id.value -eq 21 }
+          if ($hero.character.armor -ne 2 -or $unit.character.health -ne 2 -or
+              ($result.steps[0].events.kind -join ',') -ne 'cardPlayed,damage,armorGained,damage,triggered,damage') {
+              throw '条件分支或触发顺序与预期结果不符。'
+          }
       - name: Run published standalone executable outside the workspace
         shell: pwsh
         run: |
