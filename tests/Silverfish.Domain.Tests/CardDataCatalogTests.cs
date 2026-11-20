@@ -47,6 +47,32 @@ public sealed class CardDataCatalogTests
     }
 
     [Theory]
+    [InlineData(7, EntityKind.Weapon)]
+    [InlineData(39, EntityKind.Location)]
+    public void EquipmentTakesPrintedDurabilityOnlyFromHealthTag(int cardType, EntityKind kind)
+    {
+        using var xml = Utf8($"""
+            <CardDefs build="256589">
+              <Entity CardID="WITH_HEALTH" ID="1">
+                <Tag enumID="202" value="{cardType}" />
+                <Tag enumID="45" value="3" />
+                <Tag enumID="187" value="8" />
+              </Entity>
+              <Entity CardID="WITHOUT_HEALTH" ID="2">
+                <Tag enumID="202" value="{cardType}" />
+                <Tag enumID="187" value="8" />
+              </Entity>
+            </CardDefs>
+            """);
+        var data = CardDataCatalog.ImportXml(xml);
+
+        Assert.Equal(new CardDefinition("WITH_HEALTH", kind, 0, PrintedDurability: 3),
+            data.GetCard("WITH_HEALTH").ToDefinition());
+        Assert.Equal(new CardDefinition("WITHOUT_HEALTH", kind, 0),
+            data.GetCard("WITHOUT_HEALTH").ToDefinition());
+    }
+
+    [Theory]
     [InlineData("""{"schemaVersion":2,"sourceBuild":256589,"cards":[]}""")]
     [InlineData("""{"schemaVersion":1,"sourceBuild":256589,"cards":[{"cardId":"A","dbfId":2,"tags":{}},{"cardId":"B","dbfId":2,"tags":{}}]}""")]
     [InlineData("""{"schemaVersion":1,"sourceBuild":256589,"cards":[{"cardId":"A","dbfId":2,"tags":{}},{"cardId":"A","dbfId":3,"tags":{}}]}""")]

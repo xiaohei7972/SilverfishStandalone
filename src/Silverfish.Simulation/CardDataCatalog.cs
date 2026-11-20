@@ -18,7 +18,7 @@ public sealed record CardMetadata(
 
     public CardDefinition ToDefinition()
     {
-        const int cardType = 202, cost = 48, attack = 47, health = 45, legacyDurability = 187;
+        const int cardType = 202, cost = 48, attack = 47, health = 45;
         var kind = GetTag(cardType) switch
         {
             0 => EntityKind.Unknown,
@@ -32,10 +32,9 @@ public sealed record CardMetadata(
             _ => EntityKind.Other
         };
 
-        // 当前卡牌数据用 HEALTH 记录武器和地标的初始耐久。
+        // 武器和地标的初始耐久取自 HEALTH。
         return kind is EntityKind.Weapon or EntityKind.Location
-            ? new(CardId, kind, GetTag(cost), GetTag(attack),
-                PrintedDurability: Tags.GetValueOrDefault(health, GetTag(legacyDurability)))
+            ? new(CardId, kind, GetTag(cost), GetTag(attack), PrintedDurability: GetTag(health))
             : new(CardId, kind, GetTag(cost), GetTag(attack), GetTag(health));
     }
 }
