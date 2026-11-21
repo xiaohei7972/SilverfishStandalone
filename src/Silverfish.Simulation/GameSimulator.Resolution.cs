@@ -297,6 +297,14 @@ public sealed partial class GameSimulator
             if (occurrence is not { } happened)
                 return;
 
+            // Overheal and other non-damage event families keep their previous
+            // deferred listener registration; only batch damage is corrected here.
+            if (happened.Timing != TriggerTiming.Damage)
+            {
+                work.Push(new Dispatch(happened));
+                return;
+            }
+
             // Damage may be committed to several entities before any damage
             // triggers run (combat, AOE and distinct random batches). Register
             // eligible observers now: a minion summoned by the first damage
