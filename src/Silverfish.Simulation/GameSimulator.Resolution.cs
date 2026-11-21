@@ -205,8 +205,14 @@ public sealed partial class GameSimulator
                 });
             var retaliation = _rules.EffectiveAttack(_state, _state.Entities[target]);
             // A weapon may grant Poisonous or Lifesteal to hero combat damage.
-            var hit = Damage(source, target, _rules.EffectiveAttack(_state, attacker), weapon);
-            var counter = Damage(target, source, retaliation);
+            // Combat damage is simultaneous. Lifesteal must see retaliation
+            // before healing, otherwise a full-health attacking hero wastes
+            // the heal and incorrectly stays damaged after combat.
+            var lifesteal = new List<(EffectContext Context, int Amount)>();
+            var hit = Damage(source, target, _rules.EffectiveAttack(_state, attacker), weapon, lifesteal);
+            var counter = Damage(target, source, retaliation, deferredLifesteal: lifesteal);
+            foreach (var (healingContext, healingAmount) in lifesteal)
+                HealFriendlyHero(healingContext, healingAmount);
 
             // 先记录双方受到的伤害，再处理伤害事件的触发队列。
             var work = new Stack<Work>();
@@ -218,7 +224,8 @@ public sealed partial class GameSimulator
             SpendWeaponDurability(weapon);
         }
 
-        private Occurrence? Damage(EntityId? source, EntityId target, int amount, EntityId? attackingWeapon = null)
+        private Occurrence? Damage(EntityId? source, EntityId target, int amount, EntityId? attackingWeapon = null,
+            List<(EffectContext Context, int Amount)>? deferredLifesteal = null)
         {
             if (amount <= 0 || _state.LocationOf(target).Zone != GameZone.Play)
                 return null;
@@ -274,7 +281,11 @@ public sealed partial class GameSimulator
                 var keywordOwner = attackingWeapon is EntityId weaponId &&
                     _state.Entities.TryGetValue(weaponId, out var weaponEntity) &&
                     _rules.HasKeyword(weaponEntity, CardKeywords.Lifesteal) ? weaponId : sourceId;
-                HealFriendlyHero(new(keywordOwner, sourceEntity.Controller), amount);
+                var healContext = new EffectContext(keywordOwner, sourceEntity.Controller);
+                if (deferredLifesteal is null)
+                    HealFriendlyHero(healContext, amount);
+                else
+                    deferredLifesteal.Add((healContext, amount));
             }
 
             return new(TriggerTiming.Damage, entity.Controller, target,
