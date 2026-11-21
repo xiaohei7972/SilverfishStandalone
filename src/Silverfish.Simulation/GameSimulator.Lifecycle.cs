@@ -27,8 +27,7 @@ public sealed partial class GameSimulator
             var controller = entity.Controller;
             if (_state.Players[controller].In(GameZone.Hand).Length == HandLimit)
             {
-                var listeners = CaptureListeners();
-                _immediateDeaths.Add(RemoveDeadEntity(entity) with { ListenersAtDeath = listeners });
+                RemoveImmediately(entity);
                 return;
             }
 
@@ -92,6 +91,16 @@ public sealed partial class GameSimulator
         {
             work.Push(new Dispatch(new(TriggerTiming.AfterMinionSummoned, player, summoned)));
             work.Push(new Dispatch(new(TriggerTiming.WhenMinionSummoned, player, summoned)));
+        }
+
+        // Full-hand bounces and board-overflow control changes remove a minion
+        // before the regular death wave. Preserve the pre-removal observers and
+        // update their former aura recipients before the next queued effect.
+        private void RemoveImmediately(GameEntity entity)
+        {
+            var listeners = CaptureListeners();
+            _immediateDeaths.Add(RemoveDeadEntity(entity) with { ListenersAtDeath = listeners });
+            _state = _rules.RefreshAuras(_state);
         }
 
         private Death RemoveDeadEntity(GameEntity entity)

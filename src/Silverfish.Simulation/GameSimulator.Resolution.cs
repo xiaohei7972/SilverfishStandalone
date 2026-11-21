@@ -505,8 +505,7 @@ public sealed partial class GameSimulator
                 return;
             if (_rules.BoardSlotCount(_state, controller) >= BoardLimit)
             {
-                var listeners = CaptureListeners();
-                _immediateDeaths.Add(RemoveDeadEntity(entity) with { ListenersAtDeath = listeners });
+                RemoveImmediately(entity);
                 return;
             }
             _state = _state.Move(target, new(controller, GameZone.Play));
