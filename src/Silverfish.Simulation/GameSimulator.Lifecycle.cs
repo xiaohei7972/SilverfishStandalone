@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Silverfish.Domain;
 
 namespace Silverfish.Simulation;
@@ -9,7 +10,12 @@ public sealed partial class GameSimulator
         private readonly HashSet<EntityId> _pendingDestruction = [];
         private readonly List<Death> _immediateDeaths = [];
 
-        private sealed record Death(GameEntity Entity, int? BoardPosition);
+        private sealed record Death(GameEntity Entity, int? BoardPosition)
+        {
+            // The standard death wave takes one observer snapshot. Immediate
+            // removals instead retain the observers present when they died.
+            public ImmutableArray<Listener>? ListenersAtDeath { get; init; }
+        }
 
         private void ReturnMinion(Stack<Work> work, EffectContext context, ReturnMinionEffect effect)
         {
@@ -21,7 +27,8 @@ public sealed partial class GameSimulator
             var controller = entity.Controller;
             if (_state.Players[controller].In(GameZone.Hand).Length == HandLimit)
             {
-                _immediateDeaths.Add(RemoveDeadEntity(entity));
+                var listeners = CaptureListeners();
+                _immediateDeaths.Add(RemoveDeadEntity(entity) with { ListenersAtDeath = listeners });
                 return;
             }
 

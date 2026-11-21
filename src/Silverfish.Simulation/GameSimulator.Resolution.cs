@@ -505,7 +505,8 @@ public sealed partial class GameSimulator
                 return;
             if (_rules.BoardSlotCount(_state, controller) >= BoardLimit)
             {
-                _immediateDeaths.Add(RemoveDeadEntity(entity));
+                var listeners = CaptureListeners();
+                _immediateDeaths.Add(RemoveDeadEntity(entity) with { ListenersAtDeath = listeners });
                 return;
             }
             _state = _state.Move(target, new(controller, GameZone.Play));
@@ -535,8 +536,9 @@ public sealed partial class GameSimulator
                     wave.Add(RemoveDeadEntity(entity));
 
                 _state = _rules.RefreshAuras(_state);
-                foreach (var (entity, position) in wave.OrderBy(death => death.Entity.PlayOrder))
+                foreach (var death in wave.OrderBy(entry => entry.Entity.PlayOrder))
                 {
+                    var (entity, position) = death;
                     if (!entity.Enchantments.IsEmpty && _rules._enchantmentRemovalEffects.Count != 0)
                     {
                         var work = new Stack<Work>();
@@ -546,7 +548,8 @@ public sealed partial class GameSimulator
                     if (position is null && entity.Weapon is null)
                         continue;
                     var timing = position is not null ? TriggerTiming.MinionDied : TriggerTiming.WeaponDestroyed;
-                    var queue = Queue(new(timing, entity.Controller, entity.Id), listeners);
+                    var queue = Queue(new(timing, entity.Controller, entity.Id),
+                        death.ListenersAtDeath ?? listeners);
                     var effects = entity.Silenced ? [] : _rules.Card(entity).Deathrattle;
                     if (!effects.IsEmpty)
                         queue = queue.Append(new(new(entity.Id, entity.Controller, DeathPosition: position),
