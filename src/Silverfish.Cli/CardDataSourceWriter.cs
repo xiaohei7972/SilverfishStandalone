@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Silverfish.Domain.Client;
 using Silverfish.Simulation;
 
 namespace Silverfish.Cli;
@@ -48,6 +49,26 @@ internal static class CardDataSourceWriter
                 $"        {offset}, (int)EntityKind.{definition.Kind}, {definition.PrintedCost}, {definition.PrintedAttack}, {definition.PrintedHealth}, {definition.PrintedDurability}, (int)(CardKeywords.{keywords}), {card.Overload}, {unchecked((int)races)}, {(int)(races >> 32)}, {(int)definition.SpellSchool.GetValueOrDefault()}, {(int)definition.AlternateCost.GetValueOrDefault()}, // {id}"));
             offset += definition.CardId.Length;
         }
+        writer.WriteLine("    ];");
+        writer.WriteLine("    private static ReadOnlySpan<int> RequirementMasks =>");
+        writer.WriteLine("    [");
+        foreach (var chunk in data.Cards.Chunk(64))
+            writer.WriteLine($"        {string.Join(", ", chunk.Select(PlayReqTags.FromMetadata))},");
+        writer.WriteLine("    ];");
+        writer.WriteLine("    private static ReadOnlySpan<int> CollectibleMinionRows =>");
+        writer.WriteLine("    [");
+        var minions = data.Cards.Select((card, row) => (card, row))
+            .Where(entry => entry.card.ClientCardType == TAG_CARDTYPE.MINION && entry.card.GetTag(GAME_TAG.COLLECTIBLE) == 1 &&
+                entry.card.GetTag(GAME_TAG.TITAN) == 0 && entry.card.GetTag(GAME_TAG.HEALTH) > 0 &&
+                entry.card.ClientCardSet is not (TAG_CARD_SET.CORE_HIDDEN or TAG_CARD_SET.VANILLA))
+            .Select(entry => entry.row);
+        foreach (var chunk in minions.Chunk(64))
+            writer.WriteLine($"        {string.Join(", ", chunk)},");
+        writer.WriteLine("    ];");
+        writer.WriteLine("    private static ReadOnlySpan<int> CardClassMasks =>");
+        writer.WriteLine("    [");
+        foreach (var chunk in data.Cards.Chunk(64))
+            writer.WriteLine($"        {string.Join(", ", chunk.Select(card => unchecked((int)card.ToDefinition().ClassMask)))},");
         writer.WriteLine("""
                 ];
             }

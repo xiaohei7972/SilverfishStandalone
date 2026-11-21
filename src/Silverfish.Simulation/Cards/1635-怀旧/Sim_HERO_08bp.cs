@@ -1,3 +1,4 @@
+using Silverfish.Domain.Client;
 namespace Silverfish.Simulation.Cards;
 
 // 火焰冲击
@@ -7,9 +8,14 @@ namespace Silverfish.Simulation.Cards;
 [CardSim("HERO_08bp")]
 internal static class Sim_HERO_08bp
 {
+    // <legacy-play-requirements>
+    internal static PlayReqSet PlayReqs { get; } = new(
+        [new(ErrorType.REQ_TARGET_TO_PLAY)],
+        []);
+    // </legacy-play-requirements>
+
     internal static CardRules Rules { get; } = new()
     {
-        Target = TargetRequirement.Character,
         OnPlay = [new DamageEffect(DamageTarget.Selected, 1)]
     };
 }

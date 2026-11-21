@@ -45,7 +45,7 @@ public sealed partial class GameSimulator
             var entity = _state.Entities[id];
             _state = _state.UpdateEntity(entity with
             {
-                CardId = cardId, Character = _rules.GetCard(cardId).CreateCharacter(), Silenced = false,
+                CardId = cardId, Character = _rules.GetCard(cardId).CreateCharacter(), Silenced = false, Stealthed = null,
                 Enchantments = [], AuraGrants = []
             });
             _events.Add(new(SimulationEventKind.Transformed, entity.Controller, context.Source, id));

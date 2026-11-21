@@ -44,14 +44,18 @@ public sealed record CardMetadata(
         var equipment = kind is EntityKind.Weapon or EntityKind.Location;
         var health = GetTag(GAME_TAG.HEALTH);
         var alternateCost = ClientAlternateCost;
+        var classes = GetTag(GAME_TAG.MULTIPLE_CLASSES);
         return new(CardId, kind, GetTag(GAME_TAG.COST), GetTag(GAME_TAG.ATK),
             PrintedHealth: equipment ? 0 : health, PrintedDurability: equipment ? health : 0)
         {
             MinionTypes = kind == EntityKind.Minion ? CardTraitReader.ReadMinionTypes(this) : null,
             SpellSchool = CardTraitReader.ReadSpellSchool(this),
-            AlternateCost = alternateCost == TAG_CARD_ALTERNATE_COST.MANA ? null : alternateCost
+            AlternateCost = alternateCost == TAG_CARD_ALTERNATE_COST.MANA ? null : alternateCost,
+            ClassMask = classes != 0 ? unchecked((uint)classes) : ClassBit((TAG_CLASS)GetTag(GAME_TAG.CLASS))
         };
     }
+
+    internal static uint ClassBit(TAG_CLASS value) => (int)value is >= 1 and <= 32 ? 1U << ((int)value - 1) : 0;
 }
 
 /// <summary>通过卡牌 ID 或 DBF ID 查询同一构建的静态卡牌资料。</summary>

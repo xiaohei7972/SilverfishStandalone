@@ -2,8 +2,8 @@ namespace Silverfish.Simulation.Cards;
 
 // 小精灵
 // Wisp
-// （无）
-// （无）
+// 无卡面描述。
+// No card text.
 [CardSim("CS2_231")]
 internal static class Sim_CS2_231
 {

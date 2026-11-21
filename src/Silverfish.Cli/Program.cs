@@ -12,6 +12,7 @@ using Silverfish.Simulation;
 Console.OutputEncoding = Encoding.UTF8;
 
 var command = args.FirstOrDefault();
+var explain = command == "explain" && args.Length is 2 or 3;
 var simulationCommand = command is "simulate" or "plan" or "decide" or "checkpoint";
 var simulation = simulationCommand && (args.Length == 2 || (args.Length == 4 && args[2] == "--card-data"));
 var plan = simulation && command == "plan";
@@ -20,15 +21,16 @@ var checkpoint = simulation && command == "checkpoint";
 var import = command == "import-card-data" && args.Length is 3 or 4 &&
     (args.Length == 3 || args[3] == "--starter");
 var generateSim = command == "generate-sim" && args.Length >= 4;
-var snapshotInput = args.Length == 1 && !simulationCommand && command is not ("import-card-data" or "generate-sim") &&
+var snapshotInput = args.Length == 1 && !simulationCommand && command is not ("import-card-data" or "generate-sim" or "explain") &&
     command is not null && !command.StartsWith('-');
 var help = args.Length == 1 && command is "--help" or "-h";
-if (help || (!simulation && !import && !generateSim && !snapshotInput))
+if (help || (!explain && !simulation && !import && !generateSim && !snapshotInput))
 {
     var output = help ? Console.Out : Console.Error;
     if (!help)
         output.WriteLine("命令或参数无效。");
     output.WriteLine("用法  Silverfish.Cli <对局快照.json>");
+    output.WriteLine("       Silverfish.Cli explain <卡牌 ID> 或 explain <场景或存档.json> <来源实体 ID 或动作.json>");
     output.WriteLine("       Silverfish.Cli simulate <回放场景.json> [--card-data <卡牌目录.json>]");
     output.WriteLine("       Silverfish.Cli plan <搜索场景.json> [--card-data <卡牌目录.json>]");
     output.WriteLine("       Silverfish.Cli decide <决策请求.json> [--card-data <卡牌目录.json>]");
@@ -48,6 +50,37 @@ var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
 
 try
 {
+    if (explain)
+    {
+        object explanation;
+        if (args.Length == 2)
+        {
+            if (!PlayReqCatalog.Cards.TryGetValue(args[1], out var info))
+                throw new InvalidDataException($"卡牌「{args[1]}」缺少独立规则声明。");
+            explanation = info;
+        }
+        else
+        {
+            using var input = File.OpenRead(args[1]);
+            var scenario = JsonSerializer.Deserialize<SimulationScenario>(input, options)
+                ?? throw new InvalidDataException("必须提供模拟场景或存档。");
+            var (simulator, state) = scenario.CreateGame(null);
+            foreach (var step in scenario.Actions ?? [])
+                state = simulator.Apply(state, step).State;
+            if (int.TryParse(args[2], out var id))
+                explanation = simulator.ExplainSource(state, new(id));
+            else
+            {
+                using var candidate = File.OpenRead(args[2]);
+                var action = JsonSerializer.Deserialize<SimulationAction>(candidate, options)
+                    ?? throw new InvalidDataException("必须提供待检查的动作。");
+                var failure = simulator.CheckAction(state, action);
+                explanation = new { Action = action, Legal = failure is null, Failure = failure };
+            }
+        }
+        Console.WriteLine(JsonSerializer.Serialize(explanation, options));
+        return 0;
+    }
     if (import)
     {
         ImportCardData(args[1], args[2], args.Length == 4);
@@ -109,7 +142,7 @@ try
         Console.WriteLine(JsonSerializer.Serialize(new
         {
             state.Turn, state.ActivePlayer, state.Outcome, state.Winner,
-            state.MinionDeaths, state.RandomState,
+            state.MinionDeaths, state.RandomState, state.PendingPlayChoice,
             CardDataBuild = cardData?.SourceBuild ?? scenario.CompiledDataBuild,
             Players = state.Players.Values.OrderBy(player => player.Id.Value).ToArray(),
             Entities = state.Entities.Values.OrderBy(entity => entity.Id.Value).ToArray(),
@@ -132,7 +165,7 @@ catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or J
     ArgumentException or InvalidDataException or InvalidOperationException or KeyNotFoundException or
     FormatException or OverflowException)
 {
-    var operation = generateSim ? "生成 Sim" : import ? "导入卡牌数据" : decide ? "模拟决策" : plan ? "搜索回合" :
+    var operation = explain ? "解释动作" : generateSim ? "生成 Sim" : import ? "导入卡牌数据" : decide ? "模拟决策" : plan ? "搜索回合" :
         checkpoint ? "保存对局" : simulation ? "回放场景" : "分析快照";
     Console.Error.WriteLine($"{operation}失败。{DescribeFailure(ex)}");
     return 1;
@@ -213,6 +246,7 @@ internal record SimulationStateInput
     public string? CardSet { get; init; }
     public SimulationCard[] Cards { get; init; } = [];
     public CatalogCardRules[] CardRules { get; init; } = [];
+    public string[]? RandomMinionPool { get; init; }
     public required PlayerState[] Players { get; init; }
     public required GameEntity[] Entities { get; init; }
     public required PlayerId ActivePlayer { get; init; }
@@ -223,6 +257,7 @@ internal record SimulationStateInput
     public long? NextPlayOrder { get; init; }
     public MatchOutcome? Outcome { get; init; }
     public PlayerId? Winner { get; init; }
+    public PendingPlayChoice? PendingPlayChoice { get; init; }
 
     internal int? CompiledDataBuild => CardSet == "starter" || CardRules.Length != 0 ? CompiledCardData.Build : null;
 
@@ -230,6 +265,7 @@ internal record SimulationStateInput
     {
         StateVersion = CurrentStateVersion,
         Cards = simulator.Cards.Values.OrderBy(card => card.Definition.CardId, StringComparer.Ordinal).ToArray(),
+        RandomMinionPool = simulator.RandomMinionPool?.ToArray(),
         Players = state.Players.Values.OrderBy(player => player.Id.Value).ToArray(),
         Entities = state.Entities.Values.OrderBy(entity => entity.Id.Value).ToArray(),
         ActivePlayer = state.ActivePlayer,
@@ -239,7 +275,8 @@ internal record SimulationStateInput
         NextEntity = state.NextEntity,
         NextPlayOrder = state.NextPlayOrder,
         Outcome = state.Outcome,
-        Winner = state.Winner
+        Winner = state.Winner,
+        PendingPlayChoice = state.PendingPlayChoice
     };
 
     public (GameSimulator Simulator, GameState State) CreateGame(CardDataCatalog? cardData)
@@ -248,7 +285,14 @@ internal record SimulationStateInput
             throw new InvalidDataException("卡牌、卡牌规则、玩家、实体和随从死亡记录必须使用数组。");
 
         var continuation = ReadContinuation();
-        var simulator = new GameSimulator(BindCards(cardData));
+        var cards = BindCards(cardData).ToArray();
+        if (cardData is not null && RandomMinionPool is { Length: > 0 } pool)
+        {
+            var missing = pool.Except(cards.Select(card => card.Definition.CardId), StringComparer.Ordinal).ToHashSet(StringComparer.Ordinal);
+            cards = [.. cards, .. cardData.Cards.Where(card => missing.Contains(card.CardId))
+                .Select(card => SimulationCard.FromMetadata(card) with { EffectPending = true })];
+        }
+        var simulator = new GameSimulator(cards, randomMinionPool: RandomMinionPool);
         var state = continuation is null
             ? simulator.CreateGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState)
             : simulator.RestoreGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState, continuation);
@@ -259,7 +303,7 @@ internal record SimulationStateInput
     {
         if (StateVersion is null)
         {
-            if (NextEntity is not null || NextPlayOrder is not null || Outcome is not null || Winner is not null)
+            if (NextEntity is not null || NextPlayOrder is not null || Outcome is not null || Winner is not null || PendingPlayChoice is not null)
                 throw new InvalidDataException("存档必须提供 stateVersion。");
             return null;
         }
@@ -267,7 +311,7 @@ internal record SimulationStateInput
             throw new InvalidDataException($"不支持对局存档版本 {StateVersion}。");
         if (NextEntity is not int entity || NextPlayOrder is not long order || Outcome is not MatchOutcome outcome)
             throw new InvalidDataException("存档必须提供下一个实体 ID、下一个进场顺序和对局结果。");
-        return new(entity, order, outcome, Winner);
+        return new(entity, order, outcome, Winner) { PendingPlayChoice = PendingPlayChoice };
     }
 
     private IEnumerable<SimulationCard> BindCards(CardDataCatalog? cardData)

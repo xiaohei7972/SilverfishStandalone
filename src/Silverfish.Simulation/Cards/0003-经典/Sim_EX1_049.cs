@@ -1,3 +1,4 @@
+using Silverfish.Domain.Client;
 namespace Silverfish.Simulation.Cards;
 
 // 年轻的酒仙
@@ -7,9 +8,14 @@ namespace Silverfish.Simulation.Cards;
 [CardSim("EX1_049")]
 internal static class Sim_EX1_049
 {
+    // <legacy-play-requirements>
+    internal static PlayReqSet PlayReqs { get; } = new(
+        [new(ErrorType.REQ_NONSELF_TARGET), new(ErrorType.REQ_MINION_TARGET), new(ErrorType.REQ_FRIENDLY_TARGET), new(ErrorType.REQ_TARGET_IF_AVAILABLE)],
+        []);
+    // </legacy-play-requirements>
+
     internal static CardRules Rules { get; } = new()
     {
-        Target = TargetRequirement.FriendlyMinion,
         OnPlay = [new ReturnMinionEffect()]
     };
 }

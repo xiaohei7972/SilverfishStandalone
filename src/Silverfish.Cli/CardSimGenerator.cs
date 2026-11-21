@@ -1,11 +1,15 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Silverfish.Domain;
+using Silverfish.Domain.Client;
 using Silverfish.Simulation;
 
 namespace Silverfish.Cli;
 
 internal static class CardSimGenerator
 {
+    private static readonly Regex DescriptionTemplate = new(@"\A(?:\{\d+\}\s*)+\z");
+
     internal static void Generate(string input, string cardsDirectory, IEnumerable<string> cardIds)
     {
         using var source = File.OpenRead(input);
@@ -17,7 +21,7 @@ internal static class CardSimGenerator
         };
 
         var root = Path.GetFullPath(cardsDirectory);
-        var files = cardIds.Distinct(StringComparer.Ordinal).Select(cardId => GenerateFile(catalog.GetCard(cardId), root)).ToArray();
+        var files = cardIds.Distinct(StringComparer.Ordinal).Select(cardId => GenerateFile(catalog.GetCard(cardId), catalog, root)).ToArray();
         if (files.Select(file => Path.GetFileName(file.Path)).Distinct(StringComparer.OrdinalIgnoreCase).Count() != files.Length)
             throw new ArgumentException("指定的卡牌 ID 会生成同名文件。");
 
@@ -54,7 +58,7 @@ internal static class CardSimGenerator
         Console.WriteLine($"构建 {catalog.SourceBuild}，新增 {created} 个 Sim 文件，保留 {files.Length - created} 个现有文件。");
     }
 
-    private static (string Path, string Content) GenerateFile(CardMetadata metadata, string root)
+    private static (string Path, string Content) GenerateFile(CardMetadata metadata, CardDataCatalog catalog, string root)
     {
         var id = metadata.CardId;
         if (id.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '_'))
@@ -73,17 +77,34 @@ internal static class CardSimGenerator
         var instruction = kind switch
         {
             EntityKind.Enchantment => "按附魔行为选择规则类型。属性附魔的额外移除效果在 StatEnchantmentRule.OnRemoved 中声明。",
-            EntityKind.Location => "在 Activation 中定义地标激活的目标和效果。",
-            _ => "在此声明本卡的目标、触发和效果。"
+            EntityKind.Location => "激活条件写在类的静态 PlayReqs.Ability 中，激活效果写在这里的 Activation 中。",
+            _ => "出牌条件写在类的静态 PlayReqs.Play 中，触发与结算效果写在这里。"
         };
         var registration = enchantment ? "// 规则由施加附魔的单卡 Sim 引用。" : $"// [CardSim(\"{id}\")]";
+        var chineseName = FormatCardText(metadata.Name?.ZhCn) ?? $"卡名未收录（{id}）";
+        var englishName = FormatCardText(metadata.Name?.EnUs) ?? $"Name unavailable ({id})";
+        var chineseText = FormatCardText(metadata.Text?.ZhCn);
+        var englishText = FormatCardText(metadata.Text?.EnUs);
+        var chineseTemplate = IsDescriptionTemplate(chineseText);
+        var englishTemplate = IsDescriptionTemplate(englishText);
+        if (chineseTemplate || englishTemplate)
+        {
+            var description = kind == EntityKind.Location ? FindLocationDescription(metadata, catalog) : null;
+            if (chineseTemplate)
+                chineseText = ResolveDescriptionTemplate(description?.ZhCn, "卡库仅提供描述模板。");
+            if (englishTemplate)
+                englishText = ResolveDescriptionTemplate(description?.EnUs, "Card data contains only a description template.");
+        }
+        var chineseDescription = chineseText ?? (englishText is null ? "无卡面描述。" : "中文卡面描述未收录。");
+        var englishDescription = englishText ?? (chineseText is null ? "No card text." : "English card text unavailable.");
         var content = $$"""
             namespace Silverfish.Simulation.Cards{{suffix}};
 
-            // {{FormatCardText(metadata.Name?.ZhCn)}}
-            // {{FormatCardText(metadata.Name?.EnUs)}}
-            // {{FormatCardText(metadata.Text?.ZhCn)}}
-            // {{FormatCardText(metadata.Text?.EnUs)}}
+            // {{chineseName}}
+            // {{englishName}}
+            // {{chineseDescription}}
+            // {{englishDescription}}
+
             {{registration}}
             internal static class Sim_{{id}}
             {
@@ -95,21 +116,43 @@ internal static class CardSimGenerator
         return (Path.Combine(directory, $"Sim_{id}.cs"), content + "\n");
     }
 
-    private static string FormatCardText(string? text)
+    private static LocalizedCardText? FindLocationDescription(CardMetadata metadata, CardDataCatalog catalog)
+    {
+        var matches = catalog.Cards.Where(candidate =>
+            candidate.GetTag(GAME_TAG.CARDTYPE) == (int)TAG_CARDTYPE.LOCATION &&
+            candidate.GetTag(GAME_TAG.COLLECTIBLE) == 1 &&
+            candidate.ClientCardSet == metadata.ClientCardSet &&
+            candidate.GetTag(GAME_TAG.CLASS) == metadata.GetTag(GAME_TAG.CLASS) &&
+            candidate.GetTag(GAME_TAG.COST) == metadata.GetTag(GAME_TAG.COST) &&
+            candidate.GetTag(GAME_TAG.HEALTH) == metadata.GetTag(GAME_TAG.HEALTH) &&
+            candidate.Name == metadata.Name)
+            .Take(2).ToArray();
+        return matches.Length == 1 ? matches[0].Text : null;
+    }
+
+    private static bool IsDescriptionTemplate(string? text) => text is not null && DescriptionTemplate.IsMatch(text);
+
+    private static string ResolveDescriptionTemplate(string? text, string fallback)
+    {
+        var description = FormatCardText(text);
+        return description is null || IsDescriptionTemplate(description) ? fallback : description;
+    }
+
+    private static string? FormatCardText(string? text)
     {
         if (text is null)
-            return "（无）";
+            return null;
 
         // 展开牌面换行并去掉显示标记，保持每段文字都在单行注释内。
         var plain = text
             .Replace("\\n", " ", StringComparison.Ordinal)
-            .Replace("[x]", "", StringComparison.Ordinal)
+            .Replace("[x]", "", StringComparison.OrdinalIgnoreCase)
             .Replace("<b>", "", StringComparison.OrdinalIgnoreCase)
             .Replace("</b>", "", StringComparison.OrdinalIgnoreCase)
             .Replace("<i>", "", StringComparison.OrdinalIgnoreCase)
             .Replace("</i>", "", StringComparison.OrdinalIgnoreCase);
         var words = plain.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        return words.Length == 0 ? "（无）" : string.Join(' ', words);
+        return words.Length == 0 ? null : string.Join(' ', words);
     }
 
     private static bool WriteNewFile((string Path, string Content) file)

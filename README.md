@@ -44,7 +44,7 @@ $client = 'D:/script/hbCollectionhb/炉石传说源代码/2026-10-13/Assembly-CS
 python tools/generate_client_enums.py $client
 ```
 
-构建 `256589` 的 23,452 项模拟属性已编译进程序。`starter` 启动时按卡牌 ID 查找现有 89 个 Sim 所需的数据。更新卡库时，先生成 `Generated.g.cs`，再重新编译。
+构建 `256589` 的 23,452 项模拟属性已编译进程序。`starter` 启动时按卡牌 ID 查找已注册 Sim 所需的数据。更新卡库时，先生成 `Generated.g.cs`，再重新编译。
 
 ```powershell
 $cardDefs = 'D:/script/hbCollectionhb/Hearthbuddy_backed_release/Routines/DefaultRoutine/Silverfish/data/CardDefs.xml'
@@ -67,11 +67,18 @@ JSON 导出保留构建号、中英文名称与牌面文本，以及实体自身
 
 `generate-sim` 使用 XML 或 JSON 目录里的 `CARD_SET` 选择路径。缺少标签时使用 `0000-失效`，新系列尚未命名时使用其编号加 `-未知系列`。输出目录下已有同一 ID 的 Sim 时保留原文件。
 
-从完整 XML 或导出的 JSON 按 ID 生成骨架。文件开头注明中英文卡名和牌面描述。资料中没有的字段标为「无」。下列命令可先输出到临时目录查看。
+**卡牌注释是单卡 Sim 的必需项。** 普通卡、附魔和仅包含 `PlayReq` 的骨架都在命名空间后保留四行非空注释，依次写中文卡名、英文卡名、中文牌面描述和英文牌面描述。直接写内容，省略字段前缀。对应语言未收录时注明资料缺失。没有牌面描述时分别写「无卡面描述。」和「No card text.」。
 
 ```powershell
 dotnet run --project src/Silverfish.Cli -c Release -- generate-sim $cardDefs artifacts/card-sims CS2_092 CS2_092e
+python tools/sim_comments.py --check
 ```
+
+CI 会检查所有独立 Sim 的四行注释。可用 `python tools/sim_comments.py --repair $cardDefs` 按卡牌 ID 从 XML 补齐旧文件的缺失注释。
+
+内置单卡在对应 Sim 中集中声明 `PlayReqs`。合法动作、解释和结算共用目标判定。迁移表记录旧条件，供校验和追溯。新增机制和注册单卡须遵守项目根目录 `AGENTS.md` 的规则和验收要求。
+
+经典包以构建 `256589` 中 `EXPERT1` 系列的可收集牌为范围，按 DBF ID 升序开发。首批依次完成先知维伦（9）、魔瘾者（12）、怒火中烧（22）。下一张是末日灾祸（23）。
 
 现有文件会保留。普通卡骨架预填了注释形式的 `[CardSim("卡牌ID")]`，完成规则后取消注释。编译后，模拟器按特性里的卡牌 ID 绑定规则和静态数据。新增构建中才有的卡牌可先通过 `--card-data` 验证，或用完整 XML 更新 `Generated.g.cs` 后再次编译。附魔由施加效果的单卡 Sim 引用。
 
@@ -99,11 +106,15 @@ dotnet run --project src/Silverfish.Cli -c Release -- decide samples/simulation-
 
 `drawMatching` 从牌库随机抽取符合 `cardFilter` 的牌，没有候选时结束。`recruit` 从牌库随机召唤符合条件的随从，沿用原实体 ID。筛选可指定 `kind`、种族、派系和基础费用区间。多次抽牌或招募会在本次触发器结算后重新检查牌库与战场。
 
+`transformMinionByCost` 从随机随从池选取目标费用档，沿用变形对象的实体 ID。场景可传入 `randomMinionPool` 指定当前对局允许生成的卡牌 ID，存档会保存这个列表。省略该字段时使用内置构建的可收集随从池，它覆盖多个系列。只含静态资料的结果按牌面进入场上，单卡效果标记为待实现。
+
 带 `CastsWhenDrawn` 的法术成功抽到后会免费施放，执行单卡 Sim 的 `OnPlay`，需要目标时从合法目标里随机选择。抽牌流程随后从牌库顶补抽一张。手牌已满时仍走烧牌流程。
 
 `createCard` 按 `cardId` 创建新实体，默认加入操控方手牌。用 `recipient` 指定另一方，用 `placement` 指定牌库顶、牌库底、随机位置或加入后整副洗牌。生成可以与抽牌、招募及抽到时施放组合。
 
 `checkpoint` 导出最后一个动作结算后的 JSON 存档，包含已绑定的卡牌规则、随机状态和对局计数。可直接用 `plan` 读取存档，向存档添加 `actions` 后可继续回放，也可将存档作为 `decide` 请求的 `state`。
+
+扎罗格的王冠在发现时暂停出牌结算。存档中的 `pendingPlayChoice` 保存来源、候选实体和随后要检查的触发来源。用 `chooseOption` 提交来源及候选的实体 ID，随后完成原法术的召唤和结算。回放或规划输出的 `legalActions` 会列出当时的有效选项。
 
 ```powershell
 New-Item -ItemType Directory -Force artifacts | Out-Null
@@ -122,7 +133,7 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan artifacts/checkpoint.
 - 受限 `GameSnapshot JSON → BoardTester → 经典 Ai → BotDecision` 离线端到端回归已通过，相关 ClassicBridge 测试 9/9 通过。见 [Actions #43531545029](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43531545029)。
 - 新增 `Silverfish.Domain`：实体中心的不可变局面模型，分离卡牌基础定义、战斗属性、费用、武器属性、关键词与扩展标签。对应基础模型单元测试已通过 [Actions #43566986229](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43566986229)。
 - 新模拟器统一使用 `GameState` 和 `GameEntity` 表示随从、手牌和武器。旧 `Minion`、`Handcard`、`Weapon` 类型留在经典引擎的独立回归路径中。
-- 新模拟器已支持抽牌、亡语、附魔、位置光环、沉默、武器、基础英雄技能、回手、变形、消灭、复活、战斗关键词、过载、奥秘、随机效果、临时法力和带独立目标规则的抉择。`starter` 的 89 项卡牌、衍生物和技能用新的通用结算操作实现。
+- 新模拟器已支持抽牌、亡语、附魔、位置光环、沉默、武器、基础英雄技能、回手、变形、消灭、复活、战斗关键词、过载、奥秘、随机效果、临时法力和带独立目标规则的抉择。`starter` 的已注册卡牌、衍生物和技能使用共用结算操作。
 
 ## 后续重构路线
 

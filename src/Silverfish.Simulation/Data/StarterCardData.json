@@ -346,6 +346,30 @@
       }
     },
     {
+      "cardId": "CS2_029",
+      "dbfId": 315,
+      "name": {
+        "enUs": "Fireball",
+        "zhCn": "火球术"
+      },
+      "text": {
+        "enUs": "Deal $6 damage.",
+        "zhCn": "造成$6点伤害。"
+      },
+      "tags": {
+        "48": 4,
+        "183": 1635,
+        "199": 4,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 3,
+        "268": 2,
+        "321": 1,
+        "1635": 2
+      }
+    },
+    {
       "cardId": "CS2_032",
       "dbfId": 1004,
       "name": {
@@ -572,6 +596,29 @@
       }
     },
     {
+      "cardId": "CS2_108",
+      "dbfId": 785,
+      "name": {
+        "enUs": "Execute",
+        "zhCn": "斩杀"
+      },
+      "text": {
+        "enUs": "Destroy a damaged enemy minion.",
+        "zhCn": "消灭一个受伤的敌方随从。"
+      },
+      "tags": {
+        "48": 1,
+        "183": 1635,
+        "199": 10,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "268": 2,
+        "321": 1
+      }
+    },
+    {
       "cardId": "CS2_112",
       "dbfId": 304,
       "name": {
@@ -758,6 +805,27 @@
       }
     },
     {
+      "cardId": "CS2_234",
+      "dbfId": 1367,
+      "name": {
+        "enUs": "Shadow Word: Pain",
+        "zhCn": "暗言术：痛"
+      },
+      "text": {
+        "enUs": "Destroy a minion with 3_or less Attack.",
+        "zhCn": "消灭一个攻击力小于或等于3的随从。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 6,
+        "202": 5,
+        "203": 2,
+        "321": 1,
+        "1635": 6
+      }
+    },
+    {
       "cardId": "CS2_tk1",
       "dbfId": 796,
       "name": {
@@ -774,6 +842,50 @@
         "201": 3,
         "202": 4,
         "251": 6
+      }
+    },
+    {
+      "cardId": "DAL_614",
+      "dbfId": 53161,
+      "name": {
+        "enUs": "Kobold Lackey",
+        "zhCn": "狗头人跟班"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> Deal 2 damage.",
+        "zhCn": "<b>战吼：</b>造成2点伤害。"
+      },
+      "tags": {
+        "45": 1,
+        "47": 1,
+        "48": 1,
+        "183": 1130,
+        "199": 12,
+        "202": 4,
+        "218": 1,
+        "994": 1
+      }
+    },
+    {
+      "cardId": "DAL_615",
+      "dbfId": 53162,
+      "name": {
+        "enUs": "Witchy Lackey",
+        "zhCn": "女巫跟班"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> Transform a friendly minion into one that costs (1) more.",
+        "zhCn": "<b>战吼：</b>将一个友方随从变形成为一个法力值消耗增加（1）点的随从。"
+      },
+      "tags": {
+        "45": 1,
+        "47": 1,
+        "48": 1,
+        "183": 1130,
+        "199": 12,
+        "202": 4,
+        "218": 1,
+        "994": 1
       }
     },
     {
@@ -876,6 +988,31 @@
       }
     },
     {
+      "cardId": "EX1_055",
+      "dbfId": 12,
+      "name": {
+        "enUs": "Mana Addict",
+        "zhCn": "魔瘾者"
+      },
+      "text": {
+        "enUs": "Whenever you cast a spell, gain +2 Attack this turn.",
+        "zhCn": "在本回合中，每当你施放一个法术，便获得+2攻击力。"
+      },
+      "tags": {
+        "32": 1,
+        "45": 3,
+        "47": 1,
+        "48": 2,
+        "183": 3,
+        "199": 12,
+        "201": 2,
+        "202": 4,
+        "203": 3,
+        "251": 6,
+        "321": 1
+      }
+    },
+    {
       "cardId": "EX1_066",
       "dbfId": 906,
       "name": {
@@ -965,6 +1102,33 @@
         "201": 3,
         "202": 4,
         "251": 6
+      }
+    },
+    {
+      "cardId": "EX1_134",
+      "dbfId": 1117,
+      "name": {
+        "enUs": "SI:7 Agent",
+        "zhCn": "军情七处特工"
+      },
+      "text": {
+        "enUs": "<b>Combo:</b> Deal 3 damage.",
+        "zhCn": "<b>连击：</b>造成3点伤害。"
+      },
+      "tags": {
+        "45": 3,
+        "47": 3,
+        "48": 3,
+        "183": 3,
+        "199": 7,
+        "201": 3,
+        "202": 4,
+        "203": 3,
+        "220": 1,
+        "251": 1,
+        "268": 2,
+        "321": 1,
+        "1678": 1
       }
     },
     {
@@ -1335,6 +1499,32 @@
       }
     },
     {
+      "cardId": "EX1_350",
+      "dbfId": 9,
+      "name": {
+        "enUs": "Prophet Velen",
+        "zhCn": "先知维伦"
+      },
+      "text": {
+        "enUs": "Double the damage and healing of your spells and Hero Power.",
+        "zhCn": "使你的法术和英雄技能的伤害和治疗效果翻倍。"
+      },
+      "tags": {
+        "45": 7,
+        "47": 7,
+        "48": 7,
+        "114": 1,
+        "183": 3,
+        "199": 6,
+        "200": 2,
+        "201": 3,
+        "202": 4,
+        "203": 5,
+        "251": 1,
+        "321": 1
+      }
+    },
+    {
       "cardId": "EX1_360",
       "dbfId": 854,
       "name": {
@@ -1496,6 +1686,26 @@
       }
     },
     {
+      "cardId": "EX1_607",
+      "dbfId": 22,
+      "name": {
+        "enUs": "Inner Rage",
+        "zhCn": "怒火中烧"
+      },
+      "text": {
+        "enUs": "Deal $1 damage to a minion and give it +2_Attack.",
+        "zhCn": "对一个随从造成$1点伤害，并使其获得+2攻击力。"
+      },
+      "tags": {
+        "183": 3,
+        "199": 10,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "321": 1
+      }
+    },
+    {
       "cardId": "EX1_609",
       "dbfId": 814,
       "name": {
@@ -1606,6 +1816,27 @@
         "251": 5,
         "321": 1,
         "1635": 5
+      }
+    },
+    {
+      "cardId": "EX1_622",
+      "dbfId": 1363,
+      "name": {
+        "enUs": "Shadow Word: Death",
+        "zhCn": "暗言术：灭"
+      },
+      "text": {
+        "enUs": "Destroy a minion with 5_or more Attack.",
+        "zhCn": "消灭一个攻击力大于或等于5的随从。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 6,
+        "202": 5,
+        "203": 2,
+        "321": 1,
+        "1635": 6
       }
     },
     {
@@ -1835,6 +2066,27 @@
       }
     },
     {
+      "cardId": "LOOT_998j",
+      "dbfId": 43180,
+      "name": {
+        "enUs": "Zarog's Crown",
+        "zhCn": "扎罗格的王冠"
+      },
+      "text": {
+        "enUs": "<b>Discover</b> a <b>Legendary</b> minion. Summon two copies of it.",
+        "zhCn": "<b>发现</b>一张<b>传说</b>随从牌。召唤两个它的复制。"
+      },
+      "tags": {
+        "48": 3,
+        "183": 1004,
+        "199": 12,
+        "201": 3,
+        "202": 5,
+        "415": 1,
+        "1342": 1
+      }
+    },
+    {
       "cardId": "NEW1_019",
       "dbfId": 1073,
       "name": {
@@ -1967,6 +2219,88 @@
       }
     },
     {
+      "cardId": "REV_793",
+      "dbfId": 96323,
+      "name": {
+        "enUs": "Sanguine Depths",
+        "zhCn": "赤红深渊"
+      },
+      "text": {
+        "enUs": "[x]{0}\n{1}",
+        "zhCn": "{0}{1}"
+      },
+      "tags": {
+        "45": 3,
+        "48": 1,
+        "183": 1691,
+        "199": 10,
+        "202": 39,
+        "203": 3
+      }
+    },
+    {
+      "cardId": "REV_798",
+      "dbfId": 96317,
+      "name": {
+        "enUs": "Muck Pools",
+        "zhCn": "淤泥之池"
+      },
+      "text": {
+        "enUs": "[x]{0}\n{1}",
+        "zhCn": "{0}{1}"
+      },
+      "tags": {
+        "45": 3,
+        "48": 1,
+        "183": 1691,
+        "199": 8,
+        "202": 39,
+        "203": 3
+      }
+    },
+    {
+      "cardId": "REV_923",
+      "dbfId": 76981,
+      "name": {
+        "enUs": "Muck Pools",
+        "zhCn": "淤泥之池"
+      },
+      "text": {
+        "enUs": "Transform a friendly minion into one that costs (1) more.",
+        "zhCn": "将一个友方随从变形成为法力值消耗增加（1）点的随从。"
+      },
+      "tags": {
+        "45": 3,
+        "48": 1,
+        "183": 1691,
+        "199": 8,
+        "202": 39,
+        "203": 3,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "REV_990",
+      "dbfId": 82313,
+      "name": {
+        "enUs": "Sanguine Depths",
+        "zhCn": "赤红深渊"
+      },
+      "text": {
+        "enUs": "[x]Deal 1 damage to a \nminion and give it \n+2 Attack.",
+        "zhCn": "对一个随从造成1点伤害，并使其获得+2攻击力。"
+      },
+      "tags": {
+        "45": 3,
+        "48": 1,
+        "183": 1691,
+        "199": 10,
+        "202": 39,
+        "203": 3,
+        "321": 1
+      }
+    },
+    {
       "cardId": "SCH_427",
       "dbfId": 60016,
       "name": {
@@ -1986,6 +2320,79 @@
         "321": 1,
         "476": 130,
         "1635": 4
+      }
+    },
+    {
+      "cardId": "UNG_001",
+      "dbfId": 41076,
+      "name": {
+        "enUs": "Pterrordax Hatchling",
+        "zhCn": "翼手龙宝宝"
+      },
+      "text": {
+        "enUs": "<b><b>Battlecry:</b> Adapt</b>.",
+        "zhCn": "<b>战吼：</b><b>进化</b>。"
+      },
+      "tags": {
+        "45": 2,
+        "47": 2,
+        "48": 3,
+        "183": 27,
+        "199": 12,
+        "200": 20,
+        "202": 4,
+        "203": 1,
+        "218": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "UNG_002",
+      "dbfId": 41120,
+      "name": {
+        "enUs": "Volcanosaur",
+        "zhCn": "火山龙"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> <b>Adapt</b>, then_<b>Adapt</b>.",
+        "zhCn": "<b>战吼：</b>\n连续<b>进化</b>两次。"
+      },
+      "tags": {
+        "45": 6,
+        "47": 5,
+        "48": 6,
+        "183": 27,
+        "199": 12,
+        "200": 20,
+        "202": 4,
+        "203": 3,
+        "218": 1,
+        "321": 1,
+        "2540": 1
+      }
+    },
+    {
+      "cardId": "UNG_089",
+      "dbfId": 41265,
+      "name": {
+        "enUs": "Gentle Megasaur",
+        "zhCn": "温顺的巨壳龙"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> <b>Adapt</b> your_Murlocs.",
+        "zhCn": "<b>战吼：</b><b>进化</b>你所有的鱼人。"
+      },
+      "tags": {
+        "45": 4,
+        "47": 5,
+        "48": 4,
+        "183": 27,
+        "199": 12,
+        "200": 20,
+        "202": 4,
+        "203": 4,
+        "218": 1,
+        "321": 1
       }
     },
     {
@@ -2013,6 +2420,239 @@
       }
     },
     {
+      "cardId": "UNG_961",
+      "dbfId": 41944,
+      "name": {
+        "enUs": "Adaptation",
+        "zhCn": "适者生存"
+      },
+      "text": {
+        "enUs": "<b>Adapt</b> a friendly minion.",
+        "zhCn": "<b>进化</b>一个友方随从。"
+      },
+      "tags": {
+        "183": 27,
+        "199": 5,
+        "202": 5,
+        "203": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t10",
+      "dbfId": 41054,
+      "name": {
+        "enUs": "Shrouding Mist",
+        "zhCn": "氤氲迷雾"
+      },
+      "text": {
+        "enUs": "<b>Stealth</b> until your next turn.",
+        "zhCn": "获得<b>潜行</b>直到你的下个回合。"
+      },
+      "tags": {
+        "183": 27,
+        "191": 1,
+        "199": 12,
+        "202": 5,
+        "684": 1,
+        "1200": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t13",
+      "dbfId": 41211,
+      "name": {
+        "enUs": "Poison Spit",
+        "zhCn": "毒液喷吐"
+      },
+      "text": {
+        "enUs": "<b>Poisonous</b>",
+        "zhCn": "<b>剧毒</b>"
+      },
+      "tags": {
+        "183": 27,
+        "199": 12,
+        "202": 5,
+        "363": 1,
+        "684": 1,
+        "1200": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t14",
+      "dbfId": 41691,
+      "name": {
+        "enUs": "Volcanic Might",
+        "zhCn": "火山之力"
+      },
+      "text": {
+        "enUs": "+1/+1",
+        "zhCn": "+1/+1"
+      },
+      "tags": {
+        "183": 27,
+        "199": 12,
+        "202": 5,
+        "684": 1,
+        "1200": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t2",
+      "dbfId": 41057,
+      "name": {
+        "enUs": "Living Spores",
+        "zhCn": "活性孢子"
+      },
+      "text": {
+        "enUs": "<b>Deathrattle:</b> Summon two 1/1 Plants.",
+        "zhCn": "<b>亡语：</b>召唤两个1/1的植物。"
+      },
+      "tags": {
+        "183": 27,
+        "199": 12,
+        "202": 5,
+        "217": 1,
+        "684": 1,
+        "1200": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t2t1",
+      "dbfId": 41067,
+      "name": {
+        "enUs": "Plant",
+        "zhCn": "植物"
+      },
+      "tags": {
+        "45": 1,
+        "47": 1,
+        "48": 1,
+        "183": 27,
+        "199": 12,
+        "202": 4,
+        "1440": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t3",
+      "dbfId": 41058,
+      "name": {
+        "enUs": "Flaming Claws",
+        "zhCn": "烈焰利爪"
+      },
+      "text": {
+        "enUs": "+3 Attack",
+        "zhCn": "+3攻击力"
+      },
+      "tags": {
+        "183": 27,
+        "199": 12,
+        "202": 5,
+        "684": 1,
+        "1200": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t4",
+      "dbfId": 41059,
+      "name": {
+        "enUs": "Rocky Carapace",
+        "zhCn": "岩质甲壳"
+      },
+      "text": {
+        "enUs": "+3 Health",
+        "zhCn": "+3生命值"
+      },
+      "tags": {
+        "183": 27,
+        "199": 12,
+        "202": 5,
+        "684": 1,
+        "1200": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t5",
+      "dbfId": 41060,
+      "name": {
+        "enUs": "Liquid Membrane",
+        "zhCn": "液态外膜"
+      },
+      "text": {
+        "enUs": "<b>Elusive</b>",
+        "zhCn": "<b>扰魔</b>"
+      },
+      "tags": {
+        "183": 27,
+        "199": 12,
+        "202": 5,
+        "684": 1,
+        "1200": 1,
+        "1211": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t6",
+      "dbfId": 41061,
+      "name": {
+        "enUs": "Massive",
+        "zhCn": "巨型体态"
+      },
+      "text": {
+        "enUs": "<b>Taunt</b>",
+        "zhCn": "<b>嘲讽</b>"
+      },
+      "tags": {
+        "183": 27,
+        "190": 1,
+        "199": 12,
+        "202": 5,
+        "684": 1,
+        "1200": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t7",
+      "dbfId": 41062,
+      "name": {
+        "enUs": "Lightning Speed",
+        "zhCn": "闪电之速"
+      },
+      "text": {
+        "enUs": "<b>Windfury</b>",
+        "zhCn": "<b>风怒</b>"
+      },
+      "tags": {
+        "183": 27,
+        "189": 1,
+        "199": 12,
+        "202": 5,
+        "684": 1,
+        "1200": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t8",
+      "dbfId": 41063,
+      "name": {
+        "enUs": "Crackling Shield",
+        "zhCn": "爆裂护盾"
+      },
+      "text": {
+        "enUs": "<b>Divine Shield</b>",
+        "zhCn": "<b>圣盾</b>"
+      },
+      "tags": {
+        "183": 27,
+        "194": 1,
+        "199": 12,
+        "202": 5,
+        "684": 1,
+        "1200": 1
+      }
+    },
+    {
       "cardId": "WON_014",
       "dbfId": 102537,
       "name": {
@@ -2034,6 +2674,46 @@
         "321": 1,
         "443": 1,
         "1635": 4
+      }
+    },
+    {
+      "cardId": "YOD_005",
+      "dbfId": 56067,
+      "name": {
+        "enUs": "Fresh Scent",
+        "zhCn": "新鲜气息"
+      },
+      "text": {
+        "enUs": "<b>Twinspell</b>\nGive a Beast +2/+2.",
+        "zhCn": "<b>双生法术</b>\n使一个野兽获得+2/+2。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1403,
+        "199": 3,
+        "202": 5,
+        "203": 1,
+        "321": 1,
+        "1193": 1
+      }
+    },
+    {
+      "cardId": "YOD_005ts",
+      "dbfId": 56142,
+      "name": {
+        "enUs": "Fresh Scent",
+        "zhCn": "新鲜气息"
+      },
+      "text": {
+        "enUs": "Give a Beast +2/+2.",
+        "zhCn": "使一个野兽获得+2/+2。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1403,
+        "199": 3,
+        "202": 5,
+        "203": 1
       }
     },
     {

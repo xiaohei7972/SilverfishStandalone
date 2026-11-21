@@ -26,6 +26,9 @@ internal static class CardTraitReader
         (TAG_RACE.VULPERA, 2588, MinionType.Vulpera), (TAG_RACE.ABERRATION, 4756, MinionType.Aberration)
     ];
 
+    internal static MinionType RaceType(TAG_RACE race) => race == TAG_RACE.ALL ? MinionType.All :
+        Array.Find(RaceTags, entry => entry.Race == race).Type;
+
     internal static MinionType? ReadMinionTypes(CardMetadata metadata)
     {
         var primary = metadata.ClientRace;

@@ -1,3 +1,4 @@
+using Silverfish.Domain.Client;
 namespace Silverfish.Simulation.Cards;
 
 // 精神控制
@@ -7,9 +8,14 @@ namespace Silverfish.Simulation.Cards;
 [CardSim("CS1_113")]
 internal static class Sim_CS1_113
 {
+    // <legacy-play-requirements>
+    internal static PlayReqSet PlayReqs { get; } = new(
+        [new(ErrorType.REQ_TARGET_TO_PLAY), new(ErrorType.REQ_ENEMY_TARGET), new(ErrorType.REQ_NUM_MINION_SLOTS, 1), new(ErrorType.REQ_MINION_TARGET)],
+        []);
+    // </legacy-play-requirements>
+
     internal static CardRules Rules { get; } = new()
     {
-        Target = TargetRequirement.EnemyMinion,
         OnPlay = [new TakeControlEffect()]
     };
 }

@@ -19,15 +19,17 @@ public sealed partial class GameSimulator
 
     private sealed partial class Resolution
     {
-        private void ActivateLocation(PlayerId player, EntityId source, EntityId? target)
+        private void ActivateLocation(PlayerId player, EntityId source, EntityId? target, bool resolvesEffects)
         {
             var entity = _state.Entities[source];
-            var ability = _rules.Card(entity).Activation!;
+            var card = _rules.Card(entity);
+            var ability = card.Activation!;
             var removeFirst = ability.RemoveBeforeFinalEffects && entity.Location!.Health == 1;
             _events.Add(new(SimulationEventKind.LocationActivated, player, source, target));
             if (removeFirst)
                 SpendLocationUse(source);
-            ResolveEffects(new(source, player, target), ability.Effects);
+            if (resolvesEffects)
+                ResolveEffects(new(source, player, target), ability.Effects);
             if (!removeFirst)
                 SpendLocationUse(source);
         }

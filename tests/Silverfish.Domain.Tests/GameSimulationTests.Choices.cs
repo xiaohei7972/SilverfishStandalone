@@ -1,4 +1,5 @@
 using Silverfish.Domain;
+using Silverfish.Domain.Client;
 using Silverfish.Simulation;
 using Xunit;
 
@@ -15,7 +16,10 @@ public sealed partial class GameSimulationTests
             {
                 Choices =
                 [
-                    new("strike", [new DamageEffect(DamageTarget.Selected, 2)]) { Target = TargetRequirement.EnemyMinion },
+                    new("strike", [new DamageEffect(DamageTarget.Selected, 2)])
+                    {
+                        PlayReqs = [new(ErrorType.REQ_TARGET_TO_PLAY), new(ErrorType.REQ_MINION_TARGET), new(ErrorType.REQ_ENEMY_TARGET)]
+                    },
                     new("guard", [new GainArmorEffect(3)])
                 ]
             }
@@ -30,6 +34,8 @@ public sealed partial class GameSimulationTests
         var guard = new SimulationAction(SimulationActionKind.PlayCard, First, source) { Choice = "guard" };
 
         Assert.Equal(new[] { strike, guard }, simulator.LegalActions(root).Where(action => action.Source == source));
+        Assert.Equal(ErrorType.REQ_MINION_TARGET, simulator.CheckAction(root, strike with { Target = SecondHero })?.Type);
+        Assert.NotNull(simulator.CheckAction(root, strike with { Target = source }));
         Assert.Throws<InvalidOperationException>(() => simulator.Apply(root, strike with { Target = null }));
         Assert.Throws<InvalidOperationException>(() => simulator.Apply(root, guard with { Target = target }));
         var struck = simulator.Apply(root, strike).State;

@@ -31,6 +31,11 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
     public int HeroPowerUsesThisTurn { get; init; }
     public int OverloadOwed { get; init; }
     public int OverloadLocked { get; init; }
+    public bool? PlayedCardThisTurn { get; init; }
+    public bool? PlayedElementalThisTurn { get; init; }
+    public bool? PlayedElementalLastTurn { get; init; }
+    public bool? HeroHealthChangedThisTurn { get; init; }
+    public bool SteadyShotCanTargetMinions { get; init; }
     public int? Corpses { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int CorpsesSpentThisGame { get; init; }
@@ -46,7 +51,10 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
 public enum MatchOutcome { InProgress, Draw, Won }
 
 /// <summary>动作结算完成后用于继续对局的计数器和结果。</summary>
-public sealed record GameContinuation(int NextEntity, long NextPlayOrder, MatchOutcome Outcome, PlayerId? Winner);
+public sealed record GameContinuation(int NextEntity, long NextPlayOrder, MatchOutcome Outcome, PlayerId? Winner)
+{
+    public PendingPlayChoice? PendingPlayChoice { get; init; }
+}
 
 /// <summary>不可变对局状态。各区域按顺序存放实体表中的 ID。</summary>
 public sealed class GameState
@@ -57,7 +65,7 @@ public sealed class GameState
         ImmutableDictionary<EntityId, GameEntity> entities,
         ImmutableDictionary<EntityId, EntityLocation> locations, PlayerId activePlayer,
         int turn, int nextEntity, long nextPlayOrder, MatchOutcome outcome, PlayerId? winner,
-        ImmutableList<MinionDeath> minionDeaths, ulong randomState)
+        ImmutableList<MinionDeath> minionDeaths, ulong randomState, PendingPlayChoice? pendingPlayChoice = null)
     {
         Players = players;
         Entities = entities;
@@ -70,6 +78,7 @@ public sealed class GameState
         Winner = winner;
         MinionDeaths = minionDeaths;
         RandomState = randomState;
+        PendingPlayChoice = pendingPlayChoice;
     }
 
     public ImmutableDictionary<PlayerId, PlayerState> Players { get; }
@@ -82,6 +91,7 @@ public sealed class GameState
     public long NextPlayOrder { get; }
     public ImmutableList<MinionDeath> MinionDeaths { get; }
     public ulong RandomState { get; }
+    public PendingPlayChoice? PendingPlayChoice { get; }
 
     internal static GameState Create(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
         PlayerId activePlayer, int turn, IEnumerable<MinionDeath>? minionDeaths, ulong randomState,
@@ -178,9 +188,27 @@ public sealed class GameState
                 throw new ArgumentException("存档的对局结果与双方英雄的状态不一致。", nameof(continuation));
         }
 
-        return new GameState(byPlayer, byEntity, locations.ToImmutable(), activePlayer, turn,
+        var state = new GameState(byPlayer, byEntity, locations.ToImmutable(), activePlayer, turn,
             continuation?.NextEntity ?? minimumEntity, continuation?.NextPlayOrder ?? minimumPlayOrder,
             outcome, winner, deaths, randomState);
+        return continuation?.PendingPlayChoice is { } choice ? state.WithPendingPlayChoice(choice) : state;
+    }
+
+    internal GameState WithPendingPlayChoice(PendingPlayChoice? choice)
+    {
+        if (choice is not null &&
+            (Outcome != MatchOutcome.InProgress || !_locations.TryGetValue(choice.Source, out var source) ||
+                source != new EntityLocation(ActivePlayer, GameZone.Play) ||
+                choice.Options.IsDefaultOrEmpty || choice.Options.Distinct().Count() != choice.Options.Length ||
+                choice.Options.Any(id => !_locations.TryGetValue(id, out var option) || option != new EntityLocation(ActivePlayer, GameZone.SetAside)) ||
+                choice.AfterPlayListeners.IsDefault || choice.AfterPlayListeners.Select(listener => listener?.Entity).Distinct().Count() != choice.AfterPlayListeners.Length ||
+                choice.AfterPlayListeners.Any(listener => listener is null || !Entities.TryGetValue(listener.Entity, out var entity) ||
+                    listener.CardId != entity.CardId || listener.Controller != entity.Controller || listener.PlayOrder != entity.PlayOrder ||
+                    listener.Zone is not (GameZone.Play or GameZone.Secret) || LocationOf(listener.Entity).Zone != listener.Zone)))
+            throw new ArgumentException("待决选择的来源、候选或后续触发记录与局面不一致。", nameof(choice));
+
+        return new(Players, Entities, _locations, ActivePlayer, Turn, NextEntity, NextPlayOrder,
+            Outcome, Winner, MinionDeaths, RandomState, choice);
     }
 
     public EntityLocation LocationOf(EntityId id) => _locations[id];
@@ -214,12 +242,13 @@ public sealed class GameState
             PlayOrder = entersActiveZone ? NextPlayOrder : entity.PlayOrder,
             AuraGrants = destination.Zone == GameZone.Play ? entity.AuraGrants : [],
             Enchantments = destination.Zone == GameZone.Play ? entity.Enchantments : [],
+            Stealthed = destination.Zone == GameZone.Play ? entity.Stealthed : null,
             CostModifiers = destination.Zone == GameZone.Hand ? entity.CostModifiers : [],
             CostTypeModifiers = destination.Zone == GameZone.Hand ? entity.CostTypeModifiers : null
         };
         return new GameState(players.SetItem(to.Id, to), Entities.SetItem(id, entity), _locations.SetItem(id, destination),
             ActivePlayer, Turn, NextEntity, entersActiveZone ? checked(NextPlayOrder + 1) : NextPlayOrder,
-            Outcome, Winner, MinionDeaths, RandomState);
+            Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice);
     }
 
     internal GameState UpdateCharacter(EntityId id, CharacterState character) =>
@@ -231,13 +260,18 @@ public sealed class GameState
             entity.Controller != current.Controller || entity.PlayOrder != current.PlayOrder)
             throw new ArgumentException("实体标识和位置只能通过对局结构操作更改。", nameof(entity));
         ValidateEntity(entity, Players);
-        return new GameState(Players, Entities.SetItem(entity.Id, entity), _locations,
-            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
+        var players = Players;
+        var owner = players[entity.Controller];
+        if (owner.Hero == entity.Id && current.Character?.Health != entity.Character?.Health)
+            players = players.SetItem(owner.Id, owner with { HeroHealthChangedThisTurn = true });
+        return new GameState(players, Entities.SetItem(entity.Id, entity), _locations,
+            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice);
     }
 
     internal GameState AddToPlay(GameEntity entity, int index) => AddEntity(entity, GameZone.Play, index);
 
     internal GameState AddToHand(GameEntity entity) => AddEntity(entity, GameZone.Hand);
+    internal GameState AddChoiceOption(GameEntity entity) => AddEntity(entity, GameZone.SetAside);
 
     internal GameState AddToDeck(GameEntity entity, int index) => AddEntity(entity, GameZone.Deck, index);
 
@@ -263,7 +297,7 @@ public sealed class GameState
         return new GameState(Players.SetItem(player.Id, player),
             Entities.Add(entity.Id, entity with { PlayOrder = entersPlay ? NextPlayOrder : null }),
             _locations.Add(entity.Id, new(player.Id, zone)), ActivePlayer, Turn,
-            checked(NextEntity + 1), entersPlay ? checked(NextPlayOrder + 1) : NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
+            checked(NextEntity + 1), entersPlay ? checked(NextPlayOrder + 1) : NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice);
     }
 
     internal GameState UpdateResources(PlayerState player)
@@ -284,7 +318,7 @@ public sealed class GameState
 
     private GameState UpdatePlayer(PlayerState player) =>
         new(Players.SetItem(player.Id, player), Entities, _locations,
-            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
+            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice);
 
     internal GameState RecordMinionDeath(GameEntity minion, bool leavesCorpse)
     {
@@ -295,11 +329,11 @@ public sealed class GameState
             players = players.SetItem(player.Id, player with { Corpses = checked(player.Corpses.GetValueOrDefault() + 1) });
         }
         return new(players, Entities, _locations, ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner,
-            MinionDeaths.Add(new(minion.Id, minion.CardId, minion.Controller, Turn)), RandomState);
+            MinionDeaths.Add(new(minion.Id, minion.CardId, minion.Controller, Turn)), RandomState, PendingPlayChoice);
     }
 
     internal GameState SetRandomState(ulong randomState) => new(Players, Entities, _locations, ActivePlayer, Turn,
-        NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, randomState);
+        NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, randomState, PendingPlayChoice);
 
     internal GameState PassTurn() => new(Players, Entities, _locations, OpponentOf(ActivePlayer),
         checked(Turn + 1), NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);

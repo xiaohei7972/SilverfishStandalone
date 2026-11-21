@@ -14,7 +14,7 @@ public sealed partial class GameSimulator
 
             SpendResolutionStep();
             var card = _rules.Card(_state.Entities[spell.Source]);
-            var (target, effects) = SelectAutomaticSpellEffects(spell.Player, card);
+            var (target, effects) = SelectAutomaticSpellEffects(_state.Entities[spell.Source], card);
             var player = _state.Players[spell.Player];
             var armsSecret = card.IsSecret && CanArmSecret(_state, player, card.Definition.CardId);
             _state = _state.Move(spell.Source, new(spell.Player, armsSecret ? GameZone.Secret : GameZone.Play));
@@ -28,27 +28,19 @@ public sealed partial class GameSimulator
             PushEffects(work, new(spell.Source, spell.Player, target), effects);
         }
 
-        private (EntityId? Target, ImmutableArray<CardEffect> Effects) SelectAutomaticSpellEffects(PlayerId player, SimulationCard card)
+        private (EntityId? Target, ImmutableArray<CardEffect> Effects) SelectAutomaticSpellEffects(GameEntity source, SimulationCard card)
         {
-            var occupiedSlots = _rules.BoardSlotCount(_state, player);
-            var minions = _rules.MinionCount(_state, player);
-            if (!_rules.MeetsPlayRequirements(_state, player, card, occupiedSlots, minions))
-                return (null, []);
-
-            (TargetRequirement Target, TargetFilter? Filter, ImmutableArray<CardEffect> Effects)[] options = card.Choices.IsEmpty
-                ? [(card.Target, card.TargetFilter, card.OnPlay)]
-                : card.Choices.Where(choice => MeetsPlayRequirements(_state, player, choice.Requirements, occupiedSlots))
-                    .Select(choice => (choice.Target, choice.TargetFilter, choice.Effects)).ToArray();
-            var eligible = options
-                .Where(option => occupiedSlots < BoardLimit || !option.Effects.Any(effect => effect is TakeControlEffect))
-                .Select(option => (Targets: _rules.PlayTargets(_state, player, option.Target, option.Filter).ToArray(), option.Effects))
-                .Where(option => option.Targets.Length != 0)
+            var eligible = _rules.Branches(_state, source, card, false)
+                .Where(branch => !branch.Targets.IsEmpty)
                 .ToArray();
             if (eligible.Length == 0)
                 return (null, []);
 
             var selected = eligible[ChooseIndex(eligible.Length)];
-            return (selected.Targets[ChooseIndex(selected.Targets.Length)], selected.Effects);
+            var target = selected.Targets[ChooseIndex(selected.Targets.Length)];
+            var choice = selected.Choice is null ? null : card.Choices.Single(choice => choice.Id == selected.Choice);
+            return (target, selected.ResolvesEffects(target)
+                ? choice?.Effects ?? card.OnPlay : []);
         }
     }
 }

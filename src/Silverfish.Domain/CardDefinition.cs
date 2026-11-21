@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Silverfish.Domain.Client;
 
 namespace Silverfish.Domain;
@@ -20,4 +21,6 @@ public sealed record CardDefinition(
     public MinionType? MinionTypes { get; init; }
     public SpellSchool? SpellSchool { get; init; }
     public TAG_CARD_ALTERNATE_COST? AlternateCost { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public uint ClassMask { get; init; }
 }

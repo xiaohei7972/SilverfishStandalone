@@ -22,8 +22,8 @@ public enum ManaOperation { GainTemporary, GainEmpty, GainFilled, Refresh, Destr
 public enum ManaRecipient { Controller, BothPlayers }
 public enum SummonPlacement { Default, Rightmost }
 public enum StatTarget { Selected, Source, FriendlyMinions, AllMinions, FriendlyHero }
-public enum EnchantmentDuration { Permanent, CurrentTurn }
-public enum EnchantmentRemovalReason { Expired, Silenced, LeftPlay, Transformed }
+public enum EnchantmentDuration { Permanent, CurrentTurn, UntilNextTurn }
+public enum EnchantmentRemovalReason { Expired, Silenced, LeftPlay, Transformed, Died }
 public enum AuraRecipients { OtherFriendlyMinions, AdjacentFriendlyMinions }
 public enum CostAuraTarget { Hand, Minion, Spell, Weapon, HeroPower, Location }
 public enum CostAuraRecipient { Friendly, Opponent, BothPlayers }
@@ -91,6 +91,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(TakeControlEffect), "takeControl")]
 [JsonDerivedType(typeof(ReturnMinionEffect), "returnMinion")]
 [JsonDerivedType(typeof(TransformMinionEffect), "transformMinion")]
+[JsonDerivedType(typeof(TransformMinionByCostEffect), "transformMinionByCost")]
 [JsonDerivedType(typeof(DestroyMinionEffect), "destroyMinion")]
 [JsonDerivedType(typeof(ResurrectFriendlyMinionEffect), "resurrectFriendlyMinion")]
 [JsonDerivedType(typeof(FreezeEffect), "freeze")]
@@ -105,7 +106,11 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(ConditionalEffect), "conditional")]
 public abstract record CardEffect;
 
-public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect;
+public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect
+{
+    /// <summary>在同一目标受到伤害后、伤害触发器执行前施加。</summary>
+    public EnchantStatsEffect? Enchantment { get; init; }
+}
 public sealed record DrawEffect(int Count) : CardEffect;
 public sealed record DrawMatchingEffect([property: JsonRequired] CardFilter CardFilter, int Count = 1) : CardEffect;
 public sealed record ChangeHandCostEffect(
@@ -142,10 +147,11 @@ public sealed record HealFriendlyHeroEffect(int Amount) : CardEffect;
 public sealed record EquipWeaponEffect(string CardId) : CardEffect;
 public sealed record DestroyEnemyWeaponEffect : CardEffect;
 public sealed record EnchantmentRemovalRule(EnchantmentRemovalReason Reason, ImmutableArray<CardEffect> Effects);
-public sealed record EnchantStatsEffect(StatTarget Target, StatModifier Modifier,
+public sealed record EnchantStatsEffect(StatTarget Target, StatModifier? Modifier,
     EnchantmentDuration Duration = EnchantmentDuration.Permanent) : CardEffect
 {
     public string? EnchantmentCardId { get; init; }
+    public GAME_TAG? GrantedTag { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public ImmutableArray<EnchantmentRemovalRule> OnRemoved { get; init; }
 }
@@ -160,6 +166,7 @@ public sealed record ReturnMinionEffect(int CostDelta = 0, EffectTarget Target =
     public EnchantmentDuration CostDuration { get; init; }
 }
 public sealed record TransformMinionEffect(string CardId) : CardEffect;
+public sealed record TransformMinionByCostEffect(int Increase) : CardEffect;
 public sealed record DestroyMinionEffect : CardEffect;
 public sealed record ResurrectFriendlyMinionEffect : CardEffect;
 public sealed record FreezeEffect(FreezeTarget Target) : CardEffect;
@@ -181,6 +188,7 @@ public sealed record ConditionalEffect(EffectCondition Condition, ImmutableArray
 
 public sealed record CardPlayChoice(string Id, ImmutableArray<CardEffect> Effects)
 {
+    public ImmutableArray<PlayReq> PlayReqs { get; init; } = [];
     public TargetRequirement Target { get; init; }
     public TargetFilter? TargetFilter { get; init; }
     public PlayRequirements Requirements { get; init; }
@@ -194,9 +202,26 @@ public sealed record LocationAbility(ImmutableArray<CardEffect> Effects)
     public bool RemoveBeforeFinalEffects { get; init; }
 }
 
+/// <summary>完成出牌效果后开启的待决选择。</summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
+[JsonDerivedType(typeof(DiscoverMinionChoice), "discoverMinion")]
+[JsonDerivedType(typeof(AdaptChoice), "adapt")]
+public abstract record PlayChoiceRule;
+
+public sealed record DiscoverMinionChoice(int SummonCopies, bool LegendaryOnly = false) : PlayChoiceRule;
+public enum AdaptRecipient { Source, Selected, FriendlyMinions }
+public sealed record AdaptChoice(ImmutableArray<string> Options, AdaptRecipient Recipient = AdaptRecipient.Source,
+    CardFilter? RecipientFilter = null, int Times = 1) : PlayChoiceRule
+{
+    internal static ImmutableArray<string> StandardOptions { get; } =
+        ["UNG_999t2", "UNG_999t3", "UNG_999t4", "UNG_999t5", "UNG_999t6",
+            "UNG_999t7", "UNG_999t8", "UNG_999t10", "UNG_999t13", "UNG_999t14"];
+}
+
 /// <summary>与卡牌印刷属性分开定义的结算规则。</summary>
 public record CardRules
 {
+    public PlayReqSet? PlayReqs { get; init; }
     public TargetRequirement Target { get; init; }
     public TargetFilter? TargetFilter { get; init; }
     public PlayRequirements Requirements { get; init; }
@@ -207,12 +232,20 @@ public record CardRules
     public bool LeavesNoCorpse { get; init; }
     public ImmutableArray<CardEffect> OnPlay { get; init; } = [];
     public ImmutableArray<CardPlayChoice> Choices { get; init; } = [];
+    public PlayChoiceRule? ChooseAfterPlay { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsPlayChoiceOption { get; init; }
     public ImmutableArray<CardEffect> Deathrattle { get; init; } = [];
     public ImmutableArray<CardEffect> WhenDrawn { get; init; } = [];
     public ImmutableArray<CardEffect>? WhenDiscarded { get; init; }
     public ImmutableArray<CardTrigger> Triggers { get; init; } = [];
     public ImmutableArray<StatAura> Auras { get; init; } = [];
     public ImmutableArray<CostAura> CostAuras { get; init; } = [];
+    // CardDefs 的 SPELLPOWER 标记关键词，实际加成由单卡声明。
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int SpellDamage { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int? SpellAndHeroPowerMultiplier { get; init; }
     public LocationAbility? Activation { get; init; }
 }
 
@@ -226,6 +259,8 @@ public sealed record SimulationCard : CardRules
 
     public CardDefinition Definition { get; init; }
     public CardKeywords Keywords { get; init; }
+    public bool EffectPending { get; init; }
+    public int RequirementTagMask { get; init; }
     public int Overload { get; init; }
 
     public void Deconstruct(out CardDefinition definition) => definition = Definition;
@@ -244,7 +279,7 @@ public sealed record SimulationCard : CardRules
             (metadata.GetTag(GAME_TAG.CHARGE) > 0 ? CardKeywords.Charge : CardKeywords.None) |
             (metadata.GetTag(GAME_TAG.RUSH) > 0 ? CardKeywords.Rush : CardKeywords.None) |
             (castsWhenDrawn ? CardKeywords.CastsWhenDrawn : CardKeywords.None);
-        return new(definition, rules ?? EmptyRules) { Keywords = keywords, Overload = metadata.GetTag(GAME_TAG.OVERLOAD) };
+        return new(definition, rules ?? EmptyRules) { Keywords = keywords, RequirementTagMask = PlayReqTags.FromMetadata(metadata), Overload = metadata.GetTag(GAME_TAG.OVERLOAD) };
     }
 
     internal CharacterState CreateCharacter() => new(Definition.PrintedAttack, Definition.PrintedHealth,

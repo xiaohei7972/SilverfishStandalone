@@ -21,12 +21,13 @@ public sealed partial class GameSimulator
 
     private sealed partial class Resolution
     {
-        private void UseHeroPower(PlayerId playerId, EntityId source, EntityId? target)
+        private void UseHeroPower(PlayerId playerId, EntityId source, EntityId? target, bool resolvesEffects)
         {
             var power = _rules.Card(_state.Entities[source]);
             PayCardCost(playerId, source, power);
             _events.Add(new(SimulationEventKind.HeroPowerUsed, playerId, source, target));
-            ResolveEffects(new(source, playerId, target), power.OnPlay);
+            if (resolvesEffects)
+                ResolveEffects(new(source, playerId, target), power.OnPlay);
             _state = _state.UpdateResources(_state.Players[playerId] with { HeroPowerUsesThisTurn = 1 });
             ResolveDeaths();
             RunTriggers(new(TriggerTiming.AfterHeroPowerUsed, playerId, source), CaptureListeners());

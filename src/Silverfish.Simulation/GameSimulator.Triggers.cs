@@ -15,7 +15,7 @@ public sealed partial class GameSimulator
         private readonly record struct DamageSource(EntityId Id, PlayerId Controller);
 
         private readonly record struct Occurrence(TriggerTiming Timing, PlayerId Player, EntityId? Subject = null,
-            DamageSource? Source = null, int? Amount = null, EntityId? Defender = null);
+            DamageSource? Source = null, int? Amount = null, EntityId? Defender = null, bool Poisoned = false);
 
         private readonly record struct ListenerId(EntityId Entity, int Index);
 
@@ -29,6 +29,7 @@ public sealed partial class GameSimulator
         private sealed record FinishDrawnSpell(PlayerId Player, EntityId Source) : Work;
         private sealed record ResolveDiscardedCard(PlayerId Player, EntityId Card, ImmutableArray<CardEffect> Effects) : Work;
         private sealed record Dispatch(Occurrence Occurrence) : Work;
+        private sealed record DestroyPoisoned(EntityId Target) : Work;
         private sealed record Activate(EffectContext Context, long PlayOrder, ImmutableArray<CardEffect> Effects,
             Listener? Listener = null, EntityId? LivingEntity = null, int? Amount = null) : Work;
         private sealed record Complete(ListenerId Listener) : Work;
@@ -134,7 +135,13 @@ public sealed partial class GameSimulator
                         PushEffects(work, new(discarded.Card, discarded.Player), discarded.Effects);
                         break;
                     case Dispatch dispatch:
+                        if (dispatch.Occurrence is { Poisoned: true, Subject: EntityId poisoned })
+                            work.Push(new DestroyPoisoned(poisoned));
                         PushTriggers(work, Queue(dispatch.Occurrence, CaptureListeners()));
+                        break;
+                    case DestroyPoisoned poison:
+                        if (_state.LocationOf(poison.Target).Zone == GameZone.Play)
+                            _pendingDestruction.Add(poison.Target);
                         break;
                     case Activate trigger:
                         SpendResolutionStep();

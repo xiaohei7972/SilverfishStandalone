@@ -16,7 +16,8 @@ public sealed partial class GameSimulator
     private readonly int _resolutionLimit;
     private readonly bool _hasCostAuras;
 
-    public GameSimulator(IEnumerable<SimulationCard> cards, int resolutionLimit = 4096)
+    public GameSimulator(IEnumerable<SimulationCard> cards, int resolutionLimit = 4096,
+        IEnumerable<string>? randomMinionPool = null)
     {
         if (cards is null)
             throw new ArgumentNullException(nameof(cards), "必须提供模拟卡牌目录。");
@@ -32,6 +33,10 @@ public sealed partial class GameSimulator
                 throw new ArgumentException($"模拟卡牌 ID「{definition.CardId}」重复。", nameof(cards));
         }
         _cards = catalog.ToImmutable();
+        RandomMinionPool = randomMinionPool?.ToImmutableArray();
+        _randomMinionCosts = new(BuildRandomMinionCosts);
+        if (RandomMinionPool.HasValue)
+            _ = _randomMinionCosts.Value;
         foreach (var card in _cards.Values)
         {
             var definition = card.Definition;
@@ -46,6 +51,8 @@ public sealed partial class GameSimulator
                 (card.Keywords & ~(CardKeywords.Taunt | CardKeywords.Charge | CardKeywords.DivineShield |
                     CardKeywords.Rush | CardKeywords.Windfury | CardKeywords.CastsWhenDrawn)) != 0 ||
                 (card.Keywords.HasFlag(CardKeywords.CastsWhenDrawn) && definition.Kind != EntityKind.Spell) ||
+                card.SpellDamage < 0 || card.SpellAndHeroPowerMultiplier is < 2 ||
+                (definition.Kind != EntityKind.Minion && (card.SpellDamage != 0 || card.SpellAndHeroPowerMultiplier is not null)) ||
                 card.Overload < 0 || (card.Overload > 0 && definition.Kind is EntityKind.Hero or EntityKind.HeroPower) ||
                 card.Triggers.IsDefault || card.Auras.IsDefault || card.CostAuras.IsDefault || card.Choices.IsDefault ||
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && !card.Deathrattle.IsEmpty) ||
@@ -58,7 +65,16 @@ public sealed partial class GameSimulator
                     !card.OnPlay.IsDefaultOrEmpty || card.Triggers.Length != 1)))
                 throw new ArgumentException($"模拟卡牌「{definition.CardId}」的定义无效。", nameof(cards));
 
-            ValidateEffects(card, card.OnPlay, card.Target, hasInPlaySource: IsCharacter(definition.Kind));
+            ValidateEffects(card, card.OnPlay, EffectCharacterTarget(card.Target, BranchRequirements(card)),
+                hasInPlaySource: IsCharacter(definition.Kind));
+            if (card.ChooseAfterPlay is { } choiceRule &&
+                (definition.Kind is not (EntityKind.Minion or EntityKind.Spell) || card.IsSecret ||
+                    card.Keywords.HasFlag(CardKeywords.CastsWhenDrawn) ||
+                    !IsValidPlayChoice(card, choiceRule)))
+                throw new ArgumentException($"卡牌「{definition.CardId}」的出牌后选择定义无效。", nameof(cards));
+            if (card.IsPlayChoiceOption && (definition.Kind != EntityKind.Spell || card.OnPlay.IsEmpty || card.IsSecret ||
+                card.ChooseAfterPlay is not null || !card.Choices.IsEmpty))
+                throw new ArgumentException($"卡牌「{definition.CardId}」的待决选项定义无效。", nameof(cards));
             ValidateEffects(card, card.Deathrattle);
             ValidateEffects(card, card.WhenDrawn, isDrawnCard: true);
             if (card.WhenDiscarded is { } whenDiscarded)
@@ -67,7 +83,7 @@ public sealed partial class GameSimulator
             {
                 if (!IsValidTarget(activation.Target, activation.TargetFilter) || activation.Effects.IsDefaultOrEmpty)
                     throw new ArgumentException($"卡牌「{definition.CardId}」的地标激活规则无效。", nameof(cards));
-                ValidateEffects(card, activation.Effects, activation.Target);
+                ValidateEffects(card, activation.Effects, EffectCharacterTarget(activation.Target, BranchRequirements(card, activation: true)));
             }
             var choiceIds = new HashSet<string>(StringComparer.Ordinal);
             foreach (var choice in card.Choices)
@@ -76,7 +92,8 @@ public sealed partial class GameSimulator
                     !IsValidTarget(choice.Target, choice.TargetFilter) || (choice.Requirements & ~SupportedPlayRequirements) != 0 ||
                     choice.Effects.IsDefaultOrEmpty)
                     throw new ArgumentException($"卡牌「{definition.CardId}」的抉择选项无效。", nameof(cards));
-                ValidateEffects(card, choice.Effects, choice.Target, hasInPlaySource: definition.Kind == EntityKind.Minion);
+                ValidateEffects(card, choice.Effects, EffectCharacterTarget(choice.Target, BranchRequirements(card, choice)),
+                    hasInPlaySource: definition.Kind == EntityKind.Minion);
             }
             foreach (var aura in card.Auras)
             {
@@ -115,7 +132,11 @@ public sealed partial class GameSimulator
 
     public GameState CreateGame(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
         PlayerId activePlayer, int turn = 1, IEnumerable<MinionDeath>? minionDeaths = null, ulong randomState = 0) =>
-        ValidateState(GameState.Create(players, entities, activePlayer, turn, minionDeaths, randomState));
+        ValidateState(GameState.Create(turn == 1 ? players.Select(p => p with
+        {
+            PlayedCardThisTurn = p.PlayedCardThisTurn ?? false, PlayedElementalThisTurn = p.PlayedElementalThisTurn ?? false,
+            PlayedElementalLastTurn = p.PlayedElementalLastTurn ?? false, HeroHealthChangedThisTurn = p.HeroHealthChangedThisTurn ?? false
+        }) : players, entities, activePlayer, turn, minionDeaths, randomState));
 
     public IReadOnlyDictionary<string, SimulationCard> Cards => _cards;
 
@@ -163,8 +184,9 @@ public sealed partial class GameSimulator
             var player = state.Players[entity.Controller];
             var isHeroSlot = player.Hero == entity.Id;
             var isEquippedSlot = player.EquippedWeapon == entity.Id;
+            var isPendingSpell = kind == EntityKind.Spell && state.PendingPlayChoice?.Source == entity.Id;
             if (isHeroSlot != (kind == EntityKind.Hero) ||
-                (location.Zone == GameZone.Play && kind != EntityKind.Location && (kind == EntityKind.Weapon ? !isEquippedSlot :
+                (location.Zone == GameZone.Play && kind != EntityKind.Location && !isPendingSpell && (kind == EntityKind.Weapon ? !isEquippedSlot :
                     !IsCharacter(kind) || entity.Character is not { Health: > 0 })) ||
                 ((location.Zone == GameZone.HeroPower) != (kind == EntityKind.HeroPower)) ||
                 (location.Zone == GameZone.Secret && !Card(entity).IsSecret) ||
@@ -184,6 +206,8 @@ public sealed partial class GameSimulator
                 throw new ArgumentException($"实体 {entity.Id} 的支付方式修正无效。");
             ValidateStatLayers(state, entity);
         }
+        if (state.PendingPlayChoice is { } choice)
+            ValidatePlayChoice(state, choice);
         return RefreshAuras(state);
     }
 
@@ -193,35 +217,30 @@ public sealed partial class GameSimulator
             throw new ArgumentNullException(nameof(state), "必须提供对局状态。");
         if (state.Outcome != MatchOutcome.InProgress)
             return [];
+        if (state.PendingPlayChoice is { } choice)
+            return [.. choice.Options.Select(option => new SimulationAction(SimulationActionKind.ChooseOption,
+                state.ActivePlayer, choice.Source, option))];
 
         var actions = ImmutableArray.CreateBuilder<SimulationAction>();
         var actor = state.ActivePlayer;
         var player = state.Players[actor];
         var enemy = state.OpponentOf(actor);
         var enemyBoard = state.Players[enemy].In(GameZone.Play).Select(id => state.Entities[id])
-            .Where(entity => entity.Character is { Health: > 0 }).ToArray();
+            .Where(entity => entity.Character is { Health: > 0 } && !IsStealthed(entity)).ToArray();
         var taunts = enemyBoard.Where(IsTaunt).ToArray();
 
-        var minions = 0;
-        var occupiedSlots = 0;
+        var costAuras = ActiveCostAuras(state, actor);
+        var occupiedSlots = BoardSlotCount(state, actor);
         foreach (var id in player.In(GameZone.Play))
         {
             var attacker = state.Entities[id];
-            if (attacker.Location is { } location)
+            if (attacker.Location is not null)
             {
-                occupiedSlots++;
-                if (location.TurnsUntilReady == 0 && Card(attacker).Activation is { } ability)
-                    foreach (var target in PlayTargets(state, actor, ability.Target, ability.TargetFilter))
-                        actions.Add(new(SimulationActionKind.ActivateLocation, actor, id, target));
+                AddCardActions(attacker, GameZone.Play, SimulationActionKind.ActivateLocation);
                 continue;
             }
-            if (attacker.Character is not { } character)
+            if (attacker.Character is not { } character || Card(attacker).EffectPending)
                 continue;
-            if (id != player.Hero)
-            {
-                minions++;
-                occupiedSlots++;
-            }
             if (character.Frozen || EffectiveAttack(state, attacker) <= 0)
                 continue;
             var reach = GetAttackReach(state, attacker);
@@ -232,57 +251,27 @@ public sealed partial class GameSimulator
                     actions.Add(new(SimulationActionKind.Attack, actor, id, defender.Id));
         }
 
-        var costAuras = ActiveCostAuras(state, actor);
         foreach (var id in player.In(GameZone.Hand))
+            AddCardActions(state.Entities[id], GameZone.Hand, SimulationActionKind.PlayCard);
+        foreach (var id in player.In(GameZone.HeroPower))
+            AddCardActions(state.Entities[id], GameZone.HeroPower, SimulationActionKind.UseHeroPower);
+
+        void AddCardActions(GameEntity entity, GameZone zone, SimulationActionKind kind)
         {
-            var entity = state.Entities[id];
             var card = Card(entity);
-            var usesBoardSlot = UsesBoardSlot(card.Definition.Kind);
-            if (!CanPayCardCost(state, player, EffectiveCostType(entity, card), EffectiveCost(entity, card, costAuras)) ||
-                (occupiedSlots >= BoardLimit && usesBoardSlot) ||
-                (card.IsSecret && !CanArmSecret(state, player, entity.CardId)) ||
-                !MeetsPlayRequirements(state, actor, card, occupiedSlots, minions))
-                continue;
-
-            if (card.Choices.IsEmpty)
-                AddPlayActions(card.Target, card.TargetFilter, card.OnPlay, choiceId: null);
-            else
-                foreach (var choice in card.Choices)
-                    if (MeetsPlayRequirements(state, actor, choice.Requirements, occupiedSlots))
-                        AddPlayActions(choice.Target, choice.TargetFilter, choice.Effects, choice.Id);
-
-            void AddPlayActions(TargetRequirement requirement, TargetFilter? filter, ImmutableArray<CardEffect> effects, string? choiceId)
+            if (SourceFailure(state, entity, card, zone, costAuras) is not null)
+                return;
+            foreach (var branch in Branches(state, entity, card, kind == SimulationActionKind.ActivateLocation))
+            foreach (var target in branch.Targets)
             {
-                if (occupiedSlots >= BoardLimit && effects.Any(effect => effect is TakeControlEffect))
-                    return;
-
-                var targets = PlayTargets(state, actor, requirement, filter);
-                if (card.Definition.Kind is EntityKind.Minion or EntityKind.Weapon)
-                    targets = targets.DefaultIfEmpty();
-
-                foreach (var target in targets)
+                if (kind == SimulationActionKind.PlayCard && UsesBoardSlot(card.Definition.Kind))
                 {
-                    if (usesBoardSlot)
-                    {
-                        for (var position = 0; position <= occupiedSlots; position++)
-                            actions.Add(new(SimulationActionKind.PlayCard, actor, id, target, position) { Choice = choiceId });
-                    }
-                    else
-                    {
-                        actions.Add(new(SimulationActionKind.PlayCard, actor, id, target) { Choice = choiceId });
-                    }
+                    for (var position = 0; position <= occupiedSlots; position++)
+                        actions.Add(new(kind, actor, entity.Id, target, position) { Choice = branch.Choice });
                 }
+                else
+                    actions.Add(new(kind, actor, entity.Id, target) { Choice = branch.Choice });
             }
-        }
-
-        if (player.HeroPowerUsesThisTurn == 0 && player.In(GameZone.HeroPower) is [var powerId])
-        {
-            var entity = state.Entities[powerId];
-            var power = Card(entity);
-            if (CanPayCardCost(state, player, EffectiveCostType(entity, power), EffectiveCost(entity, power, costAuras)) &&
-                MeetsPlayRequirements(state, actor, power, occupiedSlots, minions))
-                foreach (var target in PlayTargets(state, actor, power.Target, power.TargetFilter))
-                    actions.Add(new(SimulationActionKind.UseHeroPower, actor, powerId, target));
         }
 
         actions.Add(new(SimulationActionKind.EndTurn, actor));
@@ -291,32 +280,37 @@ public sealed partial class GameSimulator
 
     public SimulationResult Apply(GameState state, SimulationAction action)
     {
-        EnsureLegal(state, action);
-        return new Resolution(this, state).Run(action);
+        var resolvesEffects = EnsureLegal(state, action);
+        return new Resolution(this, state).Run(action, resolvesEffects);
     }
 
-    private void EnsureLegal(GameState state, SimulationAction action)
+    private bool EnsureLegal(GameState state, SimulationAction action)
     {
-        if (action is null)
-            throw new ArgumentNullException(nameof(action), "必须提供要结算的动作。");
-        if (LegalActions(state).Contains(action))
-            return;
-        if (action.Kind is SimulationActionKind.PlayCard or SimulationActionKind.UseHeroPower &&
-            action.Source is EntityId source && state.Entities.TryGetValue(source, out var entity) &&
-            entity.Controller == action.Actor)
-        {
-            var type = EffectiveCostType(entity, Card(entity));
-            if (!SupportsCostType(type))
-                throw new InvalidOperationException($"卡牌「{entity.CardId}」的替代费用类型为 {type}，尚未接入该支付方式。");
-        }
-        throw new InvalidOperationException($"玩家 {action.Actor.Value} 当前不能执行动作「{action.Kind}」。");
+        if (CheckAction(state, action, out var resolvesEffects) is { } failure)
+            throw new InvalidOperationException($"{failure.Name} {failure.Reason}".Trim());
+        return resolvesEffects;
     }
 
     private bool IsTaunt(GameEntity entity) =>
         Card(entity).Definition.Kind == EntityKind.Minion && HasKeyword(entity, CardKeywords.Taunt);
 
     private bool HasKeyword(GameEntity entity, CardKeywords keyword) =>
-        !entity.Silenced && Card(entity).Keywords.HasFlag(keyword);
+        (!entity.Silenced && Card(entity).Keywords.HasFlag(keyword)) || (keyword switch
+        {
+            CardKeywords.Taunt => HasGrantedTag(entity, GAME_TAG.TAUNT),
+            CardKeywords.Windfury => HasGrantedTag(entity, GAME_TAG.WINDFURY),
+            _ => false
+        });
+
+    private static bool HasGrantedTag(GameEntity entity, GAME_TAG tag) =>
+        entity.Enchantments.Any(layer => layer.GrantedTag == tag);
+
+    private bool HasEffectiveTag(GameEntity entity, GAME_TAG tag) =>
+        (!entity.Silenced && PlayReqTags.Has(Card(entity).RequirementTagMask, (int)tag)) || HasGrantedTag(entity, tag);
+
+    private bool IsStealthed(GameEntity entity) =>
+        (entity.Stealthed ?? (!entity.Silenced && PlayReqTags.Has(Card(entity).RequirementTagMask, (int)GAME_TAG.STEALTH))) ||
+        HasGrantedTag(entity, GAME_TAG.STEALTH);
 
     private static bool IsCharacter(EntityKind kind) => kind is EntityKind.Hero or EntityKind.Minion;
 
@@ -326,26 +320,20 @@ public sealed partial class GameSimulator
     private static bool CanArmSecret(GameState state, PlayerState player, string cardId) =>
         player.In(GameZone.Secret).Length < SecretLimit && !player.In(GameZone.Secret).Any(id => state.Entities[id].CardId == cardId);
 
-    private bool MeetsPlayRequirements(GameState state, PlayerId player, SimulationCard card, int occupiedSlots, int minions) =>
-        MeetsPlayRequirements(state, player, card.Requirements, occupiedSlots) &&
-        ((card.MinimumEnemyMinions == 0 && card.MinimumTotalMinions == 0) ||
-            HasRequiredMinions(state, player, card, minions));
-
-    private static bool MeetsPlayRequirements(GameState state, PlayerId player, PlayRequirements requirements, int occupiedSlots) =>
-        (!requirements.HasFlag(PlayRequirements.BoardSpace) || occupiedSlots < BoardLimit) &&
-        (!requirements.HasFlag(PlayRequirements.FriendlyMinionDeath) ||
-            state.MinionDeaths.Any(death => death.Controller == player));
-
-    private bool HasRequiredMinions(GameState state, PlayerId player, SimulationCard card, int friendlyMinions)
-    {
-        var enemies = MinionCount(state, state.OpponentOf(player));
-        return enemies >= card.MinimumEnemyMinions && friendlyMinions + enemies >= card.MinimumTotalMinions;
-    }
-
     private SimulationCard Card(GameEntity entity) => GetCard(entity.CardId);
-    private SimulationCard GetCard(string cardId) => _cards.TryGetValue(cardId, out var card)
-        ? card
-        : throw new ArgumentException($"此规则目录缺少卡牌「{cardId}」的模拟实现。");
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SimulationCard> _pending = new(StringComparer.Ordinal);
+    private SimulationCard GetCard(string cardId)
+    {
+        if (_cards.TryGetValue(cardId, out var card))
+            return card;
+        if (_pending.TryGetValue(cardId, out var pending))
+            return pending;
+        if (PlayReqCatalog.Cards.TryGetValue(cardId, out var info) && !info.EffectImplemented)
+            return _pending.GetOrAdd(cardId, id => CompiledCardData.Bind(id, new CardRules { PlayReqs = info.Requirements }) with { EffectPending = true });
+        if (CompiledCardData.CollectibleMinionCosts.ContainsKey(cardId))
+            return _pending.GetOrAdd(cardId, id => CompiledCardData.Bind(id, new CardRules()) with { EffectPending = true });
+        throw new ArgumentException($"此规则目录缺少卡牌「{cardId}」的模拟实现。");
+    }
 
     private int MinionCount(GameState state, PlayerId player) => BoardMinions(state, player).Count();
 
@@ -397,7 +385,9 @@ public sealed partial class GameSimulator
 
             var valid = effect switch
             {
-                DamageEffect damage => damage.Amount > 0 && (damage.Target switch
+                DamageEffect damage => damage.Amount > 0 &&
+                    (damage.Enchantment is null || (damage.Target == DamageTarget.Selected && damage.Enchantment.Target == StatTarget.Selected)) &&
+                    (damage.Target switch
                 {
                     DamageTarget.Selected => target != TargetRequirement.None,
                     DamageTarget.Source => hasInPlaySource,
@@ -408,9 +398,9 @@ public sealed partial class GameSimulator
                 }),
                 DrawEffect draw => draw.Count > 0,
                 DrawMatchingEffect draw => draw.Count > 0 && draw.CardFilter is not null && IsValidCardFilter(draw.CardFilter),
-                ChangeHandCostEffect change => change.Delta != 0 && Enum.IsDefined(change.Duration) &&
+                ChangeHandCostEffect change => change.Delta != 0 && IsHandCostDuration(change.Duration) &&
                     IsOptionalCardIdValid(change.EnchantmentCardId) && HasHandCostTarget(change.Target, change.CardFilter),
-                ChangeCostTypeEffect change => SupportsCostType(change.Type) && Enum.IsDefined(change.Duration) &&
+                ChangeCostTypeEffect change => SupportsCostType(change.Type) && IsHandCostDuration(change.Duration) &&
                     IsOptionalCardIdValid(change.EnchantmentCardId) && HasHandCostTarget(change.Target, change.CardFilter),
                 RecruitEffect recruit => recruit.Count > 0 && IsValidCardFilter(recruit.CardFilter) &&
                     recruit.CardFilter?.Kind is null or EntityKind.Minion,
@@ -424,11 +414,13 @@ public sealed partial class GameSimulator
                 EquipWeaponEffect equip => GetCard(equip.CardId).Definition.Kind == EntityKind.Weapon,
                 DestroyEnemyWeaponEffect => true,
                 EnchantStatsEffect enchant => Enum.IsDefined(enchant.Target) && Enum.IsDefined(enchant.Duration) &&
-                    IsValidModifier(enchant.Modifier) && IsOptionalCardIdValid(enchant.EnchantmentCardId) &&
+                    IsValidEnchantment(enchant.Modifier, enchant.GrantedTag) && IsOptionalCardIdValid(enchant.EnchantmentCardId) &&
+                    ((enchant.GrantedTag == GAME_TAG.DEATHRATTLE) ==
+                        (!enchant.OnRemoved.IsDefaultOrEmpty && enchant.OnRemoved.Any(rule => rule?.Reason == EnchantmentRemovalReason.Died))) &&
                     (enchant.Target != StatTarget.Selected || target != TargetRequirement.None) &&
                     (enchant.Target != StatTarget.Source || hasInPlaySource),
                 SilenceEffect or DestroyMinionEffect => TargetsOnlyMinions(target),
-                ReturnMinionEffect returned => Enum.IsDefined(returned.CostDuration) && IsOptionalCardIdValid(returned.EnchantmentCardId) &&
+                ReturnMinionEffect returned => IsHandCostDuration(returned.CostDuration) && IsOptionalCardIdValid(returned.EnchantmentCardId) &&
                     (returned.CostDelta != 0 || (returned.EnchantmentCardId is null && returned.CostDuration == EnchantmentDuration.Permanent)) &&
                     (returned.Target switch
                     {
@@ -438,6 +430,7 @@ public sealed partial class GameSimulator
                     }),
                 TransformMinionEffect transform => TargetsOnlyMinions(target) &&
                     GetCard(transform.CardId).Definition.Kind == EntityKind.Minion,
+                TransformMinionByCostEffect transform => TargetsOnlyMinions(target) && transform.Increase > 0,
                 ResurrectFriendlyMinionEffect => true,
                 FreezeEffect freeze => freeze.Target switch
                 {
@@ -463,6 +456,8 @@ public sealed partial class GameSimulator
             };
             if (!valid)
                 throw new ArgumentException($"卡牌「{card.Definition.CardId}」的效果定义无效。");
+            if (effect is DamageEffect { Enchantment: { } simultaneous })
+                pending.Push(simultaneous);
             if (effect is EnchantStatsEffect { OnRemoved.IsDefaultOrEmpty: false } enchantment)
                 RegisterEnchantmentRemovalEffects(card, enchantment);
         }
@@ -481,4 +476,7 @@ public sealed partial class GameSimulator
             TriggerTiming.AfterMinionPlayed or TriggerTiming.Damage or TriggerTiming.HeroAttacking or TriggerTiming.AttackProposed;
 
     private static bool IsOptionalCardIdValid(string? cardId) => cardId is null || !string.IsNullOrWhiteSpace(cardId);
+
+    private static bool IsHandCostDuration(EnchantmentDuration duration) =>
+        duration is EnchantmentDuration.Permanent or EnchantmentDuration.CurrentTurn;
 }

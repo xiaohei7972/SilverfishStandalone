@@ -1,3 +1,4 @@
+using Silverfish.Domain.Client;
 namespace Silverfish.Simulation.Cards;
 
 // 叉状闪电
@@ -7,9 +8,14 @@ namespace Silverfish.Simulation.Cards;
 [CardSim("EX1_251")]
 internal static class Sim_EX1_251
 {
+    // <legacy-play-requirements>
+    internal static PlayReqSet PlayReqs { get; } = new(
+        [new(ErrorType.REQ_MINIMUM_ENEMY_MINIONS, 1)],
+        []);
+    // </legacy-play-requirements>
+
     internal static CardRules Rules { get; } = new()
     {
-        MinimumEnemyMinions = 1,
         OnPlay = [new RandomDamageEffect(RandomCharacterPool.EnemyMinions, 2, Count: 2, Mode: RandomDamageMode.DistinctBatch)]
     };
 }

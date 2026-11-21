@@ -1,5 +1,6 @@
 using System.Text;
 using Silverfish.Domain;
+using Silverfish.Domain.Client;
 using Silverfish.Simulation;
 using Xunit;
 
@@ -7,6 +8,57 @@ namespace Silverfish.Domain.Tests;
 
 public sealed partial class GameSimulationTests
 {
+    [Theory]
+    [InlineData("REV_793")]
+    [InlineData("REV_990")]
+    public void SanguineDepthsUsesTheSameActivationAndEnchantmentForBothIds(string cardId)
+    {
+        var simulator = new GameSimulator([.. StarterCardCatalog.Cards, Hero, Minion("fragile", 1, 1), Minion("unit", 2, 4)]);
+        var source = new EntityId(11);
+        var friendly = new EntityId(12);
+        var enemy = new EntityId(21);
+        var root = Create(simulator, First,
+            Player(First, FirstHero) with
+            {
+                ManaCrystals = 2, ManaSpent = 0, Zones = Zones((GameZone.Play, [10, 12]), (GameZone.Hand, [11, 13]))
+            },
+            Player(Second, SecondHero) with { Zones = Zones((GameZone.Play, [20, 21])) },
+            Card(11, cardId, First), InPlay(12, "fragile", First, 3, 1, 1),
+            Card(13, "EX1_332", First), InPlay(21, "unit", Second, 4, 2, 4));
+        var play = new SimulationAction(SimulationActionKind.PlayCard, First, source, Position: 0);
+        Assert.Contains(play, simulator.LegalActions(root));
+        var placed = simulator.Apply(root, play);
+        Assert.Equal(new LocationState(3), placed.State.Entities[source].Location);
+        Assert.Equal(SimulationEventKind.CardPlayed, Assert.Single(placed.Events).Kind);
+
+        var activate = new SimulationAction(SimulationActionKind.ActivateLocation, First, source, enemy);
+        Assert.Equal(new EntityId?[] { friendly, enemy }, Assert.Single(simulator.ExplainSource(placed.State, source).Branches).Targets);
+        Assert.Contains(activate, simulator.LegalActions(placed.State));
+        Assert.Equal(ErrorType.REQ_MINION_TARGET, simulator.CheckAction(placed.State, activate with { Target = FirstHero })?.Type);
+        Assert.Equal(ErrorType.REQ_TARGET_TO_PLAY, simulator.CheckAction(placed.State, activate with { Target = null })?.Type);
+
+        var activated = simulator.Apply(placed.State, activate);
+        Assert.Equal(new[] { SimulationEventKind.LocationActivated, SimulationEventKind.Damage,
+            SimulationEventKind.EnchantmentApplied, SimulationEventKind.LocationHealthLost }, activated.Events.Select(entry => entry.Kind));
+        var target = activated.State.Entities[enemy];
+        Assert.Equal(3, target.Character!.Health);
+        Assert.Equal(4, target.Character.Attack);
+        var enchantment = Assert.Single(target.Enchantments);
+        Assert.Equal("REV_990e", enchantment.CardId);
+        Assert.Equal(source, enchantment.Source);
+        Assert.Equal(new LocationState(2, 2), activated.State.Entities[source].Location);
+        Assert.Equal(ErrorType.REQ_NOT_EXHAUSTED_LOCATION, simulator.CheckAction(activated.State, activate)?.Type);
+
+        var silenced = simulator.Apply(activated.State, new(SimulationActionKind.PlayCard, First, new EntityId(13), enemy)).State.Entities[enemy];
+        Assert.Empty(silenced.Enchantments);
+        Assert.Equal(2, silenced.Character!.Attack);
+        Assert.Equal(3, silenced.Character.Health);
+
+        var lethal = simulator.Apply(placed.State, activate with { Target = friendly });
+        Assert.Equal(GameZone.Graveyard, lethal.State.LocationOf(friendly).Zone);
+        Assert.Equal(friendly, Assert.Single(lethal.State.MinionDeaths).Entity);
+    }
+
     [Fact]
     public void LocationUsesHealthFromCardDataAndSkipsOneOwnerTurnAfterActivation()
     {
@@ -23,7 +75,8 @@ public sealed partial class GameSimulationTests
         var metadata = CardDataCatalog.ImportXml(xml).GetCard("training-site");
         var site = SimulationCard.FromMetadata(metadata, new CardRules
         {
-            Activation = new([new DamageEffect(DamageTarget.Selected, 3)]) { Target = TargetRequirement.EnemyCharacter }
+            PlayReqs = new(default, [new(ErrorType.REQ_TARGET_TO_PLAY), new(ErrorType.REQ_ENEMY_TARGET)]),
+            Activation = new([new DamageEffect(DamageTarget.Selected, 3)])
         });
         var simulator = new GameSimulator([Hero, site]);
         var source = new EntityId(11);

@@ -10,8 +10,8 @@ public sealed partial class GameSimulator
     public SimulationDistribution ApplyDistribution(GameState state, SimulationAction action, int workLimit = 64)
     {
         ValidateWorkLimit(workLimit);
-        EnsureLegal(state, action);
-        return RunDistribution(state, action, workLimit);
+        var resolvesEffects = EnsureLegal(state, action);
+        return RunDistribution(state, action, workLimit, resolvesEffects);
     }
 
     private static void ValidateWorkLimit(int workLimit)
@@ -20,7 +20,7 @@ public sealed partial class GameSimulator
             throw new ArgumentOutOfRangeException(nameof(workLimit), "随机结算预算必须大于零。");
     }
 
-    private SimulationDistribution RunDistribution(GameState state, SimulationAction action, int workLimit)
+    private SimulationDistribution RunDistribution(GameState state, SimulationAction action, int workLimit, bool resolvesEffects)
     {
         var paths = new Stack<RandomPath>();
         paths.Push(new([], 1));
@@ -36,7 +36,7 @@ public sealed partial class GameSimulator
             resolutions++;
             try
             {
-                var result = new Resolution(this, state, Select).Run(action);
+                var result = new Resolution(this, state, Select).Run(action, resolvesEffects);
                 outcomes.Add(new(result, path.Probability));
             }
             catch (UnresolvedRandomChoice choice)
@@ -62,7 +62,7 @@ public sealed partial class GameSimulator
         for (var index = 0; index < samples; index++)
         {
             var randomized = false;
-            var result = new Resolution(this, state, Sample).Run(action);
+            var result = new Resolution(this, state, Sample).Run(action, resolvesEffects);
             resolutions++;
             if (!randomized)
                 return new([new(result, 1)], resolutions, IsExact: true);
@@ -113,7 +113,11 @@ public sealed partial class GameSimulator
             ValidateWorkLimit(workLimit);
             if ((uint)index >= (uint)Actions.Length)
                 throw new ArgumentOutOfRangeException(nameof(index), "合法动作序号超出范围。");
-            return _simulator.RunDistribution(State, Actions[index], workLimit);
+            var action = Actions[index];
+            // The action was already enumerated as legal. Only a targetless play needs the branch's effect decision.
+            var resolvesEffects = action.Target.HasValue || ((action.Kind is SimulationActionKind.PlayCard or
+                SimulationActionKind.UseHeroPower or SimulationActionKind.ActivateLocation) && _simulator.EnsureLegal(State, action));
+            return _simulator.RunDistribution(State, action, workLimit, resolvesEffects);
         }
     }
 
@@ -132,11 +136,12 @@ public sealed partial class GameSimulator
             if (candidates.Count == 0)
                 return;
 
+            var amount = ModifiedEffectAmount(context, effect.Amount, damage: true);
             if (effect.Mode == RandomDamageMode.Sequential)
             {
                 if (effect.Count > 1)
                     work.Push(new ApplyEffect(context, effect with { Count = effect.Count - 1 }));
-                PushOccurrence(work, Damage(context.Source, candidates[ChooseIndex(candidates.Count)], effect.Amount));
+                PushOccurrence(work, Damage(context.Source, candidates[ChooseIndex(candidates.Count)], amount));
                 return;
             }
 
@@ -145,7 +150,7 @@ public sealed partial class GameSimulator
             for (var hit = 0; hit < count; hit++)
             {
                 var index = ChooseIndex(candidates.Count);
-                hits.Add(Damage(context.Source, candidates[index], effect.Amount));
+                hits.Add(Damage(context.Source, candidates[index], amount));
                 candidates.RemoveAt(index);
             }
             for (var index = hits.Count - 1; index >= 0; index--)

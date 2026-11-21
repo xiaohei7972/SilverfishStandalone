@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 
 ENUM_NAMES = (
     "GAME_TAG", "TAG_ZONE", "TAG_RACE", "TAG_SPELL_SCHOOL", "TAG_CARDTYPE", "TAG_CARD_ALTERNATE_COST",
-    "TAG_CARD_SET",
+    "TAG_CARD_SET", "TAG_CLASS", "ErrorType",
 )
 OUTPUT = Path(__file__).resolve().parents[1] / "src/Silverfish.Domain/Client/ClientEnums.g.cs"
 MEMBER = re.compile(r"([A-Za-z_]\w*)(?:\s*=\s*([+-]?(?:0[xX][0-9a-fA-F]+|[0-9]+)))?")
@@ -47,7 +47,7 @@ def generate(source: Path) -> str:
     ]
     for name in ENUM_NAMES:
         lines.extend([f"public enum {name}", "{"])
-        lines.extend(f"    {member} = {value}," for member, value in read_members(source / f"{name}.cs", name))
+        lines.extend(f"    {member} = {value}," for member, value in read_members(source / ("PlayErrors.cs" if name == "ErrorType" else f"{name}.cs"), name))
         lines.extend(["}", ""])
     return "\n".join(lines)
 

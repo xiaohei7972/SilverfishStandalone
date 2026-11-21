@@ -7,15 +7,17 @@ namespace Silverfish.Simulation;
 public static class StarterCardCatalog
 {
     private const BindingFlags SimMembers = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-    private static readonly Lazy<ImmutableArray<(string CardId, CardRules Rules)>> RegisteredRules = new(DiscoverRules);
+    private static readonly Lazy<ImmutableArray<(string CardId, CardRules Rules)>> Rules = new(DiscoverRules);
 
     private static readonly Lazy<ImmutableArray<SimulationCard>> BuiltInCards = new(() =>
-        [.. RegisteredRules.Value.Select(entry => CompiledCardData.Bind(entry.CardId, entry.Rules))]);
+        [.. RegisteredRules.Select(entry => CompiledCardData.Bind(entry.CardId, entry.Rules))]);
+
+    internal static ImmutableArray<(string CardId, CardRules Rules)> RegisteredRules => Rules.Value;
 
     public static ImmutableArray<SimulationCard> Cards => BuiltInCards.Value;
 
     public static ImmutableArray<SimulationCard> FromCardData(CardDataCatalog catalog) =>
-        [.. RegisteredRules.Value.Select(entry => SimulationCard.FromMetadata(catalog.GetCard(entry.CardId), entry.Rules))];
+        [.. RegisteredRules.Select(entry => SimulationCard.FromMetadata(catalog.GetCard(entry.CardId), entry.Rules))];
 
     private static ImmutableArray<(string CardId, CardRules Rules)> DiscoverRules()
     {
@@ -42,7 +44,9 @@ public static class StarterCardCatalog
             {
                 var rules = (CardRules?)property.GetValue(null)
                     ?? throw new InvalidOperationException($"卡牌「{cardId}」的 Sim 返回了空规则。");
-                entries.Add((cardId, rules));
+                var requirements = PlayReqCatalog.ReadDeclaredRequirements(provider) ?? new([], []);
+                ValidateRequirementPlacement(cardId, rules, requirements);
+                entries.Add((cardId, rules with { PlayReqs = requirements }));
             }
             catch (TargetInvocationException error)
             {
@@ -50,5 +54,32 @@ public static class StarterCardCatalog
             }
         }
         return entries.ToImmutable();
+    }
+
+    private static void ValidateRequirementPlacement(string cardId, CardRules rules, PlayReqSet requirements)
+    {
+        if (rules.PlayReqs is not null || rules.Target != TargetRequirement.None || rules.TargetFilter is not null ||
+            rules.Requirements != PlayRequirements.None || rules.MinimumEnemyMinions != 0 || rules.MinimumTotalMinions != 0)
+            throw new InvalidOperationException($"卡牌「{cardId}」的出牌条件必须声明在 Sim 类的静态 PlayReqs.Play 中。");
+        if (rules.Activation is { Target: not TargetRequirement.None } or { TargetFilter: not null })
+            throw new InvalidOperationException($"卡牌「{cardId}」的激活条件必须声明在 Sim 类的静态 PlayReqs.Ability 中。");
+        if (!rules.Choices.IsDefaultOrEmpty && rules.Choices.Any(choice => choice is
+            { Target: not TargetRequirement.None } or { TargetFilter: not null } or { Requirements: not PlayRequirements.None }))
+            throw new InvalidOperationException($"卡牌「{cardId}」的分支条件必须声明在对应选项的 CardPlayChoice.PlayReqs 中。");
+        ValidateRequirementList(cardId, "PlayReqs.Play", requirements.Play);
+        ValidateRequirementList(cardId, "PlayReqs.Ability", requirements.Ability);
+        foreach (var choice in rules.Choices.IsDefault ? [] : rules.Choices)
+        {
+            ValidateRequirementList(cardId, $"CardPlayChoice.PlayReqs（{choice.Id}）", choice.PlayReqs);
+            if (choice.PlayReqs.Any(requirements.Play.Contains))
+                throw new InvalidOperationException($"卡牌「{cardId}」的抉择「{choice.Id}」重复声明了公共出牌条件。");
+        }
+    }
+
+    private static void ValidateRequirementList(string cardId, string group, ImmutableArray<PlayReq> requirements)
+    {
+        if (requirements.IsDefault || requirements.Any(requirement => requirement is null) ||
+            requirements.Distinct().Count() != requirements.Length)
+            throw new InvalidOperationException($"卡牌「{cardId}」的 {group} 必须是已初始化且无重复项的条件列表。");
     }
 }

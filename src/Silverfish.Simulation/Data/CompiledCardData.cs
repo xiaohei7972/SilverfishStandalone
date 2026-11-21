@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Silverfish.Domain;
 using Silverfish.Domain.Client;
 
@@ -7,8 +8,24 @@ namespace Silverfish.Simulation;
 public static partial class CompiledCardData
 {
     private const int RowWidth = 12;
+    private static readonly Lazy<ImmutableDictionary<string, int>> MinionCosts = new(ReadCollectibleMinionCosts);
 
     public static int Build => SourceBuild;
+    internal static ImmutableDictionary<string, int> CollectibleMinionCosts => MinionCosts.Value;
+
+    private static ImmutableDictionary<string, int> ReadCollectibleMinionCosts()
+    {
+        var rows = Rows;
+        var ids = CardIds.AsSpan();
+        var minions = ImmutableDictionary.CreateBuilder<string, int>(StringComparer.Ordinal);
+        foreach (var index in CollectibleMinionRows)
+        {
+            var row = index * RowWidth;
+            var end = row + RowWidth < rows.Length ? rows[row + RowWidth] : ids.Length;
+            minions.Add(ids[rows[row]..end].ToString(), rows[row + 2]);
+        }
+        return minions.ToImmutable();
+    }
 
     public static SimulationCard Bind(string cardId, CardRules rules)
     {
@@ -43,12 +60,13 @@ public static partial class CompiledCardData
                 {
                     MinionTypes = races == MinionType.None ? null : races,
                     SpellSchool = school == SpellSchool.None ? null : school,
-                    AlternateCost = alternateCost == TAG_CARD_ALTERNATE_COST.MANA ? null : alternateCost
+                    AlternateCost = alternateCost == TAG_CARD_ALTERNATE_COST.MANA ? null : alternateCost,
+                    ClassMask = unchecked((uint)CardClassMasks[middle])
                 };
                 return new SimulationCard(definition, rules)
                 {
                     Keywords = (CardKeywords)rows[row + 6],
-                    Overload = rows[row + 7]
+                    RequirementTagMask = RequirementMasks[middle], Overload = rows[row + 7]
                 };
             }
             if (order < 0)

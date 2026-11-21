@@ -1,3 +1,4 @@
+using Silverfish.Domain.Client;
 using Silverfish.Simulation.Cards.Enchantments;
 
 namespace Silverfish.Simulation.Cards;
@@ -9,9 +10,14 @@ namespace Silverfish.Simulation.Cards;
 [CardSim("EX1_019")]
 internal static class Sim_EX1_019
 {
+    // <legacy-play-requirements>
+    internal static PlayReqSet PlayReqs { get; } = new(
+        [new(ErrorType.REQ_MINION_TARGET), new(ErrorType.REQ_FRIENDLY_TARGET), new(ErrorType.REQ_TARGET_IF_AVAILABLE)],
+        []);
+    // </legacy-play-requirements>
+
     internal static CardRules Rules { get; } = new()
     {
-        Target = TargetRequirement.FriendlyMinion,
         OnPlay = [Sim_EX1_019e.Rule.ApplyTo(StatTarget.Selected)]
     };
 }

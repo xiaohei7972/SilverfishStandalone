@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text.Json;
 using Silverfish.Domain;
+using Silverfish.Domain.Client;
 
 namespace Silverfish.Simulation;
 
@@ -40,12 +41,17 @@ public sealed partial class GameSimulator
             _ => false
         });
 
+    private static bool IsValidEnchantment(StatModifier? modifier, GAME_TAG? tag) =>
+        tag is null ? IsValidModifier(modifier) : modifier is null && tag is
+            GAME_TAG.TAUNT or GAME_TAG.WINDFURY or GAME_TAG.ELUSIVE or GAME_TAG.STEALTH or GAME_TAG.DIVINE_SHIELD or
+            GAME_TAG.POISONOUS or GAME_TAG.DEATHRATTLE;
+
     private void ValidateStatLayers(GameState state, GameEntity entity)
     {
         foreach (var enchantment in entity.Enchantments)
         {
             if (enchantment is null || !state.Entities.ContainsKey(enchantment.Source) ||
-                !IsValidModifier(enchantment.Modifier) ||
+                !IsValidEnchantment(enchantment.Modifier, enchantment.GrantedTag) ||
                 !IsOptionalCardIdValid(enchantment.CardId) ||
                 (enchantment.ExpiresAfterTurn is int turn && turn < state.Turn))
                 throw new ArgumentException($"实体 {entity.Id} 的属性附魔无效。");
@@ -122,7 +128,8 @@ public sealed partial class GameSimulator
         var attack = baseAttack;
         var maximumHealth = baseHealth;
         foreach (var enchantment in entity.Enchantments)
-            Apply(enchantment.Modifier);
+            if (enchantment.Modifier is { } modifier)
+                Apply(modifier);
         foreach (var aura in grants)
             Apply(aura.Modifier);
 
@@ -164,19 +171,31 @@ public sealed partial class GameSimulator
                     .OrderBy(id => _state.Entities[id].PlayOrder),
                 _ => throw new InvalidOperationException("无法识别属性附魔的目标。")
             };
-            var expires = effect.Duration == EnchantmentDuration.CurrentTurn ? _state.Turn : (int?)null;
+            int? expires = effect.Duration switch
+            {
+                EnchantmentDuration.CurrentTurn => _state.Turn,
+                EnchantmentDuration.UntilNextTurn => checked(_state.Turn + (_state.ActivePlayer == context.Controller ? 1 : 0)),
+                _ => null
+            };
             foreach (var id in targets.ToArray())
             {
                 if (_state.LocationOf(id).Zone != GameZone.Play)
                     continue;
                 var entity = _state.Entities[id];
-                var enchantment = new StatEnchantment(context.Source, effect.Modifier, expires) { CardId = effect.EnchantmentCardId };
+                if (entity.Character is not { } character || effect.GrantedTag == GAME_TAG.DIVINE_SHIELD && character.DivineShield)
+                    continue;
+                var enchantment = new StatEnchantment(context.Source, effect.Modifier, expires)
+                {
+                    CardId = effect.EnchantmentCardId, GrantedTag = effect.GrantedTag
+                };
                 // 设定生命值时只在效果应用的那一刻清除已有伤害。
                 if (effect.Modifier is { Mode: StatModifierMode.Set, MaximumHealth: not null })
-                    entity = entity with { Character = entity.Character! with { Damage = 0 } };
+                    character = character with { Damage = 0 };
+                if (effect.GrantedTag == GAME_TAG.DIVINE_SHIELD)
+                    character = character with { DivineShield = true };
                 _state = _state.UpdateEntity(RecalculateStats(entity with
                 {
-                    Enchantments = entity.Enchantments.Add(enchantment)
+                    Character = character, Enchantments = entity.Enchantments.Add(enchantment)
                 }, entity.AuraGrants));
                 _events.Add(new(SimulationEventKind.EnchantmentApplied, context.Controller, context.Source, id));
             }
@@ -191,7 +210,7 @@ public sealed partial class GameSimulator
             var entity = _state.Entities[id];
             var silenced = entity with
             {
-                Silenced = true, Enchantments = [],
+                Silenced = true, Stealthed = false, Enchantments = [],
                 Character = entity.Character! with { DivineShield = false, Frozen = false }
             };
             _state = _state.UpdateEntity(RecalculateStats(silenced, entity.AuraGrants));
@@ -220,8 +239,11 @@ public sealed partial class GameSimulator
                 var expired = entity.Enchantments.Where(modifier => modifier.ExpiresAfterTurn <= _state.Turn).ToImmutableArray();
                 if (expired.IsEmpty)
                     continue;
-                var remaining = entity.Enchantments.Where(modifier => !(modifier.ExpiresAfterTurn <= _state.Turn));
-                _state = _state.UpdateEntity(RecalculateStats(entity with { Enchantments = remaining.ToImmutableArray() }, entity.AuraGrants));
+                var remaining = entity.Enchantments.Where(modifier => !(modifier.ExpiresAfterTurn <= _state.Turn)).ToImmutableArray();
+                var updated = entity with { Enchantments = remaining };
+                if (expired.Any(layer => layer.GrantedTag == GAME_TAG.DIVINE_SHIELD))
+                    updated = updated with { Character = updated.Character! with { DivineShield = false } };
+                _state = _state.UpdateEntity(RecalculateStats(updated, entity.AuraGrants));
                 foreach (var modifier in expired)
                     _events.Add(new(SimulationEventKind.EnchantmentExpired, entity.Controller, modifier.Source, entity.Id));
                 if (_rules._enchantmentRemovalEffects.Count != 0)

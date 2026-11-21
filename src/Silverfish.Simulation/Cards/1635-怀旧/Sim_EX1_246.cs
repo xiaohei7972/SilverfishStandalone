@@ -1,3 +1,4 @@
+using Silverfish.Domain.Client;
 namespace Silverfish.Simulation.Cards;
 
 // 妖术
@@ -7,9 +8,14 @@ namespace Silverfish.Simulation.Cards;
 [CardSim("EX1_246")]
 internal static class Sim_EX1_246
 {
+    // <legacy-play-requirements>
+    internal static PlayReqSet PlayReqs { get; } = new(
+        [new(ErrorType.REQ_TARGET_TO_PLAY), new(ErrorType.REQ_MINION_TARGET)],
+        []);
+    // </legacy-play-requirements>
+
     internal static CardRules Rules { get; } = new()
     {
-        Target = TargetRequirement.Minion,
         OnPlay = [new TransformMinionEffect("hexfrog")]
     };
 }

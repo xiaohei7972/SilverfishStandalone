@@ -49,7 +49,7 @@ public sealed class SimulationTurnPlanner(GameSimulator simulator, Func<GameStat
             if (remainingDepth == 0 || transitions >= limit || state.Outcome != MatchOutcome.InProgress || state.ActivePlayer != perspective)
                 return baseline;
 
-            Prediction? selected = mayStop ? baseline : null;
+            Prediction? selected = mayStop && state.PendingPlayChoice is null ? baseline : null;
             var legal = mayStop || initialActions is null ? simulator.GetLegalActionSet(state) : initialActions;
             var actions = legal.Actions;
             var candidates = new List<Candidate>();
@@ -124,7 +124,7 @@ public sealed class SimulationTurnPlanner(GameSimulator simulator, Func<GameStat
                 _ => GuaranteedResult.None
             };
             return new([], evaluate(state, perspective), guarantee == GuaranteedResult.Win ? 1 : 0,
-                guarantee == GuaranteedResult.Loss ? 1 : 0, guarantee);
+                guarantee == GuaranteedResult.Loss ? 1 : 0, guarantee, Replan: state.PendingPlayChoice is not null);
         }
     }
 

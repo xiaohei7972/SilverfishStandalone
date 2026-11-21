@@ -1,3 +1,4 @@
+using Silverfish.Domain.Client;
 namespace Silverfish.Simulation.Cards;
 
 // 冰川裂片
@@ -7,9 +8,14 @@ namespace Silverfish.Simulation.Cards;
 [CardSim("UNG_205")]
 internal static class Sim_UNG_205
 {
+    // <legacy-play-requirements>
+    internal static PlayReqSet PlayReqs { get; } = new(
+        [new(ErrorType.REQ_ENEMY_TARGET), new(ErrorType.REQ_TARGET_IF_AVAILABLE)],
+        []);
+    // </legacy-play-requirements>
+
     internal static CardRules Rules { get; } = new()
     {
-        Target = TargetRequirement.EnemyCharacter,
         OnPlay = [new FreezeEffect(FreezeTarget.Selected)]
     };
 }

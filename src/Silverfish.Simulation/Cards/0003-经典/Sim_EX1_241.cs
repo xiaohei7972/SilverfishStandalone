@@ -1,3 +1,4 @@
+using Silverfish.Domain.Client;
 namespace Silverfish.Simulation.Cards;
 
 // 熔岩爆裂
@@ -7,9 +8,14 @@ namespace Silverfish.Simulation.Cards;
 [CardSim("EX1_241")]
 internal static class Sim_EX1_241
 {
+    // <legacy-play-requirements>
+    internal static PlayReqSet PlayReqs { get; } = new(
+        [new(ErrorType.REQ_TARGET_TO_PLAY)],
+        []);
+    // </legacy-play-requirements>
+
     internal static CardRules Rules { get; } = new()
     {
-        Target = TargetRequirement.Character,
         OnPlay = [new DamageEffect(DamageTarget.Selected, 5)]
     };
 }

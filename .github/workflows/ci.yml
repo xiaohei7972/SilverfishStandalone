@@ -11,6 +11,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Check required Sim card comments
+        run: python -X utf8 tools/sim_comments.py --check
+      - name: Verify PlayReq migration writes Sim card comments
+        run: python -X utf8 tools/test_sim_comments.py
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
@@ -317,9 +321,11 @@ jobs:
           }
           if ($normalSource -notmatch '// 练习法术' -or $normalSource -notmatch '// Practice Spell' -or
               $normalSource -notmatch '// 抽一张牌。' -or $normalSource -notmatch '// Draw a card\.' -or
-              $enchantmentSource -notmatch '// 获得一点攻击力。' -or $enchantmentSource -notmatch '// （无）') {
+              $enchantmentSource -notmatch '// 获得一点攻击力。' -or $enchantmentSource -notmatch '// English card text unavailable\.') {
               throw 'Sim 骨架的双语卡牌注释与原始资料不符。'
           }
+          python -X utf8 tools/sim_comments.py --check --cards $cards
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Add-Content $enchantment '// 保留手写规则。'
           $before = (Get-FileHash $enchantment).Hash
           dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- import-card-data $xml $data

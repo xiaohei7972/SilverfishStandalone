@@ -1,4 +1,5 @@
 using Silverfish.Domain;
+using Silverfish.Domain.Client;
 using Silverfish.Simulation;
 using Xunit;
 
@@ -90,7 +91,7 @@ public sealed partial class GameSimulationTests
         var automatic = Spell("automatic") with
         {
             Keywords = CardKeywords.CastsWhenDrawn,
-            Target = TargetRequirement.FriendlyMinion,
+            PlayReqs = new([new(ErrorType.REQ_TARGET_TO_PLAY), new(ErrorType.REQ_MINION_TARGET), new(ErrorType.REQ_FRIENDLY_TARGET)], []),
             OnPlay = [new DamageEffect(DamageTarget.Selected, 1)]
         };
         var watcher = Minion("watcher", 0, 3) with

@@ -1,8 +1,8 @@
 namespace Silverfish.Simulation.Cards.Enchantments;
 
-// （无）
+// 卡名未收录（GBL_005e）
 // Cost + 2
-// （无）
+// 中文卡面描述未收录。
 // Costs (2) more.
 internal static class Sim_GBL_005e
 {

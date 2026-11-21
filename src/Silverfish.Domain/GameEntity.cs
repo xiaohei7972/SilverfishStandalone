@@ -34,6 +34,8 @@ public sealed record LocationState(int Health, int TurnsUntilReady = 0)
 
 public sealed record GameEntity(EntityId Id, string CardId, PlayerId Owner, PlayerId Controller)
 {
+    public string? CopiedSpellCardId { get; init; }
+    public bool? Stealthed { get; init; }
     public CharacterState? Character { get; init; }
     public WeaponStats? Weapon { get; init; }
     public LocationState? Location { get; init; }

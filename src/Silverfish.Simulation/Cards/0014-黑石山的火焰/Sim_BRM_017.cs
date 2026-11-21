@@ -1,3 +1,4 @@
+using Silverfish.Domain.Client;
 namespace Silverfish.Simulation.Cards;
 
 // 复活术
@@ -7,9 +8,14 @@ namespace Silverfish.Simulation.Cards;
 [CardSim("BRM_017")]
 internal static class Sim_BRM_017
 {
+    // <legacy-play-requirements>
+    internal static PlayReqSet PlayReqs { get; } = new(
+        [new(ErrorType.REQ_NUM_MINION_SLOTS, 1), new(ErrorType.REQ_FRIENDLY_MINION_DIED_THIS_GAME)],
+        []);
+    // </legacy-play-requirements>
+
     internal static CardRules Rules { get; } = new()
     {
-        Requirements = PlayRequirements.BoardSpace | PlayRequirements.FriendlyMinionDeath,
         OnPlay = [new ResurrectFriendlyMinionEffect()]
     };
 }
