@@ -30,6 +30,59 @@ public sealed partial class GameSimulationTests
         AssertAuraRecipientDiesWithinSameSpell(new TakeControlEffect(), enemySource: true);
     }
 
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ImmediateAuraEmitterDeathUpdatesHealthBeforeFollowingDamage(bool fullHand)
+    {
+        var boardFillers = Enumerable.Range(30, 7).ToArray();
+        var handFillers = Enumerable.Range(40, 10).ToArray();
+        var simulator = new GameSimulator([
+            Hero, Minion("banner", 0, 4) with
+            {
+                Auras = [new(AuraRecipients.OtherFriendlyMinions,
+                    new(StatModifierMode.Add, MaximumHealth: 2))]
+            },
+            Minion("recipient", 0, 1), Minion("filler", 0, 3),
+            Spell("remove-then-damage") with
+            {
+                Target = TargetRequirement.EnemyMinion,
+                OnPlay = [fullHand ? new ReturnMinionEffect() : new TakeControlEffect(),
+                    new DamageEffect(DamageTarget.EnemyMinions, 2)]
+            }
+        ]);
+        var first = Player(First, FirstHero) with
+        {
+            Zones = Zones((GameZone.Play, fullHand ? [10] : [10, .. boardFillers]),
+                (GameZone.Hand, [13]))
+        };
+        var second = Player(Second, SecondHero) with
+        {
+            Zones = Zones((GameZone.Play, [20, 21, 22]),
+                (GameZone.Hand, fullHand ? handFillers : []))
+        };
+        var root = Create(simulator, First, first, second,
+        [
+            Card(13, "remove-then-damage", First),
+            InPlay(21, "banner", Second, 3, 0, 4),
+            InPlay(22, "recipient", Second, 4, 0, 1),
+            .. (fullHand ? [] : boardFillers.Select(id => InPlay(id, "filler", First, id, 0, 3))),
+            .. (fullHand ? handFillers.Select(id => Card(id, "filler", Second)) : [])
+        ]);
+        var action = new SimulationAction(SimulationActionKind.PlayCard, First, new EntityId(13), new EntityId(21));
+
+        Assert.Equal(3, root.Entities[new EntityId(22)].Character!.Health);
+        var result = simulator.Apply(root, action);
+
+        Assert.Equal(GameZone.Graveyard, result.State.LocationOf(new EntityId(21)).Zone);
+        Assert.Equal(GameZone.Graveyard, result.State.LocationOf(new EntityId(22)).Zone);
+        Assert.Equal(new EntityId?[] { new(21), new(22) },
+            result.Events.Where(e => e.Kind == SimulationEventKind.Died).Select(e => e.Source));
+        Assert.Equal(result.Events, simulator.Apply(root, action).Events.AsEnumerable());
+        Assert.Equal(GameZone.Play, root.LocationOf(new EntityId(21)).Zone);
+    }
+
     private static void AssertAuraRecipientDiesWithinSameSpell(CardEffect transition, bool enemySource)
     {
         var aura = new StatAura(AuraRecipients.OtherFriendlyMinions,
