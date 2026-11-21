@@ -281,9 +281,11 @@ public sealed partial class GameSimulator
 
             bool HasDamageKeyword(CardKeywords keyword) =>
                 (source is EntityId s && _state.Entities.TryGetValue(s, out var damageSource) &&
-                    _rules.HasKeyword(damageSource, keyword)) ||
+                    (_rules.HasKeyword(damageSource, keyword) ||
+                     keyword == CardKeywords.Poisonous && _rules.HasEffectiveTag(damageSource, GAME_TAG.POISONOUS))) ||
                 (attackingWeapon is EntityId w && _state.Entities.TryGetValue(w, out var equipped) &&
-                    _rules.HasKeyword(equipped, keyword));
+                    (_rules.HasKeyword(equipped, keyword) ||
+                     keyword == CardKeywords.Poisonous && _rules.HasEffectiveTag(equipped, GAME_TAG.POISONOUS)));
         }
 
         private static void PushOccurrence(Stack<Work> work, Occurrence? occurrence)
