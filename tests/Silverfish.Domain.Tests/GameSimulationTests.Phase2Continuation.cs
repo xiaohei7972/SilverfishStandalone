@@ -55,7 +55,7 @@ public sealed partial class GameSimulationTests
         var first = simulator.Apply(root, new(SimulationActionKind.PlayCard, First, new EntityId(11)));
         var paused = first.State;
         Assert.Equal(2, paused.PendingPlayChoice!.RemainingSelections);
-        Assert.Equal([new EntityId(12), new EntityId(13)], paused.PendingPlayChoice.Recipients!.Value);
+        Assert.Equal(new[] { 12, 13 }, paused.PendingPlayChoice.Recipients!.Value.Select(id => id.Value));
 
         var damageOption = AdaptOption(simulator, paused, "adapt-damage");
         var firstChoice = simulator.Apply(paused, damageOption);
@@ -63,7 +63,7 @@ public sealed partial class GameSimulationTests
         Assert.Equal(GameZone.Graveyard, next.LocationOf(new EntityId(12)).Zone);
         Assert.Equal(3, next.Entities[new EntityId(13)].Character!.Health);
         Assert.Equal(1, next.PendingPlayChoice!.RemainingSelections);
-        Assert.Equal([new EntityId(13)], next.PendingPlayChoice.Recipients!.Value);
+        Assert.Equal(new[] { 13 }, next.PendingPlayChoice.Recipients!.Value.Select(id => id.Value));
         Assert.All(paused.PendingPlayChoice.Options, id => Assert.Equal(GameZone.Removed, next.LocationOf(id).Zone));
         Assert.Empty(paused.PendingPlayChoice.Options.Intersect(next.PendingPlayChoice.Options));
         Assert.Single(firstChoice.Events, e => e.Kind == SimulationEventKind.Died);
@@ -167,5 +167,38 @@ public sealed partial class GameSimulationTests
         Assert.Equal(GameZone.Graveyard, result.State.LocationOf(new EntityId(11)).Zone);
         Assert.Equal(GameZone.Graveyard, result.State.LocationOf(new EntityId(21)).Zone);
         Assert.Equal<SimulationEvent>(result.Events, simulator.Apply(root, action).Events);
+    }
+
+    [Fact]
+    public void LethalOrderedChoicePreviewEndsMatchBeforeLaterTargetsAndRestoresAsTerminal()
+    {
+        var simulator = new GameSimulator([Hero, Spell("choice-source"), Minion("bystander", 0, 3)]);
+        var root = ChoicePreviewState(simulator, EntityChoiceType.Target, 2, 2,
+            [SecondHero.Value, 21], InPlay(21, "bystander", Second, 3, 0, 3));
+        var rules = new ChoicePreviewRules(771, EntityChoiceType.Target)
+        {
+            PerTargetEffects = [new DamageEffect(DamageTarget.Selected, 30)]
+        };
+        var result = simulator.PreviewChoice(root, PreviewSelection(SecondHero.Value, 21), rules);
+
+        Assert.Equal(MatchOutcome.Won, result.State.Outcome);
+        Assert.Equal(First, result.State.Winner);
+        Assert.Null(result.State.PendingChoice);
+        Assert.Equal(GameZone.Graveyard, result.State.LocationOf(SecondHero).Zone);
+        Assert.Equal(3, result.State.Entities[new EntityId(21)].Character!.Health);
+        Assert.Equal(SecondHero,
+            Assert.Single(result.Events, e => e.Kind == SimulationEventKind.Damage).Target);
+        Assert.Equal(SimulationEventKind.ChoiceSubmitted, result.Events[0].Kind);
+        Assert.Equal(MatchOutcome.InProgress, root.Outcome);
+        Assert.Null(root.PendingChoice!.Submitted);
+
+        var continuation = new GameContinuation(result.State.NextEntity, result.State.NextPlayOrder,
+            result.State.Outcome, result.State.Winner);
+        var restored = simulator.RestoreGame(result.State.Players.Values, result.State.Entities.Values,
+            result.State.ActivePlayer, result.State.Turn, result.State.MinionDeaths,
+            result.State.RandomState, continuation);
+        Assert.Equal(MatchOutcome.Won, restored.Outcome);
+        Assert.Null(restored.PendingChoice);
+        Assert.Empty(simulator.LegalActions(restored));
     }
 }

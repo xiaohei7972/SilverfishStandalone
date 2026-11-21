@@ -365,7 +365,9 @@ public sealed class GameState
         if (winner is PlayerId id && !Players.ContainsKey(id))
             throw new ArgumentException("胜者必须是本局的玩家。", nameof(winner));
         return new GameState(Players, Entities, _locations, ActivePlayer, Turn, NextEntity, NextPlayOrder,
-            winner is null ? MatchOutcome.Draw : MatchOutcome.Won, winner, MinionDeaths, RandomState, PendingPlayChoice, PendingChoice);
+            // A terminal game cannot retain either a resumable play choice or an external
+            // CHOICE handshake: restored terminal checkpoints reject pending selections.
+            winner is null ? MatchOutcome.Draw : MatchOutcome.Won, winner, MinionDeaths, RandomState);
     }
 
     private static PlayerState SetZone(PlayerState player, GameZone zone, ImmutableArray<EntityId> contents)
