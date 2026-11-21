@@ -39,6 +39,9 @@ public sealed partial class GameSimulator
             {
                 Character = null, Silenced = false, CostModifiers = modifiers
             });
+            // The next effect in this same work stack must no longer use a
+            // health/attack aura emitted by a minion that has left play.
+            _state = _rules.RefreshAuras(_state);
             _events.Add(new(SimulationEventKind.ReturnedToHand, controller, context.Source, id) { EnchantmentCardId = effect.EnchantmentCardId });
             PushEnchantmentRemovalEffects(work, entity, entity.Enchantments, EnchantmentRemovalReason.LeftPlay);
         }
@@ -55,6 +58,9 @@ public sealed partial class GameSimulator
                 CardId = cardId, Character = _rules.GetCard(cardId).CreateCharacter(), Silenced = false, Stealthed = null,
                 Enchantments = [], AuraGrants = []
             });
+            // Transform can remove the source card's aura before a later
+            // effect in the same resolution applies damage.
+            _state = _rules.RefreshAuras(_state);
             _events.Add(new(SimulationEventKind.Transformed, entity.Controller, context.Source, id));
             PushEnchantmentRemovalEffects(work, entity, entity.Enchantments, EnchantmentRemovalReason.Transformed);
         }

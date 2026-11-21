@@ -511,6 +511,9 @@ public sealed partial class GameSimulator
             }
             _state = _state.Move(target, new(controller, GameZone.Play));
             _state = _state.UpdateCharacter(target, entity.Character! with { Exhausted = true });
+            // Control changes the emitter's friendly side even though the
+            // entity stays on the battlefield; refresh before later effects.
+            _state = _rules.RefreshAuras(_state);
             _events.Add(new(SimulationEventKind.ControlChanged, controller, source, target));
         }
 

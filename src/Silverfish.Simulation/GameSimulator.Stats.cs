@@ -214,6 +214,9 @@ public sealed partial class GameSimulator
                 Character = entity.Character! with { DivineShield = false, Frozen = false }
             };
             _state = _state.UpdateEntity(RecalculateStats(silenced, entity.AuraGrants));
+            // A silenced aura source stops buffing other minions immediately,
+            // including during a multi-effect spell before its damage step.
+            _state = _rules.RefreshAuras(_state);
             _events.Add(new(SimulationEventKind.Silenced, context.Controller, context.Source, id));
             PushEnchantmentRemovalEffects(work, entity, entity.Enchantments, EnchantmentRemovalReason.Silenced);
         }
