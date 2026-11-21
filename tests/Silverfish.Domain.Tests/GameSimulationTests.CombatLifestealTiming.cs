@@ -9,6 +9,8 @@ public sealed partial class GameSimulationTests
     [Theory]
     [InlineData(2, 0, 30, 2)]
     [InlineData(4, 2, 27, 3)]
+    // Lethal retaliation may be rescued by Lifesteal before the death phase.
+    [InlineData(7, 25, 1, 3)]
     public void LifestealWeaponHealsAfterBothCombatDamageHits(
         int defenderAttack, int heroDamage, int expectedHealth, int expectedHeal)
     {

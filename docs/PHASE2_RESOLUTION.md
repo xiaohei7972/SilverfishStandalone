@@ -115,3 +115,12 @@ dotnet test SilverfishStandalone.sln -c Release --no-build
 - 此次仅调整属性光环的刷新时点，不改变攻击伤害的归因、死亡波次排序、外部权威 CHOICE 协议或卡牌脚本基线。
 
 下一步：对跨多个结算子阶段的特殊效果补更多固定录像差分测试，再在回归保护下抽取 DamageResolver / TriggerDispatcher。
+
+## 第七批：战斗双方同时伤害与吸血治疗时序
+
+- **原因**：此前 `Attack()` 先调用 `Damage(attacker, defender)`，其中的吸血立即为攻击英雄治疗；之后才调用 `Damage(defender, attacker)` 产生反击伤害。攻击英雄满血或只受少量伤害时，吸血提前被截断并浪费。
+- **测试先行**：`6ff7e28` 中两种吸血武器战斗，旧版 CI [#44939846011](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44939846011) 出现两个真实失败：预期 30 实际 28，预期 27 实际 26；其余基础和 Domain 用例不受影响。
+- **最小修复**：`c58e635` 只为战斗内部的两个 `Damage` 调用创建延迟的吸血结算队列。先记录攻击与反击两次伤害，再按结算顺序执行生命恢复，然后按原顺序派发伤害触发队列。法术、战吼、技能等不参与双向战斗的 `Damage` 仍即时吸血。
+- **额外边界**：固定回放包括满血英雄、已有伤害的英雄，以及反击伤害先将英雄打到零血以下、随后吸血救回到 1 血的情况。验证最终 HP、`Healed` 来源与数量、事件序列顺序、同状态重复应用与原始输入不变。
+- 机制参考：[Hearthstone Wiki · Lifesteal](https://hearthstone.wiki.gg/wiki/Lifesteal) 与 [Attack](https://hearthstone.wiki.gg/wiki/Attack) 描述的同时战斗伤害和吸血致命反击救援。
+- 本批不更动死亡波次、客户端 CHOICE 或实机输入；以后拆分 `DamageResolver` 时应继续通过这些测试。
