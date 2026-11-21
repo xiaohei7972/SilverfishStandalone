@@ -62,6 +62,12 @@ public sealed partial class GameSimulationTests
         Assert.NotNull(simulator.CheckAction(paused, new(SimulationActionKind.EndTurn, First)));
         Assert.NotNull(simulator.CheckAction(paused, select with { Actor = Second }));
         Assert.NotNull(simulator.CheckAction(paused, select with { Target = FirstHero }));
+        // Internal ChooseAfterPlay options must not accept external EntityChoices fields.
+        Assert.NotNull(simulator.CheckAction(paused, select with { ChoicePacketId = 123 }));
+        Assert.NotNull(simulator.CheckAction(paused, select with
+        {
+            OrderedChoiceTargets = [new EntityId(11)]
+        }));
 
         var continuation = new GameContinuation(paused.NextEntity, paused.NextPlayOrder, paused.Outcome, paused.Winner)
         {

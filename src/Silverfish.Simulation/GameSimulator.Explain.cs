@@ -15,6 +15,9 @@ public sealed partial class GameSimulator
         if (!state.Entities.TryGetValue(id, out var entity))
             return new(id, null, false, [], new("来源实体不存在", Source: id));
         var card = Card(entity);
+        if (state.PendingChoice is not null)
+            return new(id, entity.CardId, !card.EffectPending, [],
+                new("正在等待客户端 CHOICE 包完成并刷新权威局面", Source: id));
         if (state.PendingPlayChoice is { } choice)
             return id == choice.Source
                 ? new(id, entity.CardId, true, [new(null, PlayTargetMode.Required,
@@ -44,6 +47,8 @@ public sealed partial class GameSimulator
         var player = state.Players[source.Controller];
         if (state.Outcome != MatchOutcome.InProgress)
             return new("对局已结束", Source: source.Id);
+        if (state.PendingChoice is not null)
+            return new("待决 CHOICE 包未完成，不能执行常规动作", Source: source.Id);
         if (state.ActivePlayer != player.Id)
             return new("尚未轮到来源的控制者", REQ_YOUR_TURN, Source: source.Id);
         if (card.EffectPending)
@@ -88,7 +93,17 @@ public sealed partial class GameSimulator
     private PlayFailure? CheckAction(GameState state, SimulationAction action, out bool resolvesEffects)
     {
         resolvesEffects = false;
+        ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(action);
+        // Client CHOICE is a submission handshake, not a normal legal simulator action.
+        // Do not let PlayCard/UseHeroPower/ActivateLocation bypass LegalActions(),
+        // which intentionally exposes no ordinary moves while this packet is pending.
+        if (state.PendingChoice is not null)
+            return new("当前存在客户端 CHOICE 包：只能提交本次选择并等待新快照",
+                Source: action.Source, Target: action.Target);
+        if (action.ChoicePacketId is not null || !action.OrderedChoiceTargets.IsDefaultOrEmpty)
+            return new("普通模拟动作不能携带客户端 CHOICE 包 ID 或有序实体目标",
+                Source: action.Source, Target: action.Target);
         if (action.Actor != state.ActivePlayer || state.Outcome != MatchOutcome.InProgress)
             return new("对局已结束或当前不是该玩家的回合", REQ_YOUR_TURN, Source: action.Source);
         if (state.PendingPlayChoice is { } pending)

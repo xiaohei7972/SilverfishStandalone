@@ -232,7 +232,10 @@ public sealed partial class GameSimulator
                     Character = character with { DivineShield = false },
                     Enchantments = [.. entity.Enchantments.Where(layer => layer.GrantedTag != GAME_TAG.DIVINE_SHIELD)]
                 });
-                _events.Add(new(SimulationEventKind.ShieldBroken, entity.Controller, source, target));
+                _events.Add(new(SimulationEventKind.ShieldBroken, entity.Controller, source, target)
+                {
+                    AttackingWeapon = attackingWeapon
+                });
                 return null;
             }
 
@@ -257,6 +260,7 @@ public sealed partial class GameSimulator
             });
             _events.Add(new(SimulationEventKind.Damage, entity.Controller, source, target, amount)
             {
+                AttackingWeapon = attackingWeapon,
                 DamageToArmor = absorbed, DamageToHealth = healthDamage,
                 IsOverkill = lethalTiming == TriggerTiming.Overkill,
                 IsHonorableKill = lethalTiming == TriggerTiming.HonorableKill

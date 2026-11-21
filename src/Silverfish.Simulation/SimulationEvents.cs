@@ -23,6 +23,8 @@ public sealed record SimulationEvent(SimulationEventKind Kind, PlayerId? Player 
     public string? EnchantmentCardId { get; init; }
     public int? ChoiceId { get; init; }
     public ImmutableArray<EntityId>? OrderedChoiceTargets { get; init; }
+    /// <summary>Equipped weapon responsible for this hero combat hit; Source remains the attacking hero.</summary>
+    public EntityId? AttackingWeapon { get; init; }
     /// <summary>Damage actually assigned to armor, before health.</summary>
     public int? DamageToArmor { get; init; }
     /// <summary>Damage assigned to health (including lethal excess).</summary>
