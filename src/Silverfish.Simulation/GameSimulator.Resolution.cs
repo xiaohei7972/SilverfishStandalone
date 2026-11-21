@@ -292,10 +292,27 @@ public sealed partial class GameSimulator
                      keyword == CardKeywords.Poisonous && _rules.HasEffectiveTag(equipped, GAME_TAG.POISONOUS)));
         }
 
-        private static void PushOccurrence(Stack<Work> work, Occurrence? occurrence)
+        private void PushOccurrence(Stack<Work> work, Occurrence? occurrence)
         {
-            if (occurrence is { } happened)
-                work.Push(new Dispatch(happened));
+            if (occurrence is not { } happened)
+                return;
+
+            // Damage may be committed to several entities before any damage
+            // triggers run (combat, AOE and distinct random batches). Register
+            // eligible observers now: a minion summoned by the first damage
+            // event must not observe a second hit that already happened.
+            var listeners = CaptureListeners();
+            var damageTriggers = Queue(happened, listeners).ToImmutableArray();
+            ImmutableArray<Activate>? lethalTriggers = null;
+            ImmutableArray<Activate>? weaponLethalTriggers = null;
+            if (happened.LethalBonus is TriggerTiming bonus)
+            {
+                var bonusEvent = happened with { Timing = bonus, LethalBonus = null };
+                lethalTriggers = Queue(bonusEvent, listeners).ToImmutableArray();
+                if (happened.AttackingWeapon is DamageSource weapon)
+                    weaponLethalTriggers = Queue(bonusEvent with { Source = weapon }, listeners).ToImmutableArray();
+            }
+            work.Push(new Dispatch(happened, damageTriggers, lethalTriggers, weaponLethalTriggers));
         }
 
         private void GainArmor(EffectContext context, int amount)

@@ -29,7 +29,14 @@ public sealed partial class GameSimulator
         private sealed record CastDrawnSpell(PlayerId Player, EntityId Source) : Work;
         private sealed record FinishDrawnSpell(PlayerId Player, EntityId Source) : Work;
         private sealed record ResolveDiscardedCard(PlayerId Player, EntityId Card, ImmutableArray<CardEffect> Effects) : Work;
-        private sealed record Dispatch(Occurrence Occurrence) : Work;
+        // Damage events can be dispatched after an entire damage batch has been applied.
+        // Freeze matched observers at enqueue time, before an earlier event's
+        // triggers can summon new listeners or change a later target's identity.
+        // Other event families retain their existing deferred-dispatch semantics.
+        private sealed record Dispatch(Occurrence Occurrence,
+            ImmutableArray<Activate>? DamageTriggers = null,
+            ImmutableArray<Activate>? LethalTriggers = null,
+            ImmutableArray<Activate>? WeaponLethalTriggers = null) : Work;
         private sealed record DestroyPoisoned(EntityId Target) : Work;
         private sealed record Activate(EffectContext Context, long PlayOrder, ImmutableArray<CardEffect> Effects,
             Listener? Listener = null, EntityId? LivingEntity = null, int? Amount = null) : Work;
@@ -145,12 +152,20 @@ public sealed partial class GameSimulator
                             // LIFO: regular damage triggers must run before the lethal-bonus triggers.
                             var bonusEvent = dispatch.Occurrence with { Timing = bonus, LethalBonus = null };
                             if (dispatch.Occurrence.AttackingWeapon is DamageSource weapon)
-                                PushTriggers(work, Queue(bonusEvent with { Source = weapon }, CaptureListeners()));
-                            PushTriggers(work, Queue(bonusEvent, CaptureListeners()));
+                            {
+                                IEnumerable<Activate> weaponQueue = dispatch.WeaponLethalTriggers is { } captured
+                                    ? captured : Queue(bonusEvent with { Source = weapon }, CaptureListeners());
+                                PushTriggers(work, weaponQueue);
+                            }
+                            IEnumerable<Activate> lethalQueue = dispatch.LethalTriggers is { } saved
+                                ? saved : Queue(bonusEvent, CaptureListeners());
+                            PushTriggers(work, lethalQueue);
                         }
                         if (dispatch.Occurrence is { Poisoned: true, Subject: EntityId poisoned })
                             work.Push(new DestroyPoisoned(poisoned));
-                        PushTriggers(work, Queue(dispatch.Occurrence, CaptureListeners()));
+                        IEnumerable<Activate> damageQueue = dispatch.DamageTriggers is { } beforeTriggers
+                            ? beforeTriggers : Queue(dispatch.Occurrence, CaptureListeners());
+                        PushTriggers(work, damageQueue);
                         break;
                     case DestroyPoisoned poison:
                         if (_state.LocationOf(poison.Target).Zone == GameZone.Play)
