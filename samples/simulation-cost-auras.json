@@ -1,0 +1,48 @@
+{
+  "cards": [
+    { "definition": { "cardId": "training-hero", "kind": "hero", "printedCost": 0, "printedHealth": 30 } },
+    {
+      "definition": { "cardId": "supplier", "kind": "minion", "printedCost": 1, "printedHealth": 3 },
+      "costAuras": [
+        { "recipient": "friendly", "target": "hand", "delta": -1 },
+        { "recipient": "friendly", "target": "heroPower", "delta": -2 }
+      ]
+    },
+    {
+      "definition": { "cardId": "signal", "kind": "spell", "printedCost": 2 },
+      "onPlay": [{ "kind": "damage", "target": "enemyHero", "amount": 2 }]
+    },
+    {
+      "definition": { "cardId": "charge-station", "kind": "heroPower", "printedCost": 2 },
+      "onPlay": [{ "kind": "gainArmor", "amount": 1 }]
+    }
+  ],
+  "players": [
+    {
+      "id": { "value": 1 }, "hero": { "value": 10 }, "mana": 1, "manaCrystals": 1,
+      "zones": { "play": [{ "value": 10 }, { "value": 11 }], "hand": [{ "value": 12 }], "heroPower": [{ "value": 13 }] }
+    },
+    { "id": { "value": 2 }, "hero": { "value": 20 }, "zones": { "play": [{ "value": 20 }] } }
+  ],
+  "entities": [
+    {
+      "id": { "value": 10 }, "cardId": "training-hero", "owner": { "value": 1 }, "controller": { "value": 1 },
+      "playOrder": 1, "character": { "attack": 0, "maximumHealth": 30 }
+    },
+    {
+      "id": { "value": 20 }, "cardId": "training-hero", "owner": { "value": 2 }, "controller": { "value": 2 },
+      "playOrder": 2, "character": { "attack": 0, "maximumHealth": 30 }
+    },
+    {
+      "id": { "value": 11 }, "cardId": "supplier", "owner": { "value": 1 }, "controller": { "value": 1 },
+      "playOrder": 3, "character": { "attack": 0, "maximumHealth": 3 }
+    },
+    { "id": { "value": 12 }, "cardId": "signal", "owner": { "value": 1 }, "controller": { "value": 1 } },
+    { "id": { "value": 13 }, "cardId": "charge-station", "owner": { "value": 1 }, "controller": { "value": 1 } }
+  ],
+  "activePlayer": { "value": 1 },
+  "actions": [
+    { "kind": "playCard", "actor": { "value": 1 }, "source": { "value": 12 } },
+    { "kind": "useHeroPower", "actor": { "value": 1 }, "source": { "value": 13 } }
+  ]
+}

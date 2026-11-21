@@ -1,0 +1,46 @@
+{
+  "cards": [
+    { "definition": { "cardId": "training-hero", "kind": "hero", "printedCost": 0, "printedHealth": 30 } },
+    { "definition": { "cardId": "vanguard", "kind": "minion", "printedCost": 2, "printedAttack": 3, "printedHealth": 2 } },
+    {
+      "definition": { "cardId": "echo-guard", "kind": "minion", "printedCost": 1, "printedAttack": 2, "printedHealth": 1 },
+      "keywords": "taunt",
+      "deathrattle": [{ "kind": "damage", "target": "enemyHero", "amount": 2 }]
+    }
+  ],
+  "players": [
+    {
+      "id": { "value": 1 }, "hero": { "value": 10 }, "manaCrystals": 1,
+      "zones": { "play": [{ "value": 10 }, { "value": 11 }], "deck": [{ "value": 12 }] }
+    },
+    {
+      "id": { "value": 2 }, "hero": { "value": 20 },
+      "zones": { "play": [{ "value": 20 }, { "value": 21 }] }
+    }
+  ],
+  "entities": [
+    {
+      "id": { "value": 10 }, "cardId": "training-hero", "owner": { "value": 1 }, "controller": { "value": 1 },
+      "playOrder": 1, "character": { "attack": 0, "maximumHealth": 30 }
+    },
+    {
+      "id": { "value": 20 }, "cardId": "training-hero", "owner": { "value": 2 }, "controller": { "value": 2 },
+      "playOrder": 2, "character": { "attack": 0, "maximumHealth": 30 }
+    },
+    {
+      "id": { "value": 11 }, "cardId": "vanguard", "owner": { "value": 1 }, "controller": { "value": 1 },
+      "playOrder": 3, "character": { "attack": 3, "maximumHealth": 2 }
+    },
+    { "id": { "value": 12 }, "cardId": "vanguard", "owner": { "value": 1 }, "controller": { "value": 1 } },
+    {
+      "id": { "value": 21 }, "cardId": "echo-guard", "owner": { "value": 2 }, "controller": { "value": 2 },
+      "playOrder": 4, "character": { "attack": 2, "maximumHealth": 1 }
+    }
+  ],
+  "activePlayer": { "value": 2 },
+  "actions": [
+    { "kind": "endTurn", "actor": { "value": 2 } },
+    { "kind": "playCard", "actor": { "value": 1 }, "source": { "value": 12 }, "position": 1 },
+    { "kind": "attack", "actor": { "value": 1 }, "source": { "value": 11 }, "target": { "value": 21 } }
+  ]
+}

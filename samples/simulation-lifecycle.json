@@ -1,0 +1,37 @@
+{
+  "cardSet": "starter",
+  "cards": [
+    { "definition": { "cardId": "training-hero", "kind": "hero", "printedCost": 0, "printedHealth": 30 } }
+  ],
+  "players": [
+    { "id": { "value": 1 }, "hero": { "value": 10 }, "mana": 8, "manaCrystals": 8,
+      "zones": { "play": [{ "value": 10 }, { "value": 11 }, { "value": 15 }],
+                 "hand": [{ "value": 12 }, { "value": 13 }, { "value": 14 }], "heroPower": [{ "value": 16 }] } },
+    { "id": { "value": 2 }, "hero": { "value": 20 },
+      "zones": { "play": [{ "value": 20 }, { "value": 21 }] } }
+  ],
+  "entities": [
+    { "id": { "value": 10 }, "cardId": "training-hero", "owner": { "value": 1 }, "controller": { "value": 1 },
+      "playOrder": 1, "character": { "attack": 0, "maximumHealth": 30 } },
+    { "id": { "value": 20 }, "cardId": "training-hero", "owner": { "value": 2 }, "controller": { "value": 2 },
+      "playOrder": 2, "character": { "attack": 0, "maximumHealth": 30 } },
+    { "id": { "value": 11 }, "cardId": "CS2_172", "owner": { "value": 1 }, "controller": { "value": 1 },
+      "playOrder": 3, "character": { "attack": 3, "maximumHealth": 2, "damage": 1 } },
+    { "id": { "value": 15 }, "cardId": "CS2_231", "owner": { "value": 1 }, "controller": { "value": 1 },
+      "playOrder": 4, "character": { "attack": 1, "maximumHealth": 1 } },
+    { "id": { "value": 21 }, "cardId": "EX1_007", "owner": { "value": 2 }, "controller": { "value": 2 },
+      "playOrder": 5, "character": { "attack": 1, "maximumHealth": 4 } },
+    { "id": { "value": 12 }, "cardId": "EX1_144", "owner": { "value": 1 }, "controller": { "value": 1 } },
+    { "id": { "value": 13 }, "cardId": "CS2_022", "owner": { "value": 1 }, "controller": { "value": 1 } },
+    { "id": { "value": 14 }, "cardId": "BRM_017", "owner": { "value": 1 }, "controller": { "value": 1 } },
+    { "id": { "value": 16 }, "cardId": "HERO_08bp", "owner": { "value": 1 }, "controller": { "value": 1 } }
+  ],
+  "activePlayer": { "value": 1 },
+  "actions": [
+    { "kind": "playCard", "actor": { "value": 1 }, "source": { "value": 12 }, "target": { "value": 11 } },
+    { "kind": "playCard", "actor": { "value": 1 }, "source": { "value": 11 }, "position": 0 },
+    { "kind": "playCard", "actor": { "value": 1 }, "source": { "value": 13 }, "target": { "value": 21 } },
+    { "kind": "useHeroPower", "actor": { "value": 1 }, "source": { "value": 16 }, "target": { "value": 15 } },
+    { "kind": "playCard", "actor": { "value": 1 }, "source": { "value": 14 } }
+  ]
+}

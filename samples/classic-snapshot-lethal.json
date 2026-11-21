@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "matchId": "offline-classic-snapshot-001",
+  "sequence": 8,
+  "phase": "main",
+  "isOurTurn": true,
+  "availableMana": 1,
+  "maximumMana": 1,
+  "enemyHandCount": 0,
+  "enemyDeckCount": 0,
+  "ourSecretCount": 0,
+  "enemySecretCount": 0,
+  "ourHero": {
+    "entityId": 0,
+    "classNameZh": "法师",
+    "health": 30,
+    "armor": 0,
+    "attack": 0
+  },
+  "enemyHero": {
+    "entityId": 1,
+    "classNameZh": "法师",
+    "health": 3,
+    "armor": 0,
+    "attack": 0
+  },
+  "ourBoard": [
+    {
+      "entityId": 11,
+      "cardId": "EX1_612",
+      "cardNameZh": "肯瑞托法师",
+      "attack": 4,
+      "health": 3,
+      "canAttack": true,
+      "hasTaunt": false,
+      "hasDivineShield": false
+    }
+  ],
+  "enemyBoard": [],
+  "ourHand": [],
+  "legalActions": [
+    {
+      "id": "attack-face",
+      "kind": "attack",
+      "sourceEntityId": 11,
+      "targetEntityId": 1,
+      "description": "Attack opposing hero"
+    },
+    {
+      "id": "end-turn",
+      "kind": "endTurn",
+      "description": "End current turn"
+    }
+  ]
+}

@@ -28,10 +28,22 @@ on:
     paths:
       - ".github/workflows/classic-compile.yml"
       - "tools/import_classic.py"
+      - "tools/disable_aggramar.py"
       - "tools/normalize_classic.py"
+      - "tools/isolate_classic_card_effects.py"
+      - "tools/isolate_classic_deck.py"
+      - "tools/isolate_classic_deck_estimate.py"
+      - "tools/migrate_classic_deck_effects.py"
       - "tools/package_reference_classic.py"
       - "src/Silverfish.Classic/**"
       - "src/Silverfish.Classic.Smoke/**"
+      - "tests/Silverfish.ClassicBridge.Tests/**"
+      - "tests/Silverfish.Classic.Tests/**"
+      - "src/Silverfish.Domain/**"
+      - "samples/classic-*.txt"
+      - "samples/classic-*.json"
+      - "tools/test_normalize_classic.py"
+
 
 permissions:
   contents: read
@@ -93,7 +105,12 @@ jobs:
         run: |
           $archive = "$env:RUNNER_TEMP/classic-source.zip"
           $sha = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($sha -ne "ec1ff768036deee5ebda81274f6e1a61a69c105b0b6cd37b285c2d8dd34f771c") {
+          $accepted = @(
+            "ec1ff768036deee5ebda81274f6e1a61a69c105b0b6cd37b285c2d8dd34f771c"
+            "81f6f19e2888ba5158ea194d6bea30d1f2ad90a7e67e7fd8565ffc7d2bff75e7"
+            "4d6944304c0d224d366afda1691f0429c5d3cffbc0daae18259310a7f6f95d92"
+          )
+          if ($sha -notin $accepted) {
             throw "Classic source-only work package SHA-256 mismatch: $sha"
           }
           $staging = Join-Path $env:RUNNER_TEMP "verified-classic-package"
@@ -102,6 +119,10 @@ jobs:
           $manifest = Join-Path $staging "classic-import-manifest.json"
           if (-not (Test-Path (Join-Path $imported "ai/Ai.cs"))) { throw "Imported classic Ai.cs missing from pinned work package" }
           if (-not (Test-Path -LiteralPath $manifest)) { throw "Source manifest missing" }
+          $baseline = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+          if ($baseline.sha256 -ne "1879f784ed5b6854d53e148fc444d0f65bd8afbd52ccc1b3d8cf56e23efb5071") {
+            throw "Imported classic source manifest does not match the owner's November 5 baseline"
+          }
           New-Item -ItemType Directory -Force -Path "src/Silverfish.Classic/Imported" | Out-Null
           Copy-Item -Path (Join-Path $imported "*") -Destination "src/Silverfish.Classic/Imported" -Recurse -Force
           Copy-Item -LiteralPath $manifest -Destination "classic-import-manifest.json" -Force
@@ -116,6 +137,12 @@ jobs:
       - name: Normalize host-free classic AI references for any source mode
         shell: pwsh
         run: python tools/normalize_classic.py
+
+      - name: Disable four problematic Aggramar effects (reversible comments)
+        shell: pwsh
+        run: |
+          python tools/disable_aggramar.py
+          Get-Content classic-import-manifest.json | Select-Object -First 35
 
       - name: Print source provenance and verify classic source exists
         shell: pwsh
@@ -144,6 +171,11 @@ jobs:
         run: |
           dotnet test tests/Silverfish.ClassicBridge.Tests/Silverfish.ClassicBridge.Tests.csproj -c Release --nologo
 
+      - name: Test classic Playfield and simulation branch isolation
+        shell: pwsh
+        run: |
+          dotnet test tests/Silverfish.Classic.Tests/Silverfish.Classic.Tests.csproj -c Release --nologo
+
       - name: Run classic AI autoTester against a fixed offline board
         shell: pwsh
         run: |
@@ -151,6 +183,33 @@ jobs:
           $code = $LASTEXITCODE
           Get-Content classic-board-test.log -Tail 80
           exit $code
+
+      - name: Run classic Silverfish from versioned JSON GameSnapshot
+        shell: pwsh
+        run: |
+          dotnet run --project src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.csproj -c Release -- samples/classic-snapshot-lethal.json *> classic-snapshot-test.log
+          $code = $LASTEXITCODE
+          Get-Content classic-snapshot-test.log -Tail 80
+          exit $code
+
+      - name: Verify malformed BoardTester input fails visibly
+        shell: pwsh
+        run: |
+          # An invalid board MUST make the child process fail. Suppress only
+          # PowerShell's automatic native-command failure behavior while we
+          # capture its exit code; keep strict checks on the assertion itself.
+          $PSNativeCommandUseErrorActionPreference = $false
+          $ErrorActionPreference = 'Continue'
+          dotnet run --project src/Silverfish.Classic.Smoke/Silverfish.Classic.Smoke.csproj -c Release -- samples/classic-invalid-zh.txt *> classic-invalid-test.log
+          $code = $LASTEXITCODE
+          $ErrorActionPreference = 'Stop'
+          Get-Content classic-invalid-test.log -Tail 30
+          if ($code -eq 0) { throw "Invalid board returned success, expected a nonzero exit" }
+          if (-not (Select-String -Path classic-invalid-test.log -Pattern "Invalid classic (BoardTester|offline board) input" -Quiet)) {
+            throw "Invalid board did not emit the expected standalone input error"
+          }
+          Write-Host "PASS: invalid classic board produced a nonzero exit and an explanatory FormatException."
+          exit 0
 
       - name: Upload import manifest and compile logs, even on failure
         if: always()
@@ -164,6 +223,8 @@ jobs:
             classic-console.log
             classic-smoke.log
             classic-board-test.log
+            classic-snapshot-test.log
+            classic-invalid-test.log
           if-no-files-found: warn
           retention-days: 14
 
