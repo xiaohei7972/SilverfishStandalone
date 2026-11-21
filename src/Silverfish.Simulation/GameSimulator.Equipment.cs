@@ -65,19 +65,7 @@ public sealed partial class GameSimulator
             _events.Add(new(SimulationEventKind.WeaponDurabilityLost, entity.Controller, id, Amount: 1));
         }
 
-        private void HealFriendlyHero(EffectContext context, int amount)
-        {
-            var hero = _state.Players[context.Controller].Hero;
-            if (_state.LocationOf(hero).Zone != GameZone.Play)
-                return;
-
-            var character = _state.Entities[hero].Character!;
-            var restored = Math.Min(character.Damage, amount);
-            if (restored == 0)
-                return;
-
-            _state = _state.UpdateCharacter(hero, character with { Damage = character.Damage - restored });
-            _events.Add(new(SimulationEventKind.Healed, context.Controller, context.Source, hero, restored));
-        }
+        private void HealFriendlyHero(EffectContext context, int amount) =>
+            _ = HealCharacter(context, _state.Players[context.Controller].Hero, amount);
     }
 }

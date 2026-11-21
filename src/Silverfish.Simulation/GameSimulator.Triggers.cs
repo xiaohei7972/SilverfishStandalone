@@ -15,7 +15,8 @@ public sealed partial class GameSimulator
         private readonly record struct DamageSource(EntityId Id, PlayerId Controller);
 
         private readonly record struct Occurrence(TriggerTiming Timing, PlayerId Player, EntityId? Subject = null,
-            DamageSource? Source = null, int? Amount = null, EntityId? Defender = null, bool Poisoned = false);
+            DamageSource? Source = null, int? Amount = null, EntityId? Defender = null, bool Poisoned = false,
+            TriggerTiming? LethalBonus = null, DamageSource? AttackingWeapon = null);
 
         private readonly record struct ListenerId(EntityId Entity, int Index);
 
@@ -58,7 +59,11 @@ public sealed partial class GameSimulator
                 var trigger = listener.Trigger;
                 var matches = trigger.Timing == occurrence.Timing ||
                     (occurrence.Timing == TriggerTiming.AfterMinionPlayed && trigger.Timing == TriggerTiming.AfterMinionSummoned);
-                if (!matches || (listener.Zone == GameZone.Secret && listener.Controller == _state.ActivePlayer) ||
+                if (!matches ||
+                    (occurrence.Timing == TriggerTiming.Overheal && listener.Id.Entity != occurrence.Subject) ||
+                    (occurrence.Timing is TriggerTiming.Overkill or TriggerTiming.HonorableKill &&
+                        listener.Id.Entity != occurrence.Source?.Id) ||
+                    (listener.Zone == GameZone.Secret && listener.Controller == _state.ActivePlayer) ||
                     (occurrence.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or TriggerTiming.AfterMinionPlayed &&
                         listener.Id.Entity == occurrence.Subject))
                     continue;
@@ -135,6 +140,14 @@ public sealed partial class GameSimulator
                         PushEffects(work, new(discarded.Card, discarded.Player), discarded.Effects);
                         break;
                     case Dispatch dispatch:
+                        if (dispatch.Occurrence.LethalBonus is TriggerTiming bonus)
+                        {
+                            // LIFO: regular damage triggers must run before the lethal-bonus triggers.
+                            var bonusEvent = dispatch.Occurrence with { Timing = bonus, LethalBonus = null };
+                            if (dispatch.Occurrence.AttackingWeapon is DamageSource weapon)
+                                PushTriggers(work, Queue(bonusEvent with { Source = weapon }, CaptureListeners()));
+                            PushTriggers(work, Queue(bonusEvent, CaptureListeners()));
+                        }
                         if (dispatch.Occurrence is { Poisoned: true, Subject: EntityId poisoned })
                             work.Push(new DestroyPoisoned(poisoned));
                         PushTriggers(work, Queue(dispatch.Occurrence, CaptureListeners()));

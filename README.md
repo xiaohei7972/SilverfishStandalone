@@ -1,5 +1,13 @@
 # SilverfishStandalone
 
+**执行原则**：AI 只产生行动意图，实际操作使用游戏内的 `IInput / InputCollection` 虚拟输入源（参考 Ember），**不会移动 Windows 系统鼠标，不抢占其他桌面操作**，也不调用 `Network.SendOption`、`Network.SendChoices` 等接口。现有 `UiChoiceInputPlanner` 负责将有序选择映射为点击/确认/等待步骤；游戏内输入适配器和 IPC 尚未接入。详见 [UI 模拟输入执行边界](docs/UI_INPUT_EXECUTION.md)。
+
+
+## CHOICE 有序多目标选择（第一、二阶段）
+
+`Silverfish.Cli choice samples/entity-choice-targets.json` 可在离线环境核验 EntityChoices 的数量范围、禁选实体、点击顺序、取消重排以及确认提交与包 ID 检查。现已支持把待决选择保存到局面、提交有序选择动作及 checkpoint 恢复；提交不会假定卡牌效果已结算，仍需等待后续权威局面快照；当前尚未接入真实游戏选择包和效果暂停/恢复；`OPTION_TARGET` 与 `CHOICE` 分离。详见 [EntityChoices 说明](docs/ENTITY_CHOICES.md)。示例：`dotnet run --project src/Silverfish.Cli -c Release -- simulate samples/simulation-pending-choice.json`。
+
+
 ## 构建与发布
 
 使用 .NET 8 SDK 构建新模拟器和 CLI，并运行独立模拟器的测试。
@@ -134,6 +142,32 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan artifacts/checkpoint.
 - 新增 `Silverfish.Domain`：实体中心的不可变局面模型，分离卡牌基础定义、战斗属性、费用、武器属性、关键词与扩展标签。对应基础模型单元测试已通过 [Actions #43566986229](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/43566986229)。
 - 新模拟器统一使用 `GameState` 和 `GameEntity` 表示随从、手牌和武器。旧 `Minion`、`Handcard`、`Weapon` 类型留在经典引擎的独立回归路径中。
 - 新模拟器已支持抽牌、亡语、附魔、位置光环、沉默、武器、基础英雄技能、回手、变形、消灭、复活、战斗关键词、过载、奥秘、随机效果、临时法力和带独立目标规则的抉择。`starter` 的已注册卡牌、衍生物和技能使用共用结算操作。
+
+## 伤害结算基础：剧毒和吸血
+
+新模拟器现在能从客户端卡牌元数据读取 `POISONOUS` / `LIFESTEAL` 标签，并支持随从、法术和主动攻击时武器的对应效果。圣盾会完全阻止本次伤害，所以不触发剧毒消灭或吸血治疗。伤害事件增加 `damageToArmor`、`damageToHealth`，并保留原攻击来源；吸血由造成伤害的卡牌控制者的英雄获得治疗，剧毒对受到有效伤害的随从标记消灭，统一进入原有死亡与亡语结算。沉默后卡牌原有关键词不再生效。
+
+此阶段先覆盖剧毒/吸血的基本伤害场景，超杀、荣誉击杀、过量治疗和复杂的伤害改写机制仍需要后续独立实现。
+
+## 超杀与荣誉消灭：按实际伤害触发奖励
+
+模拟器新增 `TriggerTiming.Overkill` 与 `TriggerTiming.HonorableKill`，根据伤害来源控制者的回合和角色受击前的生命值判断：超过剩余生命的伤害是超杀，恰好致命的伤害是荣誉消灭。先扣护甲再比较生命值；圣盾完全抵消伤害，不触发两种奖励。敌方回合的反击不触发奖励。
+
+需要额外奖励的卡牌将 `triggers` 定义为 `timing: "Overkill"` 或 `"HonorableKill"`，并指定 `focus: "DamageSource"` 和 `entityMatch: "Self"`；奖励效果通过现有结算工作队列执行，在统一死亡处理之前触发。支持造成伤害的随从、法术，以及英雄攻击时装备的武器。伤害事件增加 `isOverkill` 和 `isHonorableKill` 两个判定字段，便于测试及搜索回放。当前实现的是机制本身；各卡牌的超杀和荣誉消灭奖励仍需逐张接入单卡规则。
+
+## 通用治疗与过量治疗（Overheal）
+
+新模拟器支持 `HealEffect`，以卡牌和触发器规则指定 `Selected`、`Source`、`TriggerSubject`、`FriendlyHero`、`EnemyHero`、`FriendlyMinions`、`AllMinions` 和 `AllFriendlyCharacters` 等治疗目标。单次治疗根据实际缺失生命值封顶，只有**真正恢复生命**时产生 `Healed` 事件。旧的 `HealFriendlyHeroEffect` 和吸血继续复用这条治疗计算，保留原有输出。
+
+客户端 `GAME_TAG.OVERHEAL` 映射为 `CardKeywords.Overheal`。具有该关键词的随从在一次治疗中收到**超过当前缺失生命的正数治疗量**时，记录 `Overhealed` 事件并触发自身的 `TriggerTiming.Overheal` 奖励；即使当前满血也可触发。判定以当前最大生命和伤害值为准，沉默后不生效。普通随从、英雄不因为多余治疗而触发 Overheal。此类奖励定义须使用 `focus: "EventTarget"`、`entityMatch: "Self"`，并配合 `CardKeywords.Overheal`。
+
+群体治疗先完成所有目标的生命变化，再依照实体顺序处理 Overheal 触发器；治疗来源可以是敌方角色，但奖励归属于被治疗随从的控制者。现阶段覆盖通用模拟规则和固定测试，单张 Overheal 卡牌的具体奖励仍需逐张录入及校验。
+
+## 已知 CHOICE 效果的独立预演
+
+新增 `GameSimulator.PreviewChoiceDistribution` / `PreviewChoice` 和 `EntityChoiceForecastPlanner`：只有外部明确提供全部候选选项对应的 `ChoicePreviewRules`，才能离线试算 `GENERAL`（例如发现后获得一张已知卡）或 `TARGET`（按顺序逐个目标结算）的效果。随机结果按预算枚举，合法的有序选法按评估函数比较；如果不知道效果、缺包 ID、组合超预算或随机分支不精确，AI 不会猜测答案。
+
+**预演结果始终是假想状态。** `Apply(ChooseOption)` 行为未变：只提交有序实体 ID 意图，并等待下一份权威局面快照；不自动串联生成新的 CHOICE 包、不调用网络接口或控制 Windows 鼠标。详见 [EntityChoices 第三阶段](docs/ENTITY_CHOICES.md)。
 
 ## 后续重构路线
 

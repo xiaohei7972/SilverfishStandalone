@@ -54,6 +54,7 @@ public enum MatchOutcome { InProgress, Draw, Won }
 public sealed record GameContinuation(int NextEntity, long NextPlayOrder, MatchOutcome Outcome, PlayerId? Winner)
 {
     public PendingPlayChoice? PendingPlayChoice { get; init; }
+    public PendingEntityChoice? PendingChoice { get; init; }
 }
 
 /// <summary>不可变对局状态。各区域按顺序存放实体表中的 ID。</summary>
@@ -65,7 +66,8 @@ public sealed class GameState
         ImmutableDictionary<EntityId, GameEntity> entities,
         ImmutableDictionary<EntityId, EntityLocation> locations, PlayerId activePlayer,
         int turn, int nextEntity, long nextPlayOrder, MatchOutcome outcome, PlayerId? winner,
-        ImmutableList<MinionDeath> minionDeaths, ulong randomState, PendingPlayChoice? pendingPlayChoice = null)
+        ImmutableList<MinionDeath> minionDeaths, ulong randomState, PendingPlayChoice? pendingPlayChoice = null,
+        PendingEntityChoice? pendingChoice = null)
     {
         Players = players;
         Entities = entities;
@@ -79,6 +81,7 @@ public sealed class GameState
         MinionDeaths = minionDeaths;
         RandomState = randomState;
         PendingPlayChoice = pendingPlayChoice;
+        PendingChoice = pendingChoice;
     }
 
     public ImmutableDictionary<PlayerId, PlayerState> Players { get; }
@@ -92,10 +95,12 @@ public sealed class GameState
     public ImmutableList<MinionDeath> MinionDeaths { get; }
     public ulong RandomState { get; }
     public PendingPlayChoice? PendingPlayChoice { get; }
+    /// <summary>Client CHOICE packet; distinct from the simulator's resumable play effect.</summary>
+    public PendingEntityChoice? PendingChoice { get; }
 
     internal static GameState Create(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
         PlayerId activePlayer, int turn, IEnumerable<MinionDeath>? minionDeaths, ulong randomState,
-        GameContinuation? continuation = null)
+        GameContinuation? continuation = null, PendingEntityChoice? pendingChoice = null)
     {
         if (players is null)
             throw new ArgumentNullException(nameof(players), "必须提供玩家列表。");
@@ -188,9 +193,17 @@ public sealed class GameState
                 throw new ArgumentException("存档的对局结果与双方英雄的状态不一致。", nameof(continuation));
         }
 
+        pendingChoice ??= continuation?.PendingChoice;
+        if (pendingChoice is not null)
+        {
+            pendingChoice.Validate();
+            if (!byPlayer.ContainsKey(pendingChoice.Packet.Player) || outcome != MatchOutcome.InProgress)
+                throw new ArgumentException("外部待决选择必须属于本局玩家且对局尚未结束。", nameof(pendingChoice));
+        }
+
         var state = new GameState(byPlayer, byEntity, locations.ToImmutable(), activePlayer, turn,
             continuation?.NextEntity ?? minimumEntity, continuation?.NextPlayOrder ?? minimumPlayOrder,
-            outcome, winner, deaths, randomState);
+            outcome, winner, deaths, randomState, pendingChoice: pendingChoice);
         return continuation?.PendingPlayChoice is { } choice ? state.WithPendingPlayChoice(choice) : state;
     }
 
@@ -208,7 +221,7 @@ public sealed class GameState
             throw new ArgumentException("待决选择的来源、候选或后续触发记录与局面不一致。", nameof(choice));
 
         return new(Players, Entities, _locations, ActivePlayer, Turn, NextEntity, NextPlayOrder,
-            Outcome, Winner, MinionDeaths, RandomState, choice);
+            Outcome, Winner, MinionDeaths, RandomState, choice, PendingChoice);
     }
 
     public EntityLocation LocationOf(EntityId id) => _locations[id];
@@ -248,7 +261,7 @@ public sealed class GameState
         };
         return new GameState(players.SetItem(to.Id, to), Entities.SetItem(id, entity), _locations.SetItem(id, destination),
             ActivePlayer, Turn, NextEntity, entersActiveZone ? checked(NextPlayOrder + 1) : NextPlayOrder,
-            Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice);
+            Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice, PendingChoice);
     }
 
     internal GameState UpdateCharacter(EntityId id, CharacterState character) =>
@@ -265,7 +278,7 @@ public sealed class GameState
         if (owner.Hero == entity.Id && current.Character?.Health != entity.Character?.Health)
             players = players.SetItem(owner.Id, owner with { HeroHealthChangedThisTurn = true });
         return new GameState(players, Entities.SetItem(entity.Id, entity), _locations,
-            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice);
+            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice, PendingChoice);
     }
 
     internal GameState AddToPlay(GameEntity entity, int index) => AddEntity(entity, GameZone.Play, index);
@@ -297,7 +310,7 @@ public sealed class GameState
         return new GameState(Players.SetItem(player.Id, player),
             Entities.Add(entity.Id, entity with { PlayOrder = entersPlay ? NextPlayOrder : null }),
             _locations.Add(entity.Id, new(player.Id, zone)), ActivePlayer, Turn,
-            checked(NextEntity + 1), entersPlay ? checked(NextPlayOrder + 1) : NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice);
+            checked(NextEntity + 1), entersPlay ? checked(NextPlayOrder + 1) : NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice, PendingChoice);
     }
 
     internal GameState UpdateResources(PlayerState player)
@@ -318,7 +331,7 @@ public sealed class GameState
 
     private GameState UpdatePlayer(PlayerState player) =>
         new(Players.SetItem(player.Id, player), Entities, _locations,
-            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice);
+            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice, PendingChoice);
 
     internal GameState RecordMinionDeath(GameEntity minion, bool leavesCorpse)
     {
@@ -329,21 +342,30 @@ public sealed class GameState
             players = players.SetItem(player.Id, player with { Corpses = checked(player.Corpses.GetValueOrDefault() + 1) });
         }
         return new(players, Entities, _locations, ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner,
-            MinionDeaths.Add(new(minion.Id, minion.CardId, minion.Controller, Turn)), RandomState, PendingPlayChoice);
+            MinionDeaths.Add(new(minion.Id, minion.CardId, minion.Controller, Turn)), RandomState, PendingPlayChoice, PendingChoice);
     }
 
     internal GameState SetRandomState(ulong randomState) => new(Players, Entities, _locations, ActivePlayer, Turn,
-        NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, randomState, PendingPlayChoice);
+        NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, randomState, PendingPlayChoice, PendingChoice);
+
+    internal GameState SubmitChoice(int choiceId, ImmutableArray<EntityId> ordered)
+    {
+        if (PendingChoice is null || PendingChoice.Packet.ChoiceId != choiceId)
+            throw new InvalidOperationException("没有匹配的当前选择包，或选择包已经过期。");
+        var submitted = PendingChoice.Submit(choiceId, ordered);
+        return new(Players, Entities, _locations, ActivePlayer, Turn, NextEntity, NextPlayOrder,
+            Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice, submitted);
+    }
 
     internal GameState PassTurn() => new(Players, Entities, _locations, OpponentOf(ActivePlayer),
-        checked(Turn + 1), NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState);
+        checked(Turn + 1), NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice, PendingChoice);
 
     internal GameState Finish(PlayerId? winner)
     {
         if (winner is PlayerId id && !Players.ContainsKey(id))
             throw new ArgumentException("胜者必须是本局的玩家。", nameof(winner));
         return new GameState(Players, Entities, _locations, ActivePlayer, Turn, NextEntity, NextPlayOrder,
-            winner is null ? MatchOutcome.Draw : MatchOutcome.Won, winner, MinionDeaths, RandomState);
+            winner is null ? MatchOutcome.Draw : MatchOutcome.Won, winner, MinionDeaths, RandomState, PendingPlayChoice, PendingChoice);
     }
 
     private static PlayerState SetZone(PlayerState player, GameZone zone, ImmutableArray<EntityId> contents)

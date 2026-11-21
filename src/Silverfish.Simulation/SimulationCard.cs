@@ -6,7 +6,7 @@ using Silverfish.Domain.Client;
 namespace Silverfish.Simulation;
 
 [Flags]
-public enum CardKeywords { None = 0, Taunt = 1, Charge = 2, DivineShield = 4, Rush = 8, Windfury = 16, CastsWhenDrawn = 32 }
+public enum CardKeywords { None = 0, Taunt = 1, Charge = 2, DivineShield = 4, Rush = 8, Windfury = 16, CastsWhenDrawn = 32, Poisonous = 64, Lifesteal = 128, Overheal = 256 }
 
 public enum TargetRequirement { None, Character, EnemyCharacter, EnemyMinion, FriendlyMinion, Minion, FriendlyCharacter }
 
@@ -15,6 +15,7 @@ public enum PlayRequirements { None = 0, BoardSpace = 1, FriendlyMinionDeath = 2
 
 public enum DamageTarget { Selected, EnemyHero, AllMinions, Source, TriggerSubject, FriendlyHero, EnemyMinions, AllEnemies }
 public enum FreezeTarget { Selected, EnemyMinions, TriggerSubject }
+public enum HealTarget { Selected, Source, TriggerSubject, FriendlyHero, EnemyHero, FriendlyMinions, AllMinions, AllFriendlyCharacters }
 public enum EffectTarget { Selected, TriggerSubject }
 public enum RandomCharacterPool { EnemyCharacters, EnemyMinions, OtherCharacters }
 public enum RandomDamageMode { Sequential, DistinctBatch }
@@ -52,7 +53,8 @@ public enum TriggerTiming
 {
     TurnStarted, TurnEnded, WhenMinionSummoned, AfterMinionSummoned,
     BeforeSpellResolved, AfterSpellResolved, MinionDied, Damage, CardDrawn, HeroAttacking, WeaponDestroyed, AfterHeroPowerUsed,
-    SpellCounterWindow, AttackProposed, AfterMinionPlayed, CardDiscarded
+    SpellCounterWindow, AttackProposed, AfterMinionPlayed, CardDiscarded,
+    Overkill, HonorableKill, Overheal
 }
 
 public enum TriggerRelation { Friendly, Opponent, Any }
@@ -83,6 +85,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(SummonDiscardedMinionEffect), "summonDiscardedMinion")]
 [JsonDerivedType(typeof(GainArmorEffect), "gainArmor")]
 [JsonDerivedType(typeof(HealFriendlyHeroEffect), "healFriendlyHero")]
+[JsonDerivedType(typeof(HealEffect), "heal")]
 [JsonDerivedType(typeof(EquipWeaponEffect), "equipWeapon")]
 [JsonDerivedType(typeof(DestroyEnemyWeaponEffect), "destroyEnemyWeapon")]
 [JsonDerivedType(typeof(EnchantStatsEffect), "enchantStats")]
@@ -144,6 +147,8 @@ public sealed record DiscardHandEffect(HandRecipient Recipient = HandRecipient.C
 public sealed record SummonDiscardedMinionEffect : CardEffect;
 public sealed record GainArmorEffect(int Amount) : CardEffect;
 public sealed record HealFriendlyHeroEffect(int Amount) : CardEffect;
+/// <summary>Restores character Health; healing past full Health can trigger Overheal.</summary>
+public sealed record HealEffect(HealTarget Target, int Amount) : CardEffect;
 public sealed record EquipWeaponEffect(string CardId) : CardEffect;
 public sealed record DestroyEnemyWeaponEffect : CardEffect;
 public sealed record EnchantmentRemovalRule(EnchantmentRemovalReason Reason, ImmutableArray<CardEffect> Effects);
@@ -278,6 +283,9 @@ public sealed record SimulationCard : CardRules
             (metadata.GetTag(GAME_TAG.DIVINE_SHIELD) > 0 ? CardKeywords.DivineShield : CardKeywords.None) |
             (metadata.GetTag(GAME_TAG.CHARGE) > 0 ? CardKeywords.Charge : CardKeywords.None) |
             (metadata.GetTag(GAME_TAG.RUSH) > 0 ? CardKeywords.Rush : CardKeywords.None) |
+            (metadata.GetTag(GAME_TAG.POISONOUS) > 0 ? CardKeywords.Poisonous : CardKeywords.None) |
+            (metadata.GetTag(GAME_TAG.LIFESTEAL) > 0 ? CardKeywords.Lifesteal : CardKeywords.None) |
+            (metadata.GetTag(GAME_TAG.OVERHEAL) > 0 ? CardKeywords.Overheal : CardKeywords.None) |
             (castsWhenDrawn ? CardKeywords.CastsWhenDrawn : CardKeywords.None);
         return new(definition, rules ?? EmptyRules) { Keywords = keywords, RequirementTagMask = PlayReqTags.FromMetadata(metadata), Overload = metadata.GetTag(GAME_TAG.OVERLOAD) };
     }

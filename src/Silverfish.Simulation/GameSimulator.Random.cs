@@ -10,6 +10,8 @@ public sealed partial class GameSimulator
     public SimulationDistribution ApplyDistribution(GameState state, SimulationAction action, int workLimit = 64)
     {
         ValidateWorkLimit(workLimit);
+        if (action is { Kind: SimulationActionKind.ChooseOption } && state.PendingChoice is not null)
+            return new([new(Apply(state, action), 1.0)], 1, IsExact: true);
         var resolvesEffects = EnsureLegal(state, action);
         return RunDistribution(state, action, workLimit, resolvesEffects);
     }
@@ -20,7 +22,11 @@ public sealed partial class GameSimulator
             throw new ArgumentOutOfRangeException(nameof(workLimit), "随机结算预算必须大于零。");
     }
 
-    private SimulationDistribution RunDistribution(GameState state, SimulationAction action, int workLimit, bool resolvesEffects)
+    private SimulationDistribution RunDistribution(GameState state, SimulationAction action, int workLimit, bool resolvesEffects) =>
+        RunDistributionCore(randomChoice => new Resolution(this, state, randomChoice).Run(action, resolvesEffects), workLimit);
+
+    /// <summary>Shared exact/random-sampling engine for gameplay actions and offline choice previews.</summary>
+    private static SimulationDistribution RunDistributionCore(Func<Func<int, int>, SimulationResult> resolve, int workLimit)
     {
         var paths = new Stack<RandomPath>();
         paths.Push(new([], 1));
@@ -36,7 +42,7 @@ public sealed partial class GameSimulator
             resolutions++;
             try
             {
-                var result = new Resolution(this, state, Select).Run(action, resolvesEffects);
+                var result = resolve(Select);
                 outcomes.Add(new(result, path.Probability));
             }
             catch (UnresolvedRandomChoice choice)
@@ -62,7 +68,7 @@ public sealed partial class GameSimulator
         for (var index = 0; index < samples; index++)
         {
             var randomized = false;
-            var result = new Resolution(this, state, Sample).Run(action, resolvesEffects);
+            var result = resolve(Sample);
             resolutions++;
             if (!randomized)
                 return new([new(result, 1)], resolutions, IsExact: true);
