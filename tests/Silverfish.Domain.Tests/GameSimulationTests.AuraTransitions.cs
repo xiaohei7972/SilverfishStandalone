@@ -36,7 +36,9 @@ public sealed partial class GameSimulationTests
     [InlineData(false)]
     public void ImmediateAuraEmitterDeathUpdatesHealthBeforeFollowingDamage(bool fullHand)
     {
-        var boardFillers = Enumerable.Range(30, 7).ToArray();
+        // Start with six board slots so the steal is legal; the spell itself
+        // summons slot seven before attempting the control change.
+        var boardFillers = Enumerable.Range(30, 6).ToArray();
         var handFillers = Enumerable.Range(40, 10).ToArray();
         var simulator = new GameSimulator([
             Hero, Minion("banner", 0, 4) with
@@ -48,8 +50,11 @@ public sealed partial class GameSimulationTests
             Spell("remove-then-damage") with
             {
                 Target = TargetRequirement.EnemyMinion,
-                OnPlay = [fullHand ? new ReturnMinionEffect() : new TakeControlEffect(),
-                    new DamageEffect(DamageTarget.EnemyMinions, 2)]
+                OnPlay = [
+                    .. (fullHand ? new CardEffect[] { new ReturnMinionEffect() } :
+                        new CardEffect[] { new SummonEffect("filler"), new TakeControlEffect() }),
+                    new DamageEffect(DamageTarget.EnemyMinions, 2)
+                ]
             }
         ]);
         var first = Player(First, FirstHero) with
