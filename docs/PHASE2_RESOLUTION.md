@@ -94,3 +94,24 @@ dotnet test SilverfishStandalone.sln -c Release --no-build
 - **英雄精确致命奖励可改写终局**：用荣誉消灭随从精确击杀敌方英雄，触发自己的伤害奖励后又杀死己方英雄，结算后应为平局，`MatchEnded` 只在死亡阶段末产生。不能因为一个英雄先降到零血就提前返回胜利。
 - 本批是有意保持引擎实现不变的行为锁定，并非宣称有新 Bug 修复：新增前的模拟器代码已经满足这三条断言。今后对死亡队列/触发派发的重构必须先通过回归。
 - 验证：GitHub Actions [#44931787243](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44931787243)；Release 0 warnings/0 errors，24 个基础测试 + 276 个 Domain 测试，**300/300 全部通过**，无失败或跳过。新测试提交 `12ed34e`。
+
+
+## 第六批：单个效果栈内光环状态即时一致性
+
+### 已用失败用例复现的错误
+
+同一张法术先移走/失效一个 +2 最大生命值光环来源，再对场上随从造成 2 点范围伤害。被保护的基础 1 血随从应在第二个效果前恢复到 1 血并被击杀。旧版直到整张牌结束时才调用 `RefreshAuras`，因此第二个效果错误地按 3 血计算，导致本该死亡的目标存活。
+
+- 红色回归提交 `7998fc2`，GitHub Actions [#44933995361](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44933995361) **4 条新测试全部按预期失败**：沉默、变形、正常退回手牌、控制权转移。
+- 首轮修复提交 `1d22bc9` 在这些状态变化后立即刷新光环，GitHub Actions [#44934146241](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44934146241) 全部通过。
+- 随后补充两条提前销毁来源的用例：满手牌退回时立即销毁目标，以及出牌前尚有一个场地空位、先召唤填满场地后再夺取敌方随从导致立即销毁。测试提交 `6545110` 的 [#44934211390](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44934211390) 报告两个用例失败，暴露即时死亡路径没有刷新光环。
+- `615cb44` 将这两种即时移除统一交给 `RemoveImmediately`：先捕获死亡时观察者快照，再移走实体并刷新光环。这样保留第四批防止晚到观察者追认死亡事件的修复。
+- `f168382` 修正满场测试的非法前提：不能直接在七个场位全满时主动打出控制权法术；应该从六个场位开始，法术先召唤第七个随从，再触发合法执行过程中的控制权溢出。
+
+### 最终回归
+
+- 新增 **6 条**自动化测试，涵盖四种常规状态变动和两种即时死亡；每条重复相同输入并核对事件轨迹与不可变输入。
+- [GitHub Actions #44934486918](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44934486918) **COMPLETED SUCCESS**：Release 编译 0 warning / 0 error，基础 24 + Domain 282 = **306/306 测试全部通过**，无失败、无跳过；离线回放、发布可执行文件和 historical-tools 均通过。
+- 此次仅调整属性光环的刷新时点，不改变攻击伤害的归因、死亡波次排序、外部权威 CHOICE 协议或卡牌脚本基线。
+
+下一步：对跨多个结算子阶段的特殊效果补更多固定录像差分测试，再在回归保护下抽取 DamageResolver / TriggerDispatcher。
