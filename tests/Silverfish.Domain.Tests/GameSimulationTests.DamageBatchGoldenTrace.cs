@@ -49,7 +49,7 @@ public sealed partial class GameSimulationTests
             SimulationEventKind.Died
         }, first.Events.Select(e => e.Kind));
         var damageEvents = first.Events.Where(e => e.Kind == SimulationEventKind.Damage).ToArray();
-        Assert.Equal(new[] { SecondHero, new EntityId(22) }, damageEvents.Select(e => e.Target));
+        Assert.Equal(new EntityId?[] { SecondHero, new EntityId(22) }, damageEvents.Select(e => e.Target));
         Assert.Equal(2, damageEvents[0].DamageToArmor);
         Assert.Equal(1, damageEvents[0].DamageToHealth);
         Assert.Equal(0, damageEvents[1].DamageToArmor);
