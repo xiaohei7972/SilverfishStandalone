@@ -62,7 +62,7 @@ public sealed partial class GameSimulationTests
         Assert.Equal(2, first.State.Entities[new EntityId(21)].Character!.Health);
         Assert.False(first.State.Entities[new EntityId(21)].Character!.DivineShield);
         Assert.Equal(GameZone.Graveyard, first.State.LocationOf(new EntityId(22)).Zone);
-        Assert.Equal(first.Events, replay.Events);
+        Assert.Equal(first.Events, replay.Events.AsEnumerable());
         Assert.Equal(30, armored.Entities[SecondHero].Character!.Health);
         Assert.Equal(2, armored.Entities[SecondHero].Character!.Armor);
         Assert.True(armored.Entities[new EntityId(21)].Character!.DivineShield);
