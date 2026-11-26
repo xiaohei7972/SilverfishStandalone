@@ -286,6 +286,9 @@ public sealed partial class GameSimulator
                 case CreateCardEffect create:
                     CreateCards(context, create);
                     break;
+                case CopyDeckCardsEffect copy:
+                    CopyDeckCards(context, copy);
+                    break;
                 case DiscardEffect discard:
                     Discard(work, context, discard.Recipient, discard.Count, discard.Selection);
                     break;
@@ -317,7 +320,7 @@ public sealed partial class GameSimulator
                     Silence(work, context);
                     break;
                 case SummonEffect summon:
-                    var position = summon.Placement == SummonPlacement.Rightmost ? null : context.DeathPosition;
+                    var position = ResolveSummonPosition(context, summon.Placement);
                     if (Summon(context.Controller, summon.CardId, position) is EntityId summoned)
                         PushSummonTriggers(work, context.Controller, summoned);
                     break;
@@ -363,6 +366,9 @@ public sealed partial class GameSimulator
                 case SummonRandomMinionEffect summon:
                     SummonRandomMinion(work, context.Controller, summon);
                     break;
+                case SummonMatchingMinionEffect summon:
+                    SummonMatchingMinion(work, context, summon);
+                    break;
                 case ChangeManaEffect mana:
                     ChangeMana(context, mana);
                     break;
@@ -371,6 +377,23 @@ public sealed partial class GameSimulator
                     PushEffects(work, context, branch);
                     break;
             }
+        }
+
+        private int? ResolveSummonPosition(EffectContext context, SummonPlacement placement)
+        {
+            if (placement == SummonPlacement.Default)
+                return context.DeathPosition;
+            if (placement == SummonPlacement.Rightmost)
+                return null;
+
+            var slot = 0;
+            foreach (var id in _rules.BoardSlots(_state, context.Controller))
+            {
+                if (id == context.Source)
+                    return placement == SummonPlacement.LeftOfSource ? slot : slot + 1;
+                slot++;
+            }
+            return null;
         }
 
         private EntityId? Summon(PlayerId player, string cardId, int? position)

@@ -167,6 +167,7 @@ public sealed partial class GameSimulator
                 StatTarget.Source => [context.Source],
                 StatTarget.FriendlyHero => [_state.Players[context.Controller].Hero],
                 StatTarget.FriendlyMinions => _rules.BoardMinions(_state, context.Controller),
+                StatTarget.OtherFriendlyMinions => _rules.BoardMinions(_state, context.Controller).Where(id => id != context.Source),
                 StatTarget.AllMinions => _state.Players.Values.SelectMany(player => _rules.BoardMinions(_state, player.Id))
                     .OrderBy(id => _state.Entities[id].PlayOrder),
                 _ => throw new InvalidOperationException("无法识别属性附魔的目标。")

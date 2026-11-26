@@ -20,6 +20,26 @@ public sealed partial class GameSimulator
                 ShuffleDeck(recipient, context.Source);
         }
 
+        private void CopyDeckCards(EffectContext context, CopyDeckCardsEffect effect)
+        {
+            var deckOwner = effect.SourceDeck == ConditionPlayer.Friendly
+                ? context.Controller : _state.OpponentOf(context.Controller);
+            var candidates = _state.Players[deckOwner].In(GameZone.Deck)
+                .Where(id => effect.CardFilter is not { } filter || MatchesCardFilter(_rules.Card(_state.Entities[id]).Definition, filter))
+                .ToList();
+            var count = Math.Min(effect.Count, candidates.Count);
+            for (var i = 0; i < count; i++)
+            {
+                if (_state.Players[context.Controller].In(GameZone.Hand).Length >= HandLimit)
+                    break;
+                SpendResolutionStep();
+                var index = ChooseIndex(candidates.Count);
+                var chosen = _state.Entities[candidates[index]];
+                candidates.RemoveAt(index);
+                TryCreateCard(chosen.CardId, context.Controller, context.Source, CardPlacement.Hand);
+            }
+        }
+
         private bool TryCreateCard(string cardId, PlayerId recipient, EntityId source, CardPlacement placement)
         {
             var player = _state.Players[recipient];

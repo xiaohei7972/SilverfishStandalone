@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Silverfish.Domain;
 
@@ -5,6 +6,12 @@ namespace Silverfish.Simulation;
 
 public sealed partial class GameSimulator
 {
+    private readonly ConcurrentDictionary<CardFilter, ImmutableArray<string>> _matchingMinionPools = new();
+
+    private ImmutableArray<string> MatchingMinionCandidates(CardFilter filter) =>
+        _matchingMinionPools.GetOrAdd(filter, key =>
+            [.. _randomMinionCosts.Value.Values.SelectMany(bucket => bucket).Order(StringComparer.Ordinal)
+                .Where(id => MatchesCardFilter(GetCard(id).Definition, key))]);
     /// <summary>在预算内枚举随机分支，必要时使用独立于回放种子的采样。</summary>
     /// <remarks>预测保留输入的回放种子。实际推进对局时调用 Apply。</remarks>
     public SimulationDistribution ApplyDistribution(GameState state, SimulationAction action, int workLimit = 64)
@@ -203,6 +210,23 @@ public sealed partial class GameSimulator
                 return;
 
             var cardId = effect.CardIds[ChooseIndex(effect.CardIds.Length)];
+            if (Summon(player, cardId, position: null) is EntityId summoned)
+                PushSummonTriggers(work, player, summoned);
+        }
+
+        private void SummonMatchingMinion(Stack<Work> work, EffectContext context, SummonMatchingMinionEffect effect)
+        {
+            var player = context.Controller;
+            if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
+                return;
+
+            var candidates = _rules.MatchingMinionCandidates(effect.CardFilter);
+            if (candidates.IsEmpty)
+                return;
+
+            if (effect.Count > 1)
+                work.Push(new ApplyEffect(context, effect with { Count = effect.Count - 1 }));
+            var cardId = candidates[ChooseIndex(candidates.Length)];
             if (Summon(player, cardId, position: null) is EntityId summoned)
                 PushSummonTriggers(work, player, summoned);
         }

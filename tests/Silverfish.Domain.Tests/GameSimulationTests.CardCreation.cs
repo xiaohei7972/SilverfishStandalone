@@ -121,4 +121,56 @@ public sealed partial class GameSimulationTests
         Assert.Empty(result.State.Players[First].In(GameZone.Deck));
         Assert.Equal(new EntityId(21), Assert.Single(result.State.Players[First].In(GameZone.Hand)));
     }
+
+    [Fact]
+    public void CopyingDeckCardsSamplesWithoutReplacementAndHandlesShortDecksAndFullHands()
+    {
+        var copyTwo = Spell("copy-two") with { OnPlay = [new CopyDeckCardsEffect(ConditionPlayer.Opponent, Count: 2)] };
+        var summonDemon = Spell("summon-demon") with
+        {
+            OnPlay = [new SummonMatchingMinionEffect(new CardFilter { MinionType = MinionType.Demon })]
+        };
+        var demonA = new SimulationCard(new("demon-a", EntityKind.Minion, 1, 1, 3) { MinionTypes = MinionType.Demon });
+        var demonB = new SimulationCard(new("demon-b", EntityKind.Minion, 2, 3, 2) { MinionTypes = MinionType.Demon });
+        var beast = new SimulationCard(new("beast-c", EntityKind.Minion, 2, 2, 2) { MinionTypes = MinionType.Beast });
+        var simulator = new GameSimulator([Hero, Spell("alpha"), Spell("beta"), Spell("gamma"), copyTwo, summonDemon, demonA, demonB, beast],
+            randomMinionPool: ["demon-b", "beast-c", "demon-a"]);
+
+        var threeDeck = Create(simulator, First,
+            Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10]), (GameZone.Hand, [11])) },
+            Player(Second, SecondHero) with { Zones = Zones((GameZone.Play, [20]), (GameZone.Deck, [21, 22, 23])) },
+            Card(11, "copy-two", First), Card(21, "alpha", Second), Card(22, "beta", Second), Card(23, "gamma", Second));
+        var dist = simulator.ApplyDistribution(threeDeck, new(SimulationActionKind.PlayCard, First, new(11)));
+        Assert.True(dist.IsExact);
+        Assert.Equal(6, dist.Outcomes.Length);
+        Assert.All(dist.Outcomes, outcome =>
+        {
+            var handIds = outcome.Result.State.Players[First].In(GameZone.Hand).Select(id => outcome.Result.State.Entities[id].CardId).ToArray();
+            Assert.Equal(2, handIds.Distinct().Count());
+            Assert.Equal(new[] { 21, 22, 23 }, outcome.Result.State.Players[Second].In(GameZone.Deck).Select(id => id.Value));
+        });
+
+        var oneCardDeck = Create(simulator, First,
+            Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10]), (GameZone.Hand, [11])) },
+            Player(Second, SecondHero) with { Zones = Zones((GameZone.Play, [20]), (GameZone.Deck, [21])) },
+            Card(11, "copy-two", First), Card(21, "alpha", Second));
+        var copiedOne = simulator.Apply(oneCardDeck, new(SimulationActionKind.PlayCard, First, new(11)));
+        Assert.Equal("alpha", simulator.Cards[copiedOne.State.Entities[Assert.Single(copiedOne.State.Players[First].In(GameZone.Hand))].CardId].Definition.CardId);
+        Assert.DoesNotContain(copiedOne.Events, e => e.Kind == SimulationEventKind.Fatigue);
+
+        var nineInHand = Enumerable.Range(31, 9).ToArray();
+        var nearlyFull = Create(simulator, First,
+            Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10]), (GameZone.Hand, [11, .. nineInHand])) },
+            Player(Second, SecondHero) with { Zones = Zones((GameZone.Play, [20]), (GameZone.Deck, [21, 22, 23])) },
+            [Card(11, "copy-two", First), Card(21, "alpha", Second), Card(22, "beta", Second), Card(23, "gamma", Second),
+                .. nineInHand.Select(id => Card(id, "alpha", First))]);
+        var nearlyFullDist = simulator.ApplyDistribution(nearlyFull, new(SimulationActionKind.PlayCard, First, new(11)));
+        Assert.Equal(3, nearlyFullDist.Outcomes.Length);
+
+        var summonState = Create(simulator, First,
+            Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10]), (GameZone.Hand, [11])) },
+            Player(Second, SecondHero), Card(11, "summon-demon", First));
+        var summonDist = simulator.ApplyDistribution(summonState, new(SimulationActionKind.PlayCard, First, new(11)));
+        Assert.Equal(["demon-a", "demon-b"], summonDist.Outcomes.Select(o => o.Result.State.Entities[new(21)].CardId));
+    }
 }

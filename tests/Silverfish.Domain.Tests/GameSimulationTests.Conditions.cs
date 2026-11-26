@@ -110,4 +110,90 @@ public sealed partial class GameSimulationTests
         };
         Assert.Throws<ArgumentException>(() => new GameSimulator([Hero, card]));
     }
+
+    [Fact]
+    public void CharacterStateConditionDistinguishesDeadPoisonedReturnedAndSurvivingTargets()
+    {
+        var executeCheck = Spell("check-dead") with
+        {
+            Target = TargetRequirement.EnemyMinion,
+            OnPlay =
+            [
+                new DamageEffect(DamageTarget.Selected, 1),
+                new ConditionalEffect(new CharacterStateCondition(ConditionCharacter.Selected, CharacterDisposition.Dead),
+                    [new GainArmorEffect(3)])
+                {
+                    Otherwise =
+                    [
+                        new ConditionalEffect(new CharacterStateCondition(ConditionCharacter.Selected, CharacterDisposition.Alive),
+                            [new GainArmorEffect(1)])
+                    ]
+                }
+            ]
+        };
+        var poisonCheck = executeCheck with { Definition = new("poison-check", EntityKind.Spell, 0), Keywords = CardKeywords.Poisonous };
+        var bouncer = Minion("bouncer", 1, 3) with
+        {
+            Triggers =
+            [
+                new(TriggerTiming.Damage, TriggerRelation.Friendly, [new ReturnMinionEffect(Target: EffectTarget.TriggerSubject)])
+                {
+                    EntityMatch = TriggerEntityMatch.Self
+                }
+            ]
+        };
+        var simulator = new GameSimulator([Hero, Minion("one-hp", 1, 1), Minion("two-hp", 1, 2), bouncer, executeCheck, poisonCheck]);
+
+        SimulationResult CastOn(string spellId, string targetCardId, bool fullEnemyHand = false)
+        {
+            var extraHand = fullEnemyHand ? Enumerable.Range(31, 10).ToArray() : [];
+            var root = Create(simulator, First,
+                Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10]), (GameZone.Hand, [11])) },
+                Player(Second, SecondHero) with { Zones = Zones((GameZone.Play, [20, 21]), (GameZone.Hand, [.. extraHand])) },
+                [Card(11, spellId, First), InPlay(21, targetCardId, Second, 3, 1, targetCardId == "one-hp" ? 1 : targetCardId == "two-hp" ? 2 : 3),
+                    .. extraHand.Select(id => Card(id, "one-hp", Second))]);
+            return simulator.Apply(root, new(SimulationActionKind.PlayCard, First, new(11), new(21)));
+        }
+
+        Assert.Equal(3, CastOn("check-dead", "one-hp").State.Entities[FirstHero].Character!.Armor);
+        Assert.Equal(1, CastOn("check-dead", "two-hp").State.Entities[FirstHero].Character!.Armor);
+        Assert.Equal(3, CastOn("poison-check", "two-hp").State.Entities[FirstHero].Character!.Armor);
+        Assert.Equal(0, CastOn("check-dead", "bouncer", fullEnemyHand: false).State.Entities[FirstHero].Character!.Armor);
+        Assert.Equal(3, CastOn("check-dead", "bouncer", fullEnemyHand: true).State.Entities[FirstHero].Character!.Armor);
+    }
+
+    [Fact]
+    public void SourceRelativePlacementsAndOtherFriendlyMinionBuffsValidateAndPreserveOrder()
+    {
+        var token = Minion("guard-token", 2, 2);
+        var leader = Minion("flank-leader", 3, 4) with
+        {
+            Choices =
+            [
+                new("buff", [new EnchantStatsEffect(StatTarget.OtherFriendlyMinions, new(StatModifierMode.Add, 2, 2))]),
+                new("flank", [new SummonEffect("guard-token", SummonPlacement.RightOfSource),
+                    new SummonEffect("guard-token", SummonPlacement.LeftOfSource)])
+            ]
+        };
+        Assert.Throws<ArgumentException>(() => new GameSimulator([Hero, token,
+            Spell("bad-placement") with { OnPlay = [new SummonEffect("guard-token", SummonPlacement.LeftOfSource)] }]));
+        Assert.Throws<ArgumentException>(() => new GameSimulator([Hero,
+            Spell("bad-stat-target") with { OnPlay = [new EnchantStatsEffect(StatTarget.OtherFriendlyMinions, new(StatModifierMode.Add, 1, 1))] }]));
+
+        var simulator = new GameSimulator([Hero, token, leader]);
+        var root = Create(simulator, First,
+            Player(First, FirstHero) with { Zones = Zones((GameZone.Play, [10, 11, 12]), (GameZone.Hand, [13])) },
+            Player(Second, SecondHero),
+            InPlay(11, "guard-token", First, 3, 2, 2), InPlay(12, "guard-token", First, 4, 2, 2), Card(13, "flank-leader", First));
+
+        var buffed = simulator.Apply(root, new(SimulationActionKind.PlayCard, First, new(13), Position: 1) { Choice = "buff" }).State;
+        Assert.Equal(4, buffed.Entities[new(11)].Character!.Attack);
+        Assert.Equal(4, buffed.Entities[new(12)].Character!.MaximumHealth);
+        Assert.Equal(3, buffed.Entities[new(13)].Character!.Attack);
+        Assert.Equal(4, buffed.Entities[new(13)].Character!.MaximumHealth);
+
+        var flanked = simulator.Apply(root, new(SimulationActionKind.PlayCard, First, new(13), Position: 1) { Choice = "flank" }).State;
+        Assert.Equal(new[] { 10, 11, 22, 13, 21, 12 }, flanked.Players[First].In(GameZone.Play).Select(id => id.Value));
+        Assert.True(flanked.Entities[new(21)].PlayOrder < flanked.Entities[new(22)].PlayOrder);
+    }
 }

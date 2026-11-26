@@ -21,8 +21,8 @@ public enum RandomCharacterPool { EnemyCharacters, EnemyMinions, OtherCharacters
 public enum RandomDamageMode { Sequential, DistinctBatch }
 public enum ManaOperation { GainTemporary, GainEmpty, GainFilled, Refresh, Destroy }
 public enum ManaRecipient { Controller, BothPlayers }
-public enum SummonPlacement { Default, Rightmost }
-public enum StatTarget { Selected, Source, FriendlyMinions, AllMinions, FriendlyHero }
+public enum SummonPlacement { Default, Rightmost, LeftOfSource, RightOfSource }
+public enum StatTarget { Selected, Source, FriendlyMinions, OtherFriendlyMinions, AllMinions, FriendlyHero }
 public enum EnchantmentDuration { Permanent, CurrentTurn, UntilNextTurn }
 public enum EnchantmentRemovalReason { Expired, Silenced, LeftPlay, Transformed, Died }
 public enum AuraRecipients { OtherFriendlyMinions, AdjacentFriendlyMinions }
@@ -80,6 +80,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(ChangeCostTypeEffect), "changeCostType")]
 [JsonDerivedType(typeof(RecruitEffect), "recruit")]
 [JsonDerivedType(typeof(CreateCardEffect), "createCard")]
+[JsonDerivedType(typeof(CopyDeckCardsEffect), "copyDeckCards")]
 [JsonDerivedType(typeof(DiscardEffect), "discard")]
 [JsonDerivedType(typeof(DiscardHandEffect), "discardHand")]
 [JsonDerivedType(typeof(SummonDiscardedMinionEffect), "summonDiscardedMinion")]
@@ -105,6 +106,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(DestroyRandomEnemyMinionEffect), "destroyRandomEnemyMinion")]
 [JsonDerivedType(typeof(DestroyAllButOneMinionEffect), "destroyAllButOneMinion")]
 [JsonDerivedType(typeof(SummonRandomMinionEffect), "summonRandomMinion")]
+[JsonDerivedType(typeof(SummonMatchingMinionEffect), "summonMatchingMinion")]
 [JsonDerivedType(typeof(ChangeManaEffect), "changeMana")]
 [JsonDerivedType(typeof(ConditionalEffect), "conditional")]
 public abstract record CardEffect;
@@ -141,6 +143,10 @@ public sealed record CreateCardEffect(
     CardPlacement Placement = CardPlacement.Hand,
     CardRecipient Recipient = CardRecipient.Controller,
     int Count = 1) : CardEffect;
+public sealed record CopyDeckCardsEffect(
+    ConditionPlayer SourceDeck = ConditionPlayer.Opponent,
+    int Count = 1,
+    CardFilter? CardFilter = null) : CardEffect;
 public sealed record DiscardEffect(int Count = 1, DiscardSelection Selection = DiscardSelection.Random,
     HandRecipient Recipient = HandRecipient.Controller) : CardEffect;
 public sealed record DiscardHandEffect(HandRecipient Recipient = HandRecipient.Controller) : CardEffect;
@@ -183,6 +189,7 @@ public sealed record RandomDamageEffect(RandomCharacterPool Pool, int Amount, in
 public sealed record DestroyRandomEnemyMinionEffect : CardEffect;
 public sealed record DestroyAllButOneMinionEffect : CardEffect;
 public sealed record SummonRandomMinionEffect(ImmutableArray<string> CardIds) : CardEffect;
+public sealed record SummonMatchingMinionEffect([property: JsonRequired] CardFilter CardFilter, int Count = 1) : CardEffect;
 public sealed record ChangeManaEffect(ManaOperation Operation, int Amount, ManaRecipient Recipient = ManaRecipient.Controller,
     string? OverflowCardId = null) : CardEffect;
 

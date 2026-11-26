@@ -8,17 +8,22 @@ public sealed partial class GameSimulator
         bool hasCharacterSubject, bool hasInPlaySource) => condition switch
     {
         CharacterCondition character => IsValidCharacterComparison(character.Metric, character.Comparison, character.Value) &&
-            (character.Target switch
-            {
-                ConditionCharacter.Source => hasInPlaySource,
-                ConditionCharacter.Selected => target != TargetRequirement.None,
-                ConditionCharacter.TriggerSubject => hasCharacterSubject,
-                ConditionCharacter.FriendlyHero or ConditionCharacter.EnemyHero => true,
-                _ => false
-            }),
+            IsValidConditionCharacter(character.Target, target, hasCharacterSubject, hasInPlaySource),
+        CharacterStateCondition state => Enum.IsDefined(state.State) &&
+            IsValidConditionCharacter(state.Target, target, hasCharacterSubject, hasInPlaySource),
         ZoneCountCondition count => count.Value >= 0 && Enum.IsDefined(count.Player) && Enum.IsDefined(count.Zone) &&
             Enum.IsDefined(count.Comparison) && IsValidCardFilter(count.CardFilter) &&
             (count.EntityKind is not EntityKind kind || (Enum.IsDefined(kind) && kind != EntityKind.Unknown)),
+        _ => false
+    };
+
+    private static bool IsValidConditionCharacter(ConditionCharacter character, TargetRequirement target,
+        bool hasCharacterSubject, bool hasInPlaySource) => character switch
+    {
+        ConditionCharacter.Source => hasInPlaySource,
+        ConditionCharacter.Selected => target != TargetRequirement.None,
+        ConditionCharacter.TriggerSubject => hasCharacterSubject,
+        ConditionCharacter.FriendlyHero or ConditionCharacter.EnemyHero => true,
         _ => false
     };
 
@@ -53,27 +58,47 @@ public sealed partial class GameSimulator
         private bool MeetsCondition(EffectContext context, EffectCondition condition) => condition switch
         {
             CharacterCondition character => MeetsCharacterCondition(context, character),
+            CharacterStateCondition state => MeetsCharacterStateCondition(context, state),
             ZoneCountCondition count => TestComparison(CountEntities(context, count), count.Comparison, count.Value),
             _ => throw new InvalidOperationException("无法识别效果条件。")
         };
 
+        private EntityId? ResolveConditionCharacter(EffectContext context, ConditionCharacter target) => target switch
+        {
+            ConditionCharacter.Source => context.Source,
+            ConditionCharacter.Selected => context.Selected,
+            ConditionCharacter.TriggerSubject => context.Subject,
+            ConditionCharacter.FriendlyHero => _state.Players[context.Controller].Hero,
+            ConditionCharacter.EnemyHero => _state.Players[_state.OpponentOf(context.Controller)].Hero,
+            _ => throw new InvalidOperationException("无法识别条件引用的角色。")
+        };
+
         private bool MeetsCharacterCondition(EffectContext context, CharacterCondition condition)
         {
-            EntityId? id = condition.Target switch
-            {
-                ConditionCharacter.Source => context.Source,
-                ConditionCharacter.Selected => context.Selected,
-                ConditionCharacter.TriggerSubject => context.Subject,
-                ConditionCharacter.FriendlyHero => _state.Players[context.Controller].Hero,
-                ConditionCharacter.EnemyHero => _state.Players[_state.OpponentOf(context.Controller)].Hero,
-                _ => throw new InvalidOperationException("无法识别条件引用的角色。")
-            };
+            var id = ResolveConditionCharacter(context, condition.Target);
             if (!IsLivingCharacter(id))
                 return false;
 
             return _rules.MatchesCharacterComparison(_state, _state.Entities[id!.Value],
                 condition.Metric, condition.Comparison, condition.Value);
         }
+
+        private bool MeetsCharacterStateCondition(EffectContext context, CharacterStateCondition condition)
+        {
+            var id = ResolveConditionCharacter(context, condition.Target);
+            return condition.State switch
+            {
+                CharacterDisposition.Alive => IsLivingCharacter(id),
+                CharacterDisposition.Dead => IsDeadOrDyingCharacter(id),
+                _ => throw new InvalidOperationException("无法识别角色状态条件。")
+            };
+        }
+
+        private bool IsDeadOrDyingCharacter(EntityId? id) =>
+            id is EntityId entity && _state.Entities.TryGetValue(entity, out var state) &&
+            (_state.LocationOf(entity).Zone == GameZone.Graveyard ||
+                (_state.LocationOf(entity).Zone == GameZone.Play &&
+                    (state.Character is { Health: <= 0 } || _pendingDestruction.Contains(entity))));
 
         private int CountEntities(EffectContext context, ZoneCountCondition condition)
         {

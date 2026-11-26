@@ -432,6 +432,7 @@ public sealed partial class GameSimulator
                     recruit.CardFilter?.Kind is null or EntityKind.Minion,
                 CreateCardEffect create => create.Count > 0 && Enum.IsDefined(create.Placement) &&
                     Enum.IsDefined(create.Recipient) && CanCreateCard(create.CardId),
+                CopyDeckCardsEffect copy => copy.Count > 0 && Enum.IsDefined(copy.SourceDeck) && IsValidCardFilter(copy.CardFilter),
                 DiscardEffect discard => discard.Count > 0 && Enum.IsDefined(discard.Selection) && Enum.IsDefined(discard.Recipient),
                 DiscardHandEffect discard => Enum.IsDefined(discard.Recipient),
                 SummonDiscardedMinionEffect => isDiscardedCard && card.Definition.Kind == EntityKind.Minion,
@@ -453,7 +454,7 @@ public sealed partial class GameSimulator
                     ((enchant.GrantedTag == GAME_TAG.DEATHRATTLE) ==
                         (!enchant.OnRemoved.IsDefaultOrEmpty && enchant.OnRemoved.Any(rule => rule?.Reason == EnchantmentRemovalReason.Died))) &&
                     (enchant.Target != StatTarget.Selected || target != TargetRequirement.None) &&
-                    (enchant.Target != StatTarget.Source || hasInPlaySource),
+                    (enchant.Target is not (StatTarget.Source or StatTarget.OtherFriendlyMinions) || hasInPlaySource),
                 SilenceEffect or DestroyMinionEffect => TargetsOnlyMinions(target),
                 ReturnMinionEffect returned => IsHandCostDuration(returned.CostDuration) && IsOptionalCardIdValid(returned.EnchantmentCardId) &&
                     (returned.CostDelta != 0 || (returned.EnchantmentCardId is null && returned.CostDuration == EnchantmentDuration.Permanent)) &&
@@ -482,10 +483,14 @@ public sealed partial class GameSimulator
                 DestroyRandomEnemyMinionEffect or DestroyAllButOneMinionEffect => true,
                 SummonRandomMinionEffect summon => !summon.CardIds.IsDefaultOrEmpty &&
                     summon.CardIds.All(id => GetCard(id).Definition.Kind == EntityKind.Minion),
+                SummonMatchingMinionEffect summon => summon.Count > 0 && summon.CardFilter is not null &&
+                    IsValidCardFilter(summon.CardFilter) && summon.CardFilter.Kind is null or EntityKind.Minion,
                 ChangeManaEffect mana => mana.Amount > 0 && Enum.IsDefined(mana.Operation) && Enum.IsDefined(mana.Recipient) &&
                     (mana.OverflowCardId is null || (mana.Operation is ManaOperation.GainEmpty or ManaOperation.GainFilled &&
                         CanCreateCard(mana.OverflowCardId))),
-                SummonEffect summon => Enum.IsDefined(summon.Placement) && GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
+                SummonEffect summon => Enum.IsDefined(summon.Placement) &&
+                    (summon.Placement is not (SummonPlacement.LeftOfSource or SummonPlacement.RightOfSource) || hasInPlaySource) &&
+                    GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
                 TakeControlEffect => card.Definition.Kind == EntityKind.Spell && target == TargetRequirement.EnemyMinion,
                 _ => false
             };
