@@ -1,4 +1,4 @@
-# 阶段二：结算正确性与回归（第一批）
+# 阶段二：结算正确性与回归
 
 > 基线：阶段一已集成的 `feat/standalone-foundation` / `c2cef52`。本页记录已提交实现的范围，不将计划项冒充已完成项。
 
@@ -6,7 +6,7 @@
 
 阶段二不再做旧 `Playfield` 的大规模结构搬迁，优先保护已落地的不可变 `GameState` 与 `GameSimulator` 的行为边界。先建立可反复执行的故障回归，再逐项改善伤害、治疗、触发、选择和存档的行为；未来拆分 `ResolutionEngine` / `TriggerDispatcher` 前必须保持这套回归全部通过。
 
-## 本批实现
+## 第一批：外部 CHOICE 隔离与伤害来源追溯
 
 ### 外部 CHOICE 与内部模拟动作严格隔离
 
@@ -124,3 +124,9 @@ dotnet test SilverfishStandalone.sln -c Release --no-build
 - **额外边界**：固定回放包括满血英雄、已有伤害的英雄，以及反击伤害先将英雄打到零血以下、随后吸血救回到 1 血的情况。验证最终 HP、`Healed` 来源与数量、事件序列顺序、同状态重复应用与原始输入不变。
 - 机制参考：[Hearthstone Wiki · Lifesteal](https://hearthstone.wiki.gg/wiki/Lifesteal) 与 [Attack](https://hearthstone.wiki.gg/wiki/Attack) 描述的同时战斗伤害和吸血致命反击救援。
 - 本批不更动死亡波次、客户端 CHOICE 或实机输入；以后拆分 `DamageResolver` 时应继续通过这些测试。
+
+## 第八批：混合防护范围伤害轨迹与伤害结算抽离
+
+- **固定轨迹锁定**：新增 `GameSimulationTests.DamageBatchGoldenTrace.cs`（`7f38235`、`7114652`、`f6d0b7f`），覆盖对同时含护甲英雄（2 点护甲吸收、1 点生命伤害）、圣盾随从（`ShieldBroken` 且生命无损）与致命超杀随从（`IsOverkill == true` 并进入死亡波次）的 `DamageTarget.AllEnemies` 范围伤害，结构化比对完整事件序列、护甲/生命分摊及原始不可变局面。
+- **分部文件抽离**：在阶段二全部回归保护下，将 `Resolution.Damage` 与 `Resolution.PushOccurrence`（含批量伤害入栈时的观察者及致命奖励快照注册）从 `GameSimulator.Resolution.cs` 抽离至 `src/Silverfish.Simulation/GameSimulator.Damage.cs`（`27fc854`、`326419e`），保持原有效果工作栈与 LIFO 触发派发顺序不变。
+- **阶段二收尾验证**：Release 编译 0 警告 / 0 错误，基础测试 24 项 + Domain 测试 286 项 = **310/310 全部通过**，1737 个单卡 Sim 注释及工具链检查全部通过。

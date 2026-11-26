@@ -4,6 +4,8 @@
 
 本仓库已将独立模拟器基础和 `EntityChoices` 有序目标/离线预演的功能纳入同一集成主线。**内部结算的 `PendingPlayChoice` 与客户端外部选择的 `PendingChoice` 是两个不同的状态，均予保留。** 真实游戏的虚拟输入执行器仍未接入，不通过网络 API 直接执行动作。详见 [第一阶段整合与回归门槛](docs/PHASE1_INTEGRATION.md)。
 
+阶段二已完成外部 `PendingChoice` 门禁收紧、武器伤害来源追踪、多轮选择与终局清理、批量伤害与即时死亡的观察者时点快照、单效果栈内光环即时刷新、战斗双方同时受伤后的延迟吸血结算，以及 `GameSimulator.Damage.cs` 的分部抽离。详见 [阶段二：结算正确性与回归](docs/PHASE2_RESOLUTION.md)。
+
 
 **执行原则**：AI 只产生行动意图，实际操作使用游戏内的 `IInput / InputCollection` 虚拟输入源（参考 Ember），**不会移动 Windows 系统鼠标，不抢占其他桌面操作**，也不调用 `Network.SendOption`、`Network.SendChoices` 等接口。现有 `UiChoiceInputPlanner` 负责将有序选择映射为点击/确认/等待步骤；游戏内输入适配器和 IPC 尚未接入。详见 [UI 模拟输入执行边界](docs/UI_INPUT_EXECUTION.md)。
 
