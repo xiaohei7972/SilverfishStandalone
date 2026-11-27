@@ -76,9 +76,13 @@ The strategy engines operate on offline inputs. Their dependencies are the share
 
 The `decide` command accepts a versioned request containing a complete state and the calling application's candidate IDs. It verifies each candidate against the simulator's exact legal actions, including its position and choice. The turn planner limits its first move to that verified set. Future moves use the resulting simulation states. The response echoes the match ID, snapshot sequence, and the original first-move candidate. The observable snapshot command continues to use baseline scoring with its own input contract.
 
-The offline contract is not identical to CardResearchLab/StandaloneGameMod's state.snapshot payload. A separate, tested versioned translation layer is required before consuming its live data. Do not deserialize state.snapshot directly as Contracts.GameSnapshot.
+The `import-state-snapshot` command maps CardResearchLab/StandaloneGameMod's version 1 `state.snapshot` payload to `Contracts.GameSnapshot`. The caller supplies the match ID, and the payload revision becomes the snapshot sequence. The adapter preserves board order and publishes only public counts for the opponent's hand, deck, and secrets. The payload omits legal actions and the client input queue.
 
-The optional Libmem.NET project uses 2.5.0 and explicit Windows x64. At present, it only probes metadata of a PID selected by the caller; it does not reconstruct gameplay entities. Its existence must not be confused with a working game-state reader.
+The Windows x64 Libmem.NET 2.5.0 probe lists Hearthstone instances, checks the selected PID against its start time when supplied, enumerates modules, and reads the executable's image signature. Live snapshot delivery remains a separate integration step.
+
+The CLI `ui` command serves embedded assets and a bounded JSON API on `127.0.0.1`. The Web host invokes the Windows probe as a short-lived subprocess with fixed list/inspect operations. The browser and strategy receive only probe results; a binding stores process identity and inspection metadata, not a handle. Presence checks compare PID and start time without establishing a gameplay transport. Non-Windows builds have no Libmem dependency.
+
+The console accepts push imports from local producers and does not connect to the mod's authenticated transport. Observable snapshots use the baseline engine with supplied candidates only. A complete offline simulation generates its legal action list; applying one action requires the opaque board revision and a server-generated list index. Decision results are installed only if the originating board is still current. Automatic polling recommends actions, while only explicit requests through the offline API can advance a simulation.
 
 ## Non-negotiable runtime invariants
 

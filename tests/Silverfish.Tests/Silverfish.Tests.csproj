@@ -11,6 +11,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Silverfish.Contracts/Silverfish.Contracts.csproj" />
+    <ProjectReference Include="../../src/Silverfish.Cli/Silverfish.Cli.csproj" />
+    <ProjectReference Include="../../src/Silverfish.GameProbe/Silverfish.GameProbe.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="../../src/Silverfish.Core/Silverfish.Core.csproj" />
   </ItemGroup>
 </Project>

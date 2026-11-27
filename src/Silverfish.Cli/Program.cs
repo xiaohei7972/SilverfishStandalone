@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml;
 using Silverfish.Cli;
+using Silverfish.Cli.Web;
 using Silverfish.Contracts;
 using Silverfish.Core;
 using Silverfish.Domain;
@@ -13,8 +14,11 @@ using Silverfish.Simulation;
 Console.OutputEncoding = Encoding.UTF8;
 
 var command = args.FirstOrDefault();
+if (command == "ui")
+    return await WebConsoleHost.RunCommandAsync(args[1..]);
 var explain = command == "explain" && args.Length is 2 or 3;
 var choiceReplay = command == "choice" && args.Length == 2;
+var importSnapshot = command == "import-state-snapshot" && args.Length == 3;
 var simulationCommand = command is "simulate" or "plan" or "decide" or "checkpoint";
 var simulation = simulationCommand && (args.Length == 2 || (args.Length == 4 && args[2] == "--card-data"));
 var plan = simulation && command == "plan";
@@ -23,16 +27,18 @@ var checkpoint = simulation && command == "checkpoint";
 var import = command == "import-card-data" && args.Length is 3 or 4 &&
     (args.Length == 3 || args[3] == "--starter");
 var generateSim = command == "generate-sim" && args.Length >= 4;
-var snapshotInput = args.Length == 1 && !simulationCommand && command is not ("import-card-data" or "generate-sim" or "explain") &&
+var snapshotInput = args.Length == 1 && !simulationCommand && command is not ("import-card-data" or "import-state-snapshot" or "generate-sim" or "explain") &&
     command is not null && !command.StartsWith('-');
 var help = args.Length == 1 && command is "--help" or "-h";
-if (help || (!explain && !simulation && !import && !generateSim && !snapshotInput && !choiceReplay))
+if (help || (!explain && !simulation && !import && !generateSim && !snapshotInput && !choiceReplay && !importSnapshot))
 {
     var output = help ? Console.Out : Console.Error;
     if (!help)
         output.WriteLine("命令或参数无效。");
     output.WriteLine("用法  Silverfish.Cli <对局快照.json>");
     output.WriteLine("       Silverfish.Cli choice <选择包.json>");
+    output.WriteLine("       Silverfish.Cli ui [--port 5088] [--probe <探测程序.exe>] [--card-data <卡牌目录.json>]");
+    output.WriteLine("       Silverfish.Cli import-state-snapshot <state.snapshot 的 payload.json> <对局 ID>");
     output.WriteLine("       Silverfish.Cli explain <卡牌 ID> 或 explain <场景或存档.json> <来源实体 ID 或动作.json>");
     output.WriteLine("       Silverfish.Cli simulate <回放场景.json> [--card-data <卡牌目录.json>]");
     output.WriteLine("       Silverfish.Cli plan <搜索场景.json> [--card-data <卡牌目录.json>]");
@@ -53,6 +59,15 @@ var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
 
 try
 {
+    if (importSnapshot)
+    {
+        await using var input = File.OpenRead(args[1]);
+        var imported = await StandaloneSnapshotAdapter.ReadAsync(input, args[2]);
+        SnapshotValidator.Validate(imported);
+        Console.WriteLine(JsonSerializer.Serialize(imported, options));
+        return 0;
+    }
+
     if (explain)
     {
         object explanation;
@@ -203,7 +218,7 @@ catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or J
     FormatException or OverflowException)
 {
     var operation = choiceReplay ? "处理选择包" : explain ? "解释动作" : generateSim ? "生成 Sim" : import ? "导入卡牌数据" : decide ? "模拟决策" : plan ? "搜索回合" :
-        checkpoint ? "保存对局" : simulation ? "回放场景" : "分析快照";
+        checkpoint ? "保存对局" : simulation ? "回放场景" : importSnapshot ? "转换客户端快照" : "分析快照";
     Console.Error.WriteLine($"{operation}失败。{DescribeFailure(ex)}");
     return 1;
 }

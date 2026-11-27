@@ -31,6 +31,40 @@ dotnet publish src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -p:PublishPro
 .\artifacts\standalone-win-x64\Silverfish.Cli.exe plan samples/simulation-random.json
 ```
 
+## 本地 Web 战术台
+
+```powershell
+dotnet run --project src/Silverfish.Cli -c Release -- ui --port 5088
+```
+
+打开 `http://127.0.0.1:5088/`。选一个内置样例，点击「载入样例」和「单步决策」。离线模拟可点击合法动作逐步结算；自动模式只为新局面计算建议，不执行动作。模拟场景先回放文件中的 `actions`，随后以当时的行动方作为固定我方。搜索胜率是本次搜索范围内结算为胜局的概率，不是整场对局的预测胜率。
+
+「导入快照」支持粘贴或上传 `GameSnapshot`、`state.snapshot` 原始 payload、模拟场景和 `checkpoint` 存档。客户端 payload 必须填写对局 ID；同一对局只接受更大的序号，重看历史帧前请先重置。可观察快照只使用输入提供的候选动作；客户端样例没有候选。未收录的中文卡名显示为 `CardId`；可用 `ui --card-data <目录.json>` 加载对应构建的目录。
+
+Windows 下先构建探测项目。控制台会查找项目的 Release/Debug 输出，也可用 `ui --probe <探测程序.exe>` 指定入口。在「客户端探测」中查找并绑定实例。绑定仅检查进程、映像签名和模块，不订阅客户端快照；非 Windows 下可照常使用离线模式。
+
+本机生产者可向 `POST /api/import?matchId=fixture-match` 推送已获授权、去除敏感信息的原始 JSON，设置 `Content-Type: application/json` 和 `X-Silverfish-Console: 1`。页面自动获取最新帧，不需要绑定客户端；不要发送连接凭据、认证信封或未公开数据。
+
+「全量 EntityMap & Tag 检查器」保留 payload 中的实体，可按 `EntityId`、`CardId` 和 `Zone` 筛选，也可点击战场随从或我方手牌查看详情。当前 Tag 和可选的 `cachedTagsForDormant`（与 `tags` 一样使用 `{ "id": 数字, "value": 数字 }` 数组）分别显示；未收录的 ID 显示为 `TAG_<ID>`。对手或归属不明的手牌、牌库、奥秘及暂存区只显示实体占位，不显示牌名、类型或 Tag。中间帧中不完整的非核心实体仍可在检查器中查看，但不会强行显示为战场随从或手牌。
+
+## 游戏客户端探测
+
+Windows x64 探测程序通过 Libmem.NET 2.5.0 枚举正在运行的炉石客户端。用 `list` 取得实例的 `pid` 和 `startTime`，再用 `inspect` 查询指定实例的模块并只读校验主程序映像签名。将示例中的数字换成选定实例返回的值。
+
+```powershell
+$probeProject = 'src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj'
+dotnet run --project $probeProject -c Release -- list
+dotnet run --project $probeProject -c Release -- inspect 12345 --start-time 987654
+```
+
+已有 StandaloneGameMod `state.snapshot` 的版本 1 payload 时，可以转换为银鱼的 `GameSnapshot`。示例使用发布端序列化器生成的合成样本。第二个参数填写记录时使用的对局 ID，快照序号沿用 payload 的 `revision`。
+
+```powershell
+dotnet run --project src/Silverfish.Cli -c Release -- import-state-snapshot samples/standalone-state-snapshot.json fixture-match
+```
+
+转换保留双方英雄及随从、己方手牌、法力标签和对手隐藏区域的公开计数。法力来自服务端标签，客户端输入队列中的待扣法力由客户端另行管理。缺少阶段标签时，阶段为 `unknown`。当前 payload 缺少候选动作及攻击资格，因此输出空的 `legalActions`，随从的 `canAttack` 取保守值 `false`。实时订阅和动作执行仍待接入。
+
 ## 回放样例
 
 新模拟器按玩家、区域和实体 ID 建模。可以用下面的命令回放从抽牌到亡语的完整样例，并查看最终局面、结算事件和可选动作。
@@ -93,7 +127,7 @@ CI 会检查所有独立 Sim 的四行注释。可用 `python tools/sim_comments
 
 内置单卡在对应 Sim 中集中声明 `PlayReqs`。合法动作、解释和结算共用目标判定。迁移表记录旧条件，供校验和追溯。新增机制和注册单卡须遵守项目根目录 `AGENTS.md` 的规则和验收要求。
 
-经典包以构建 `256589` 中 `EXPERT1` 系列的可收集牌为范围，按 DBF ID 升序开发。已全部完成至虚灵奥术师（DBF 1737，`EX1_274`），共完成 **245 / 245** 张可收集经典牌及其全部依赖衍生物、梦境牌、英雄技能与附魔。
+经典包以构建 `256589` 中 `EXPERT1` 系列的可收集牌为范围，按 DBF ID 升序开发。**245 / 245** 张可收集经典牌均已注册 Sim，主序列末项是虚灵奥术师（DBF 1737，`EX1_274`）。完整行为仍需逐项验证，例如黑骑士和王牌猎人的可交易动作尚未实现。
 
 现有文件会保留。普通卡骨架预填了注释形式的 `[CardSim("卡牌ID")]`，完成规则后取消注释。编译后，模拟器按特性里的卡牌 ID 绑定规则和静态数据。新增构建中才有的卡牌可先通过 `--card-data` 验证，或用完整 XML 更新 `Generated.g.cs` 后再次编译。附魔由施加效果的单卡 Sim 引用。
 
@@ -199,7 +233,7 @@ dotnet run --project src/Silverfish.Cli -c Release -- plan artifacts/checkpoint.
 - `src/Silverfish.Contracts`：离线输入与决策接口。
 - `src/Silverfish.Core`：基础决策接口实现和新模拟器的独立搜索与评分。
 - `src/Silverfish.Cli`：离线决策、模拟回放和回合搜索入口。
-- `src/Silverfish.Integrations.Libmem`：早期独立的进程探测模块，当前重构阶段**暂不投入进一步开发**。
+- `src/Silverfish.Integrations.Libmem` 提供 Windows x64 炉石客户端探测命令。
 
 ## 最新 2026-11-05 版在 GitHub Actions 构建
 

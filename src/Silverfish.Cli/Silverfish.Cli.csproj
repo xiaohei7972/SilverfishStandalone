@@ -10,4 +10,10 @@
   <ItemGroup>
     <ProjectReference Include="../Silverfish.Simulation/Silverfish.Simulation.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Silverfish.Tests" />
+    <EmbeddedResource Include="Web/Assets/*" LogicalName="Web/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../samples/*.json;../../samples/card-data-demo.xml" LogicalName="Samples/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Silverfish.Simulation/Data/StarterCardData.json" LogicalName="Web/StarterCardData.json" />
+  </ItemGroup>
 </Project>

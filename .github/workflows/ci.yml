@@ -23,6 +23,34 @@ jobs:
         run: dotnet build SilverfishStandalone.sln -c Release --nologo
       - name: Test standalone solution
         run: dotnet test SilverfishStandalone.sln -c Release --no-build --nologo
+      - name: Convert StandaloneGameMod state snapshot
+        shell: pwsh
+        run: |
+          $project = 'src/Silverfish.Cli/Silverfish.Cli.csproj'
+          $json = dotnet run --no-build --project $project -c Release -- import-state-snapshot samples/standalone-state-snapshot.json fixture-match
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $snapshot = ($json -join "`n") | ConvertFrom-Json
+          if ($snapshot.matchId -ne 'fixture-match' -or $snapshot.sequence -ne 42 -or
+              $snapshot.phase -ne 'main' -or !$snapshot.isOurTurn -or $snapshot.availableMana -ne 4 -or
+              $snapshot.ourHero.health -ne 26 -or $snapshot.ourHero.armor -ne 3 -or
+              ($snapshot.ourBoard.entityId -join ',') -ne '22,21' -or !$snapshot.ourBoard[1].hasTaunt -or
+              $snapshot.ourHand[0].cost -ne 3 -or $snapshot.enemyHandCount -ne 4 -or
+              $snapshot.enemyDeckCount -ne 21 -or $snapshot.enemySecretCount -ne 1 -or
+              @($snapshot.legalActions).Count -ne 0) {
+              throw 'State snapshot projection changed.'
+          }
+          $file = New-TemporaryFile
+          try {
+              $json | Set-Content -LiteralPath $file.FullName -Encoding utf8
+              $decisionJson = dotnet run --no-build --project $project -c Release -- $file.FullName
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $decision = ($decisionJson -join "`n") | ConvertFrom-Json
+              if ($decision.matchId -ne 'fixture-match' -or $decision.snapshotSequence -ne 42 -or $decision.chosenAction) {
+                  throw 'The snapshot decision changed its identity or inferred a legal action.'
+              }
+          } finally {
+              Remove-Item -LiteralPath $file.FullName
+          }
       - name: Validate ordered multi-target CHOICE session
         shell: pwsh
         run: |
@@ -422,5 +450,13 @@ jobs:
         run: python tools/test_import_classic.py
       - name: Validate headless classic source patching
         run: python tools/test_normalize_classic.py
-      - name: Libmem.NET integration build (Windows x64)
-        run: dotnet build src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj -c Release --nologo
+      - name: Libmem.NET process discovery (Windows x64)
+        shell: pwsh
+        run: |
+          $project = 'src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj'
+          dotnet build $project -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $json = dotnet run --no-build --project $project -c Release -- list
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $clients = ($json -join "`n") | ConvertFrom-Json -NoEnumerate
+          if ($clients -isnot [array]) { throw 'Expected a JSON array of Hearthstone clients.' }

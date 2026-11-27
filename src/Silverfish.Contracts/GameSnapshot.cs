@@ -58,6 +58,7 @@ public sealed record HandCardSnapshot
 {
     public int EntityId { get; init; }
     public string CardId { get; init; } = string.Empty;
+    public string CardNameZh { get; init; } = string.Empty;
     public int Cost { get; init; }
 }
 
