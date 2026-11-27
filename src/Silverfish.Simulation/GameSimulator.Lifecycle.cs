@@ -20,7 +20,21 @@ public sealed partial class GameSimulator
 
         private void ReturnMinion(Stack<Work> work, EffectContext context, ReturnMinionEffect effect)
         {
-            var id = (effect.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value;
+            EntityId id;
+            if (effect.RandomFriendly)
+            {
+                var candidates = _rules.BoardMinions(_state, context.Controller)
+                    .Where(candidate => candidate != context.Source && IsLivingCharacter(candidate))
+                    .OrderBy(candidate => _state.Entities[candidate].PlayOrder)
+                    .ToArray();
+                if (candidates.Length == 0)
+                    return;
+                id = candidates[ChooseIndex(candidates.Length)];
+            }
+            else
+            {
+                id = (effect.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value;
+            }
             if (!IsLivingCharacter(id) || _rules.Card(_state.Entities[id]).Definition.Kind != EntityKind.Minion)
                 return;
 
@@ -236,7 +250,7 @@ public sealed partial class GameSimulator
             PushSummonTriggers(work, controller, chosen);
         }
 
-        private void DestroyAllMinions(EffectContext context, DestroyAllMinionsEffect effect)
+        private void DestroyAllMinions(Stack<Work> work, EffectContext context, DestroyAllMinionsEffect effect)
         {
             var targets = _state.Players.Keys
                 .SelectMany(player => effect.IncludeLocations ? _rules.BoardSlots(_state, player) : _rules.BoardMinions(_state, player))
@@ -246,8 +260,94 @@ public sealed partial class GameSimulator
                         : _state.Entities[id].Location is { Health: > 0 }))
                 .OrderBy(id => _state.Entities[id].PlayOrder)
                 .ToArray();
+            Dictionary<PlayerId, int>? destroyedCounts = effect.ReplaceWithCardId is null ? null : [];
             foreach (var id in targets)
+            {
+                if (destroyedCounts is not null)
+                {
+                    var owner = _state.Entities[id].Controller;
+                    destroyedCounts[owner] = destroyedCounts.GetValueOrDefault(owner) + 1;
+                }
                 _pendingDestruction.Add(id);
+            }
+            if (effect.ReplaceWithCardId is not { } replaceId || destroyedCounts is null || destroyedCounts.Count == 0)
+                return;
+
+            ResolveDeaths();
+            foreach (var player in _state.Players.Keys)
+            {
+                var count = destroyedCounts.GetValueOrDefault(player);
+                for (var i = 0; i < count; i++)
+                {
+                    if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
+                        break;
+                    if (Summon(player, replaceId, position: null) is EntityId summoned)
+                        PushSummonTriggers(work, player, summoned);
+                }
+            }
+        }
+
+        private void ResurrectDiedThisTurn(Stack<Work> work, EffectContext context)
+        {
+            var player = context.Controller;
+            var diedThisTurn = _state.MinionDeaths
+                .Where(death => death.Controller == player && death.Turn == _state.Turn)
+                .ToArray();
+            foreach (var death in diedThisTurn)
+            {
+                if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
+                    break;
+                if (Summon(player, death.CardId, position: null) is EntityId summoned)
+                {
+                    _events.Add(new(SimulationEventKind.Resurrected, player, death.Entity, summoned));
+                    PushSummonTriggers(work, player, summoned);
+                }
+            }
+        }
+
+        private void SummonFromHand(Stack<Work> work, EffectContext context, SummonFromHandEffect effect)
+        {
+            var player = context.Controller;
+            for (var i = 0; i < effect.Count; i++)
+            {
+                if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
+                    break;
+                var candidates = _state.Players[player].In(GameZone.Hand)
+                    .Where(id =>
+                    {
+                        var card = _rules.Card(_state.Entities[id]);
+                        return card.Definition.Kind == EntityKind.Minion &&
+                            (effect.CardFilter is null || MatchesCardFilter(card, effect.CardFilter));
+                    }).ToArray();
+                if (candidates.Length == 0)
+                    break;
+
+                SpendResolutionStep();
+                var chosen = candidates[ChooseIndex(candidates.Length)];
+                SummonExistingMinion(player, chosen);
+                PushSummonTriggers(work, player, chosen);
+            }
+        }
+
+        private void ReincarnateMinion(Stack<Work> work, EffectContext context, ReincarnateMinionEffect effect)
+        {
+            var id = (effect.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value;
+            if (!IsLivingCharacter(id) || _rules.Card(_state.Entities[id]).Definition.Kind != EntityKind.Minion)
+                return;
+
+            var entity = _state.Entities[id];
+            var owner = entity.Controller;
+            var cardId = entity.CardId;
+            var position = _rules.BoardSlots(_state, owner).TakeWhile(slot => slot != id).Count();
+            RemoveImmediately(entity);
+            ResolveDeaths();
+            if (_rules.BoardSlotCount(_state, owner) >= BoardLimit)
+                return;
+            if (Summon(owner, cardId, position) is EntityId summoned)
+            {
+                _events.Add(new(SimulationEventKind.Resurrected, owner, id, summoned));
+                PushSummonTriggers(work, owner, summoned);
+            }
         }
 
         private void ResurrectFriendlyMinion(Stack<Work> work, PlayerId player)

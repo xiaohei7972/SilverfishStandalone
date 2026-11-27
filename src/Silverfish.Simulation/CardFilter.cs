@@ -10,6 +10,8 @@ public sealed record CardFilter
     public SpellSchool? SpellSchool { get; init; }
     public int? MinimumPrintedCost { get; init; }
     public int? MaximumPrintedCost { get; init; }
+    public bool? HasBattlecry { get; init; }
+    public bool? HasDeathrattle { get; init; }
 }
 
 public sealed partial class GameSimulator
@@ -36,6 +38,13 @@ public sealed partial class GameSimulator
         (filter.SpellSchool is not SpellSchool school || definition.SpellSchool.GetValueOrDefault() == school) &&
         (filter.MinimumPrintedCost is not int minimum || definition.PrintedCost >= minimum) &&
         (filter.MaximumPrintedCost is not int maximum || definition.PrintedCost <= maximum);
+
+    private static bool MatchesCardFilter(SimulationCard card, CardFilter filter) =>
+        MatchesCardFilter(card.Definition, filter) &&
+        (filter.HasBattlecry is not bool battlecry ||
+            (card.Definition.Kind == EntityKind.Minion && (!card.OnPlay.IsEmpty || card.ChooseAfterPlay is not null)) == battlecry) &&
+        (filter.HasDeathrattle is not bool deathrattle ||
+            (!card.Deathrattle.IsEmpty || PlayReqTags.Has(card.RequirementTagMask, (int)Silverfish.Domain.Client.GAME_TAG.DEATHRATTLE)) == deathrattle);
 
     private static bool MatchesMinionType(CardDefinition definition, MinionType type)
     {

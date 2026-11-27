@@ -265,6 +265,7 @@ public sealed partial class GameSimulator
                         REQ_TARGET_WITH_DEATHRATTLE => (!target.Silenced && !card.Deathrattle.IsEmpty) ||
                             HasEffectiveTag(target, GAME_TAG.DEATHRATTLE),
                         REQ_LEGENDARY_TARGET => Printed(GAME_TAG.RARITY),
+                        REQ_NOT_LEGENDARY_TARGET => !Printed(GAME_TAG.RARITY),
                         REQ_MUST_TARGET_TAUNTER => IsTaunt(target),
                         REQ_STEALTHED_TARGET => stealth,
                         REQ_NONSTEALTH_ENEMY_TARGET => friendly || !stealth,

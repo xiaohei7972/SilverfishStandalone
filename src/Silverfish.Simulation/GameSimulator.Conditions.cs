@@ -18,6 +18,7 @@ public sealed partial class GameSimulator
         WeaponEquippedCondition weapon => Enum.IsDefined(weapon.Player),
         CharacterMatchCondition match => Enum.IsDefined(match.Relation) && IsValidCardFilter(match.CardFilter) &&
             IsValidConditionCharacter(match.Target, target, hasCharacterSubject, hasInPlaySource),
+        MinionDiedThisGameCondition died => !string.IsNullOrWhiteSpace(died.CardId),
         _ => false
     };
 
@@ -70,6 +71,7 @@ public sealed partial class GameSimulator
                 _state.LocationOf(equipped).Zone == GameZone.Play &&
                 _state.Entities[equipped].Weapon is { Durability: > 0 },
             CharacterMatchCondition match => MeetsCharacterMatchCondition(context, match),
+            MinionDiedThisGameCondition died => _state.MinionDeaths.Any(entry => entry.CardId == died.CardId),
             _ => throw new InvalidOperationException("无法识别效果条件。")
         };
 

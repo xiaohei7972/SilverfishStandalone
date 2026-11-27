@@ -490,12 +490,19 @@ public sealed partial class GameSimulator
                     IsOptionalCardIdValid(tempCost.EnchantmentCardId),
                 ChangeCostTypeEffect change => SupportsCostType(change.Type) && IsHandCostDuration(change.Duration) &&
                     IsOptionalCardIdValid(change.EnchantmentCardId) && HasHandCostTarget(change.Target, change.CardFilter),
-                RecruitEffect recruit => recruit.Count > 0 && IsValidCardFilter(recruit.CardFilter) &&
-                    recruit.CardFilter?.Kind is null or EntityKind.Minion,
+                RecruitEffect recruit => recruit.Count > 0 && Enum.IsDefined(recruit.Recipient) &&
+                    IsValidCardFilter(recruit.CardFilter) && recruit.CardFilter?.Kind is null or EntityKind.Minion,
+                PutSecretFromDeckEffect secretDeck => secretDeck.Count > 0,
+                SummonFromHandEffect summonHand => summonHand.Count > 0 && IsValidCardFilter(summonHand.CardFilter) &&
+                    summonHand.CardFilter?.Kind is null or EntityKind.Minion,
                 CreateCardEffect create => create.Count > 0 && Enum.IsDefined(create.Placement) &&
                     Enum.IsDefined(create.Recipient) && CanCreateCard(create.CardId),
                 CreateRandomCardEffect createRandom => !createRandom.CardIds.IsDefaultOrEmpty && createRandom.Count > 0 &&
                     Enum.IsDefined(createRandom.Recipient) && createRandom.CardIds.All(CanCreateCard),
+                CreateRandomMatchingCardEffect createMatching => createMatching.Count > 0 && createMatching.CardFilter is not null &&
+                    IsValidCardFilter(createMatching.CardFilter) && Enum.IsDefined(createMatching.Recipient),
+                CopyTriggerCardToHandEffect copyTrigger => copyTrigger.Count > 0 &&
+                    (timing == TriggerTiming.MinionDied || hasCharacterSubject),
                 CreateCardAtTurnEndEffect delayedCreate => CanCreateCard(delayedCreate.CardId),
                 CopyDeckCardsEffect copy => copy.Count > 0 && Enum.IsDefined(copy.SourceDeck) && IsValidCardFilter(copy.CardFilter),
                 SummonDeckCopyEffect copy => copy.Count > 0 && Enum.IsDefined(copy.SourceDeck) &&
@@ -530,14 +537,15 @@ public sealed partial class GameSimulator
                 ProtectFriendlyMinionsMinimumHealthEffect => true,
                 CopyTriggerSpellToOtherPlayerEffect => timing is TriggerTiming.BeforeSpellResolved or TriggerTiming.AfterSpellResolved,
                 EnchantStatsEffect enchant => Enum.IsDefined(enchant.Target) && Enum.IsDefined(enchant.Duration) &&
-                    IsValidEnchantment(enchant.Modifier, enchant.GrantedTag, !enchant.OnAttack.IsDefaultOrEmpty) &&
+                    IsValidEnchantment(enchant.Modifier, enchant.GrantedTag,
+                        !enchant.OnAttack.IsDefaultOrEmpty || !enchant.OnRemoved.IsDefaultOrEmpty) &&
                     IsOptionalCardIdValid(enchant.EnchantmentCardId) &&
                     IsValidCardFilter(enchant.CardFilter) &&
                     ((enchant.GrantedTag == GAME_TAG.DEATHRATTLE) ==
                         (!enchant.OnRemoved.IsDefaultOrEmpty && enchant.OnRemoved.Any(rule => rule?.Reason == EnchantmentRemovalReason.Died))) &&
                     (enchant.Target != StatTarget.Selected || target != TargetRequirement.None) &&
                     (enchant.Target != StatTarget.TriggerSubject || hasCharacterSubject) &&
-                    (enchant.Target is not (StatTarget.Source or StatTarget.OtherFriendlyMinions or StatTarget.AdjacentFriendlyMinions or StatTarget.RandomOtherFriendlyMinion) || hasInPlaySource),
+                    (enchant.Target is not (StatTarget.Source or StatTarget.OtherFriendlyMinions or StatTarget.AdjacentFriendlyMinions) || hasInPlaySource),
                 ScaledEnchantStatsEffect scaled => Enum.IsDefined(scaled.Target) && Enum.IsDefined(scaled.Scale) &&
                     (scaled.AttackPerUnit > 0 || scaled.HealthPerUnit > 0) && scaled.AttackPerUnit >= 0 && scaled.HealthPerUnit >= 0 &&
                     IsOptionalCardIdValid(scaled.EnchantmentCardId) &&
@@ -557,7 +565,7 @@ public sealed partial class GameSimulator
                     drain.AttackPerShield >= 0 && drain.HealthPerShield >= 0 &&
                     IsOptionalCardIdValid(drain.EnchantmentCardId),
                 ConsumeAdjacentMinionsEffect consume => hasInPlaySource && IsOptionalCardIdValid(consume.EnchantmentCardId),
-                SilenceEffect silence => silence.AllEnemyMinions || TargetsOnlyMinions(target),
+                SilenceEffect silence => silence.AllEnemyMinions || (silence.OtherFriendlyMinions && hasInPlaySource) || TargetsOnlyMinions(target),
                 RemoveAllStealthEffect => true,
                 DestroySecretsEffect destroySecrets => Enum.IsDefined(destroySecrets.TargetPlayer),
                 DestroyMinionEffect destroy => destroy.Target switch
@@ -566,27 +574,35 @@ public sealed partial class GameSimulator
                     EffectTarget.TriggerSubject => hasCharacterSubject,
                     _ => false
                 },
-                DestroyAllMinionsEffect destroy => !destroy.ExcludeSource || hasInPlaySource,
+                DestroyAllMinionsEffect destroy => (!destroy.ExcludeSource || hasInPlaySource) &&
+                    (destroy.ReplaceWithCardId is null || GetCard(destroy.ReplaceWithCardId).Definition.Kind == EntityKind.Minion),
                 ReturnMinionEffect returned => IsHandCostDuration(returned.CostDuration) && IsOptionalCardIdValid(returned.EnchantmentCardId) &&
                     (returned.CostDelta != 0 || (returned.EnchantmentCardId is null && returned.CostDuration == EnchantmentDuration.Permanent)) &&
-                    (returned.Target switch
+                    (returned.RandomFriendly || (returned.Target switch
                     {
                         EffectTarget.Selected => TargetsOnlyMinions(target),
                         EffectTarget.TriggerSubject => hasCharacterSubject,
                         _ => false
-                    }),
+                    })),
                 TransformMinionEffect transform => (transform.Self ? hasInPlaySource && card.Definition.Kind == EntityKind.Minion : TargetsOnlyMinions(target)) &&
                     GetCard(transform.CardId).Definition.Kind == EntityKind.Minion,
                 RandomTransformOtherMinionEffect randomTransform => hasInPlaySource && !randomTransform.CardIds.IsDefaultOrEmpty &&
                     randomTransform.CardIds.All(id => GetCard(id).Definition.Kind == EntityKind.Minion),
                 TransformMinionByCostEffect transform => TargetsOnlyMinions(target) && transform.Increase > 0,
                 ResurrectFriendlyMinionEffect => true,
+                ResurrectDiedThisTurnEffect => true,
                 ResummonMinionEffect resummon => (resummon.RemainingHealth is null or > 0) && (resummon.Target switch
                 {
                     EffectTarget.Selected => TargetsOnlyMinions(target),
                     EffectTarget.TriggerSubject => timing == TriggerTiming.MinionDied || hasCharacterSubject,
                     _ => false
                 }),
+                ReincarnateMinionEffect reincarnate => reincarnate.Target switch
+                {
+                    EffectTarget.Selected => TargetsOnlyMinions(target),
+                    EffectTarget.TriggerSubject => hasCharacterSubject,
+                    _ => false
+                },
                 FreezeEffect freeze => freeze.Target switch
                 {
                     FreezeTarget.Selected => target != TargetRequirement.None,

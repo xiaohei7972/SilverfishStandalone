@@ -74,7 +74,8 @@ public sealed partial class GameSimulator
         {
             if (enchantment is null || !state.Entities.ContainsKey(enchantment.Source) ||
                 !IsValidEnchantment(enchantment.Modifier, enchantment.GrantedTag,
-                    enchantment.CardId is { } cid && _enchantmentAttackEffects.ContainsKey(cid)) ||
+                    enchantment.CardId is { } cid &&
+                    (_enchantmentAttackEffects.ContainsKey(cid) || _enchantmentRemovalEffects.Keys.Any(k => k.CardId == cid))) ||
                 !IsOptionalCardIdValid(enchantment.CardId) ||
                 (enchantment.ExpiresAfterTurn is int turn && turn < state.Turn))
                 throw new ArgumentException($"实体 {entity.Id} 的属性附魔无效。");
@@ -324,6 +325,15 @@ public sealed partial class GameSimulator
                     .OrderBy(id => _state.Entities[id].PlayOrder).ToArray();
                 foreach (var enemyId in enemies)
                     SilenceEntity(work, context.Controller, context.Source, enemyId);
+                return;
+            }
+            if (effect.OtherFriendlyMinions)
+            {
+                var friendlies = _rules.BoardMinions(_state, context.Controller)
+                    .Where(id => id != context.Source)
+                    .OrderBy(id => _state.Entities[id].PlayOrder).ToArray();
+                foreach (var friendlyId in friendlies)
+                    SilenceEntity(work, context.Controller, context.Source, friendlyId);
                 return;
             }
             SilenceEntity(work, context.Controller, context.Source, context.Selected!.Value);

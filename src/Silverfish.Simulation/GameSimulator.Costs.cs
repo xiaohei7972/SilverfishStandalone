@@ -92,7 +92,7 @@ public sealed partial class GameSimulator
             };
             foreach (var aura in auras)
                 if ((aura.Target == target || (aura.Target == CostAuraTarget.Hand && target != CostAuraTarget.HeroPower)) &&
-                    (aura.CardFilter is not { } cards || MatchesCardFilter(card.Definition, cards)))
+                    (aura.CardFilter is not { } cards || MatchesCardFilter(card, cards)))
                 {
                     if (aura.MinimumCost is int minCost && aura.Delta < 0)
                     {

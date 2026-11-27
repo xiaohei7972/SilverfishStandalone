@@ -107,7 +107,7 @@ public sealed partial class GameSimulator
                     (trigger.AttackingKind is EntityKind atkKind &&
                         (occurrence.Subject is not EntityId attackerId || _rules.Card(_state.Entities[attackerId]).Definition.Kind != atkKind)) ||
                     (trigger.CardFilter is { } cards &&
-                        (entityId is not EntityId filtered || !MatchesCardFilter(_rules.Card(_state.Entities[filtered]).Definition, cards))) ||
+                        (entityId is not EntityId filtered || !MatchesCardFilter(_rules.Card(_state.Entities[filtered]), cards))) ||
                     (trigger.RequireLivingEntity && !IsLivingCharacter(entityId)))
                     continue;
 

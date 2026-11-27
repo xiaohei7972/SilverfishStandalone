@@ -17,6 +17,7 @@ public enum NumberComparison { Equal, AtLeast, AtMost }
 [JsonDerivedType(typeof(ComboCondition), "combo")]
 [JsonDerivedType(typeof(WeaponEquippedCondition), "weaponEquipped")]
 [JsonDerivedType(typeof(CharacterMatchCondition), "characterMatch")]
+[JsonDerivedType(typeof(MinionDiedThisGameCondition), "minionDiedThisGame")]
 public abstract record EffectCondition;
 
 public sealed record CharacterCondition(
@@ -47,3 +48,5 @@ public sealed record CharacterMatchCondition(
     [property: JsonRequired] ConditionCharacter Target,
     TriggerRelation Relation = TriggerRelation.Any,
     CardFilter? CardFilter = null) : EffectCondition;
+
+public sealed record MinionDiedThisGameCondition([property: JsonRequired] string CardId) : EffectCondition;

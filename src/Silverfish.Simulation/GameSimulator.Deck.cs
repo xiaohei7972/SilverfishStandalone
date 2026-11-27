@@ -79,13 +79,39 @@ public sealed partial class GameSimulator
             PushSummonTriggers(work, player, summoned);
         }
 
+        private void PutSecretFromDeck(EffectContext context, PutSecretFromDeckEffect effect)
+        {
+            var player = context.Controller;
+            for (var i = 0; i < effect.Count; i++)
+            {
+                var secrets = _state.Players[player].In(GameZone.Secret);
+                if (secrets.Length >= SecretLimit)
+                    break;
+
+                var existing = secrets.Select(id => _state.Entities[id].CardId).ToHashSet(StringComparer.Ordinal);
+                var candidates = _state.Players[player].In(GameZone.Deck)
+                    .Where(id =>
+                    {
+                        var entity = _state.Entities[id];
+                        return _rules.Card(entity).IsSecret && !existing.Contains(entity.CardId);
+                    }).ToArray();
+                if (candidates.Length == 0)
+                    break;
+
+                SpendResolutionStep();
+                var chosen = candidates[ChooseIndex(candidates.Length)];
+                _state = _state.Move(chosen, new(player, GameZone.Secret));
+                _events.Add(new(SimulationEventKind.SecretArmed, player, chosen));
+            }
+        }
+
         private EntityId? ChooseDeckCard(ImmutableArray<EntityId> deck, CardFilter? filter, EntityKind? kind = null)
         {
             var candidates = deck.Where(id =>
             {
-                var definition = _rules.Card(_state.Entities[id]).Definition;
-                return (kind is null || definition.Kind == kind) &&
-                    (filter is null || MatchesCardFilter(definition, filter));
+                var card = _rules.Card(_state.Entities[id]);
+                return (kind is null || card.Definition.Kind == kind) &&
+                    (filter is null || MatchesCardFilter(card, filter));
             }).ToArray();
             return candidates.Length == 0 ? null : candidates[ChooseIndex(candidates.Length)];
         }

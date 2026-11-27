@@ -107,8 +107,12 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(AddTemporaryCostAuraEffect), "addTemporaryCostAura")]
 [JsonDerivedType(typeof(ChangeCostTypeEffect), "changeCostType")]
 [JsonDerivedType(typeof(RecruitEffect), "recruit")]
+[JsonDerivedType(typeof(PutSecretFromDeckEffect), "putSecretFromDeck")]
+[JsonDerivedType(typeof(SummonFromHandEffect), "summonFromHand")]
 [JsonDerivedType(typeof(CreateCardEffect), "createCard")]
 [JsonDerivedType(typeof(CreateRandomCardEffect), "createRandomCard")]
+[JsonDerivedType(typeof(CreateRandomMatchingCardEffect), "createRandomMatchingCard")]
+[JsonDerivedType(typeof(CopyTriggerCardToHandEffect), "copyTriggerCardToHand")]
 [JsonDerivedType(typeof(CreateCardAtTurnEndEffect), "createCardAtTurnEnd")]
 [JsonDerivedType(typeof(CopyDeckCardsEffect), "copyDeckCards")]
 [JsonDerivedType(typeof(SummonDeckCopyEffect), "summonDeckCopy")]
@@ -149,7 +153,9 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(DestroyMinionEffect), "destroyMinion")]
 [JsonDerivedType(typeof(DestroyAllMinionsEffect), "destroyAllMinions")]
 [JsonDerivedType(typeof(ResurrectFriendlyMinionEffect), "resurrectFriendlyMinion")]
+[JsonDerivedType(typeof(ResurrectDiedThisTurnEffect), "resurrectDiedThisTurn")]
 [JsonDerivedType(typeof(ResummonMinionEffect), "resummonMinion")]
+[JsonDerivedType(typeof(ReincarnateMinionEffect), "reincarnateMinion")]
 [JsonDerivedType(typeof(FreezeEffect), "freeze")]
 [JsonDerivedType(typeof(UnlockOverloadEffect), "unlockOverload")]
 [JsonDerivedType(typeof(CounterSpellEffect), "counterSpell")]
@@ -211,10 +217,12 @@ public sealed record ChangeCostTypeEffect(
     public CardFilter? CardFilter { get; init; }
     public string? EnchantmentCardId { get; init; }
 }
-public sealed record RecruitEffect(int Count = 1) : CardEffect
+public sealed record RecruitEffect(int Count = 1, CardRecipient Recipient = CardRecipient.Controller) : CardEffect
 {
     public CardFilter? CardFilter { get; init; }
 }
+public sealed record PutSecretFromDeckEffect(int Count = 1) : CardEffect;
+public sealed record SummonFromHandEffect(CardFilter? CardFilter = null, int Count = 1) : CardEffect;
 public sealed record CreateCardEffect(
     [property: JsonRequired] string CardId,
     CardPlacement Placement = CardPlacement.Hand,
@@ -224,6 +232,11 @@ public sealed record CreateRandomCardEffect(
     [property: JsonRequired] ImmutableArray<string> CardIds,
     int Count = 1,
     CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
+public sealed record CreateRandomMatchingCardEffect(
+    [property: JsonRequired] CardFilter CardFilter,
+    int Count = 1,
+    CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
+public sealed record CopyTriggerCardToHandEffect(int Count = 1) : CardEffect;
 public sealed record CreateCardAtTurnEndEffect([property: JsonRequired] string CardId) : CardEffect;
 public sealed record CopyDeckCardsEffect(
     ConditionPlayer SourceDeck = ConditionPlayer.Opponent,
@@ -281,7 +294,7 @@ public sealed record DrainDivineShieldsBuffEffect(
     int HealthPerShield,
     string? EnchantmentCardId = null) : CardEffect;
 public sealed record ConsumeAdjacentMinionsEffect(string? EnchantmentCardId = null) : CardEffect;
-public sealed record SilenceEffect(bool AllEnemyMinions = false) : CardEffect;
+public sealed record SilenceEffect(bool AllEnemyMinions = false, bool OtherFriendlyMinions = false) : CardEffect;
 public sealed record RemoveAllStealthEffect : CardEffect;
 public sealed record DestroySecretsEffect(ConditionPlayer TargetPlayer = ConditionPlayer.Opponent) : CardEffect;
 /// <summary>亡语召唤沿用死亡位置，其他情况放到场上最右侧。</summary>
@@ -295,7 +308,8 @@ public sealed record CopyMinionToSelfEffect : CardEffect;
 public sealed record TakeControlEffect(EffectTarget Target = EffectTarget.Selected,
     bool ReadyToAttack = false, bool ReturnToSourceOpponent = false) : CardEffect;
 public sealed record TakeControlRandomEnemyMinionEffect : CardEffect;
-public sealed record ReturnMinionEffect(int CostDelta = 0, EffectTarget Target = EffectTarget.Selected) : CardEffect
+public sealed record ReturnMinionEffect(int CostDelta = 0, EffectTarget Target = EffectTarget.Selected,
+    bool RandomFriendly = false) : CardEffect
 {
     public string? EnchantmentCardId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -305,9 +319,12 @@ public sealed record TransformMinionEffect(string CardId, bool Self = false) : C
 public sealed record RandomTransformOtherMinionEffect(ImmutableArray<string> CardIds) : CardEffect;
 public sealed record TransformMinionByCostEffect(int Increase) : CardEffect;
 public sealed record DestroyMinionEffect(EffectTarget Target = EffectTarget.Selected) : CardEffect;
-public sealed record DestroyAllMinionsEffect(bool ExcludeSource = false, bool IncludeLocations = false) : CardEffect;
+public sealed record DestroyAllMinionsEffect(bool ExcludeSource = false, bool IncludeLocations = false,
+    string? ReplaceWithCardId = null) : CardEffect;
 public sealed record ResurrectFriendlyMinionEffect : CardEffect;
+public sealed record ResurrectDiedThisTurnEffect : CardEffect;
 public sealed record ResummonMinionEffect(EffectTarget Target = EffectTarget.TriggerSubject, int? RemainingHealth = null) : CardEffect;
+public sealed record ReincarnateMinionEffect(EffectTarget Target = EffectTarget.Selected) : CardEffect;
 public sealed record FreezeEffect(FreezeTarget Target) : CardEffect;
 public sealed record UnlockOverloadEffect : CardEffect;
 public sealed record CounterSpellEffect : CardEffect;
@@ -405,6 +422,8 @@ public record CardRules
     public int SpellDamage { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int? SpellAndHeroPowerMultiplier { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool DoubleFriendlyDeathrattles { get; init; }
     public LocationAbility? Activation { get; init; }
 }
 

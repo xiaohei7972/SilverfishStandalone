@@ -528,7 +528,15 @@ public sealed partial class GameSimulator
                     ApplyTemporaryCostAura(context, tempCost);
                     break;
                 case RecruitEffect recruit:
-                    work.Push(new RecruitCards(context.Controller, recruit.Count, recruit.CardFilter));
+                    var recruitOwner = recruit.Recipient == CardRecipient.Controller
+                        ? context.Controller : _state.OpponentOf(context.Controller);
+                    work.Push(new RecruitCards(recruitOwner, recruit.Count, recruit.CardFilter));
+                    break;
+                case PutSecretFromDeckEffect secretDeck:
+                    PutSecretFromDeck(context, secretDeck);
+                    break;
+                case SummonFromHandEffect summonHand:
+                    SummonFromHand(work, context, summonHand);
                     break;
                 case CreateCardEffect create:
                     CreateCards(context, create);
@@ -538,6 +546,12 @@ public sealed partial class GameSimulator
                         ? context.Controller : _state.OpponentOf(context.Controller);
                     for (var i = 0; i < createRandom.Count; i++)
                         TryCreateCard(createRandom.CardIds[ChooseIndex(createRandom.CardIds.Length)], randomRecipient, context.Source, CardPlacement.Hand);
+                    break;
+                case CreateRandomMatchingCardEffect createMatching:
+                    CreateRandomMatchingCard(context, createMatching);
+                    break;
+                case CopyTriggerCardToHandEffect copyTrigger:
+                    CopyTriggerCardToHand(context, copyTrigger);
                     break;
                 case CreateCardAtTurnEndEffect delayedCreate:
                     var delayedOwner = _state.Players[context.Controller];
@@ -689,13 +703,19 @@ public sealed partial class GameSimulator
                     DestroyMinion((destroy.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value);
                     break;
                 case DestroyAllMinionsEffect destroyAll:
-                    DestroyAllMinions(context, destroyAll);
+                    DestroyAllMinions(work, context, destroyAll);
                     break;
                 case ResurrectFriendlyMinionEffect:
                     ResurrectFriendlyMinion(work, context.Controller);
                     break;
+                case ResurrectDiedThisTurnEffect:
+                    ResurrectDiedThisTurn(work, context);
+                    break;
                 case ResummonMinionEffect resummon:
                     ResummonMinion(work, context, resummon);
+                    break;
+                case ReincarnateMinionEffect reincarnate:
+                    ReincarnateMinion(work, context, reincarnate);
                     break;
                 case FreezeEffect freeze:
                     Freeze(context, freeze);
@@ -855,15 +875,23 @@ public sealed partial class GameSimulator
                     var timing = position is not null ? TriggerTiming.MinionDied : TriggerTiming.WeaponDestroyed;
                     var queue = Queue(new(timing, entity.Controller, entity.Id),
                         death.ListenersAtDeath ?? listeners);
+                    var deathrattleTimes = position is not null &&
+                        _rules.BoardMinions(_state, entity.Controller).Any(id =>
+                        {
+                            var ally = _state.Entities[id];
+                            return !ally.Silenced && _rules.Card(ally).DoubleFriendlyDeathrattles;
+                        }) ? 2 : 1;
                     var effects = entity.Silenced ? [] : _rules.Card(entity).Deathrattle;
                     if (!effects.IsEmpty)
-                        queue = queue.Append(new(new(entity.Id, entity.Controller, DeathPosition: position),
-                            entity.PlayOrder!.Value, effects));
+                        for (var pass = 0; pass < deathrattleTimes; pass++)
+                            queue = queue.Append(new(new(entity.Id, entity.Controller, DeathPosition: position),
+                                entity.PlayOrder!.Value, effects));
                     foreach (var layer in entity.Enchantments)
                         if (layer.GrantedTag == GAME_TAG.DEATHRATTLE && layer.CardId is { } enchantment &&
                             _rules._enchantmentRemovalEffects.TryGetValue((enchantment, EnchantmentRemovalReason.Died), out var granted))
-                            queue = queue.Append(new(new(entity.Id, entity.Controller, Subject: entity.Id, DeathPosition: position),
-                                entity.PlayOrder!.Value, granted));
+                            for (var pass = 0; pass < deathrattleTimes; pass++)
+                                queue = queue.Append(new(new(entity.Id, entity.Controller, Subject: entity.Id, DeathPosition: position),
+                                    entity.PlayOrder!.Value, granted));
                     RunQueue(queue.OrderBy(trigger => trigger.PlayOrder));
                 }
             }

@@ -20,6 +20,35 @@ public sealed partial class GameSimulator
                 ShuffleDeck(recipient, context.Source);
         }
 
+        private void CreateRandomMatchingCard(EffectContext context, CreateRandomMatchingCardEffect effect)
+        {
+            var candidates = _rules.MatchingMinionCandidates(effect.CardFilter);
+            if (candidates.IsEmpty)
+                return;
+
+            var recipient = effect.Recipient == CardRecipient.Controller ? context.Controller : _state.OpponentOf(context.Controller);
+            for (var i = 0; i < effect.Count; i++)
+            {
+                var cardId = candidates[ChooseIndex(candidates.Length)];
+                if (!TryCreateCard(cardId, recipient, context.Source, CardPlacement.Hand))
+                    break;
+                SpendResolutionStep();
+            }
+        }
+
+        private void CopyTriggerCardToHand(EffectContext context, CopyTriggerCardToHandEffect effect)
+        {
+            if (context.Subject is not EntityId subject || !_state.Entities.TryGetValue(subject, out var entity))
+                return;
+
+            for (var i = 0; i < effect.Count; i++)
+            {
+                if (!TryCreateCard(entity.CardId, context.Controller, context.Source, CardPlacement.Hand))
+                    break;
+                SpendResolutionStep();
+            }
+        }
+
         private void CopyDeckCards(EffectContext context, CopyDeckCardsEffect effect)
         {
             var deckOwner = effect.SourceDeck == ConditionPlayer.Friendly
