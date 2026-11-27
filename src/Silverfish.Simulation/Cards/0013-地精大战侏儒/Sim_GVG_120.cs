@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 赫米特·奈辛瓦里
 // Hemet Nesingwary
 // 战吼： 消灭一个野兽。
 // Battlecry: Destroy a Beast.
+[CardSim("GVG_120")]
 internal static class Sim_GVG_120
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_GVG_120
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new DestroyMinionEffect()]
+    };
 }

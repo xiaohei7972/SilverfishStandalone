@@ -647,6 +647,7 @@ public sealed partial class GameSimulator
                 {
                     EffectTarget.Selected => TargetsOnlyMinions(target),
                     EffectTarget.TriggerSubject => hasCharacterSubject,
+                    EffectTarget.Source => hasInPlaySource,
                     _ => false
                 },
                 DestroyAllMinionsEffect destroy => (!destroy.ExcludeSource || hasInPlaySource) &&

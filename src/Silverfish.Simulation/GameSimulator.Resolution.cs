@@ -863,7 +863,12 @@ public sealed partial class GameSimulator
                     TransformMinionByCost(work, context, transform.Increase);
                     break;
                 case DestroyMinionEffect destroy:
-                    DestroyMinion((destroy.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value);
+                    DestroyMinion((destroy.Target switch
+                    {
+                        EffectTarget.Selected => context.Selected,
+                        EffectTarget.Source => (EntityId?)context.Source,
+                        _ => context.Subject
+                    })!.Value);
                     break;
                 case DestroyAllMinionsEffect destroyAll:
                     DestroyAllMinions(work, context, destroyAll);

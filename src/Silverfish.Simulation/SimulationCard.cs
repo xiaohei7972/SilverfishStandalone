@@ -16,7 +16,7 @@ public enum PlayRequirements { None = 0, BoardSpace = 1, FriendlyMinionDeath = 2
 public enum DamageTarget { Selected, EnemyHero, AllMinions, Source, TriggerSubject, FriendlyHero, EnemyMinions, AllEnemies, AllCharacters, OtherCharacters }
 public enum FreezeTarget { Selected, EnemyMinions, TriggerSubject, SelectedAndAdjacentMinions }
 public enum HealTarget { Selected, Source, TriggerSubject, FriendlyHero, EnemyHero, FriendlyMinions, AllMinions, AllFriendlyCharacters, RandomDamagedFriendlyCharacter, AllCharacters }
-public enum EffectTarget { Selected, TriggerSubject }
+public enum EffectTarget { Selected, TriggerSubject, Source }
 public enum RandomCharacterPool { EnemyCharacters, EnemyMinions, OtherCharacters, AllMinions, NonMechMinions }
 public enum RandomDamageMode { Sequential, DistinctBatch }
 public enum ManaOperation { GainTemporary, GainEmpty, GainFilled, Refresh, Destroy }
