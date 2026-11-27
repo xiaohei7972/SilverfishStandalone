@@ -63,3 +63,16 @@ public sealed record CostTypeModifier(EntityId Source, TAG_CARD_ALTERNATE_COST T
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CardId { get; init; }
 }
+
+public enum CostModifierMode { Add, Set }
+
+/// <summary>挂在玩家身上的临时或单次生效费用光环（例如肯瑞托法师、伺机待发、米尔豪斯）。</summary>
+public sealed record TemporaryCostAura(
+    EntityId Source,
+    EntityKind TargetKind,
+    CostModifierMode Mode,
+    int Amount,
+    int ActiveOnTurn,
+    bool SecretOnly = false,
+    bool ConsumedOnPlay = false,
+    string? CardId = null);

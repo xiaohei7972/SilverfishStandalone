@@ -224,7 +224,10 @@ public sealed partial class GameSimulator
             var entity = _state.Entities[listener.Id.Entity];
             return !entity.Silenced && _state.LocationOf(entity.Id).Zone == listener.Zone &&
                 entity.Controller == listener.Controller && entity.PlayOrder == listener.PlayOrder &&
-                entity.CardId == listener.CardId;
+                entity.CardId == listener.CardId &&
+                (entity.Weapon is not { } weapon ||
+                    (_state.Players[listener.Controller].EquippedWeapon == entity.Id &&
+                        weapon.Durability > 0 && !_pendingDestruction.Contains(entity.Id)));
         }
 
         private bool IsLivingCharacter(EntityId? id) => id is EntityId entity &&

@@ -62,7 +62,8 @@ public sealed partial class GameSimulator
                 !Enum.IsDefined(card.SelfCostReduction) || (card.SelfCostReduction != SelfCostReduction.None && definition.Kind == EntityKind.Hero) ||
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && !card.Deathrattle.IsEmpty) ||
                 (definition.Kind != EntityKind.Minion && (!card.Auras.IsEmpty || !card.WeaponAuras.IsEmpty || card.LeavesNoCorpse || card.HealingDealsDamage || card.CannotAttack)) ||
-                (definition.Kind != EntityKind.Weapon && card.HeroImmuneWhileAttacking) ||
+                (definition.Kind != EntityKind.Weapon && (card.HeroImmuneWhileAttacking || card.MinionAttackRule is not null)) ||
+                (card.MinionAttackRule is { } minionAtkRule && (minionAtkRule.AttackLoss <= 0 || !IsOptionalCardIdValid(minionAtkRule.EnchantmentCardId))) ||
                 (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.CostAuras.IsEmpty) ||
                 (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.IsSecret &&
                     card.Triggers.Any(trigger => trigger.Timing is not (TriggerTiming.Overkill or TriggerTiming.HonorableKill))) ||
@@ -74,7 +75,7 @@ public sealed partial class GameSimulator
 
             ValidateEffects(card, card.OnPlay, EffectCharacterTarget(card.Target, BranchRequirements(card)),
                 hasInPlaySource: IsCharacter(definition.Kind),
-                canUseCombo: !card.IsPlayChoiceOption && definition.Kind is EntityKind.Minion or EntityKind.Spell or EntityKind.Weapon);
+                canUseCombo: !card.IsPlayChoiceOption && definition.Kind is EntityKind.Minion or EntityKind.Spell or EntityKind.Weapon or EntityKind.Hero);
             if (card.ChooseAfterPlay is { } choiceRule &&
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Spell) || card.IsSecret ||
                     card.Keywords.HasFlag(CardKeywords.CastsWhenDrawn) ||
@@ -208,6 +209,13 @@ public sealed partial class GameSimulator
             var secrets = player.In(GameZone.Secret);
             if (secrets.Length > SecretLimit || secrets.Select(id => state.Entities[id].CardId).Distinct(StringComparer.Ordinal).Count() != secrets.Length)
                 throw new ArgumentException($"玩家 {player.Id.Value} 的初始奥秘数量超过上限，或存在重复的奥秘。");
+            if (player.TemporaryCostAuras.Any(aura => aura is null || !state.Entities.ContainsKey(aura.Source) ||
+                !Enum.IsDefined(aura.TargetKind) || aura.TargetKind == EntityKind.Unknown || !Enum.IsDefined(aura.Mode) ||
+                (aura.Mode == CostModifierMode.Set ? aura.Amount < 0 : aura.Amount == 0) ||
+                aura.ActiveOnTurn < state.Turn || !IsOptionalCardIdValid(aura.CardId)))
+                throw new ArgumentException($"玩家 {player.Id.Value} 的临时费用光环无效。");
+            if (player.EndOfTurnHandAdditions.Any(cardId => !CanCreateCard(cardId)))
+                throw new ArgumentException($"玩家 {player.Id.Value} 的回合结束待生成卡牌无效。");
         }
 
         foreach (var entity in state.Entities.Values)
@@ -218,10 +226,11 @@ public sealed partial class GameSimulator
             var isHeroSlot = player.Hero == entity.Id;
             var isEquippedSlot = player.EquippedWeapon == entity.Id;
             var isPendingSpell = kind == EntityKind.Spell && state.PendingPlayChoice?.Source == entity.Id;
-            if (isHeroSlot != (kind == EntityKind.Hero) ||
+            if ((isHeroSlot && kind != EntityKind.Hero) ||
+                (location.Zone == GameZone.Play && kind == EntityKind.Hero && !isHeroSlot) ||
                 (location.Zone == GameZone.Play && kind != EntityKind.Location && !isPendingSpell && (kind == EntityKind.Weapon ? !isEquippedSlot :
                     !IsCharacter(kind) || entity.Character is not { Health: > 0 })) ||
-                ((location.Zone == GameZone.HeroPower) != (kind == EntityKind.HeroPower)) ||
+                (location.Zone == GameZone.HeroPower ? kind != EntityKind.HeroPower : (kind == EntityKind.HeroPower && location.Zone != GameZone.Removed)) ||
                 (location.Zone == GameZone.Secret && !Card(entity).IsSecret) ||
                 (entity.Character is not null && !IsCharacter(kind)) ||
                 (entity.Weapon is not null && (kind != EntityKind.Weapon || location.Zone is not (GameZone.Play or GameZone.Graveyard))) ||
@@ -371,7 +380,7 @@ public sealed partial class GameSimulator
     private static bool IsCharacter(EntityKind kind) => kind is EntityKind.Hero or EntityKind.Minion;
 
     private bool CanCreateCard(string? cardId) => !string.IsNullOrWhiteSpace(cardId) &&
-        GetCard(cardId).Definition.Kind is EntityKind.Minion or EntityKind.Spell or EntityKind.Weapon or EntityKind.Location;
+        GetCard(cardId).Definition.Kind is EntityKind.Minion or EntityKind.Spell or EntityKind.Weapon or EntityKind.Location or EntityKind.Hero;
 
     private static bool CanArmSecret(GameState state, PlayerState player, string cardId) =>
         player.In(GameZone.Secret).Length < SecretLimit && !player.In(GameZone.Secret).Any(id => state.Entities[id].CardId == cardId);
@@ -463,12 +472,18 @@ public sealed partial class GameSimulator
                 DrawMatchingEffect draw => draw.Count > 0 && draw.CardFilter is not null && IsValidCardFilter(draw.CardFilter),
                 ChangeHandCostEffect change => change.Delta != 0 && IsHandCostDuration(change.Duration) &&
                     IsOptionalCardIdValid(change.EnchantmentCardId) && HasHandCostTarget(change.Target, change.CardFilter),
+                AddTemporaryCostAuraEffect tempCost => Enum.IsDefined(tempCost.TargetKind) && tempCost.TargetKind != EntityKind.Unknown &&
+                    Enum.IsDefined(tempCost.Mode) && Enum.IsDefined(tempCost.Recipient) &&
+                    (tempCost.Mode == CostModifierMode.Set ? tempCost.Amount >= 0 : tempCost.Amount != 0) &&
+                    (!tempCost.SecretOnly || tempCost.TargetKind == EntityKind.Spell) &&
+                    IsOptionalCardIdValid(tempCost.EnchantmentCardId),
                 ChangeCostTypeEffect change => SupportsCostType(change.Type) && IsHandCostDuration(change.Duration) &&
                     IsOptionalCardIdValid(change.EnchantmentCardId) && HasHandCostTarget(change.Target, change.CardFilter),
                 RecruitEffect recruit => recruit.Count > 0 && IsValidCardFilter(recruit.CardFilter) &&
                     recruit.CardFilter?.Kind is null or EntityKind.Minion,
                 CreateCardEffect create => create.Count > 0 && Enum.IsDefined(create.Placement) &&
                     Enum.IsDefined(create.Recipient) && CanCreateCard(create.CardId),
+                CreateCardAtTurnEndEffect delayedCreate => CanCreateCard(delayedCreate.CardId),
                 CopyDeckCardsEffect copy => copy.Count > 0 && Enum.IsDefined(copy.SourceDeck) && IsValidCardFilter(copy.CardFilter),
                 SummonDeckCopyEffect copy => copy.Count > 0 && Enum.IsDefined(copy.SourceDeck) &&
                     IsValidCardFilter(copy.CardFilter) && copy.CardFilter?.Kind is null or EntityKind.Minion &&
@@ -484,7 +499,7 @@ public sealed partial class GameSimulator
                     HealTarget.Source => hasInPlaySource,
                     HealTarget.TriggerSubject => hasCharacterSubject,
                     HealTarget.FriendlyHero or HealTarget.EnemyHero or HealTarget.FriendlyMinions or
-                        HealTarget.AllMinions or HealTarget.AllFriendlyCharacters => true,
+                        HealTarget.AllMinions or HealTarget.AllFriendlyCharacters or HealTarget.RandomDamagedFriendlyCharacter => true,
                     _ => false
                 }),
                 SetHeroRemainingHealthEffect setHeroHealth => setHeroHealth.Health > 0 && (setHeroHealth.Target switch
@@ -493,6 +508,7 @@ public sealed partial class GameSimulator
                     EffectTarget.TriggerSubject => hasCharacterSubject,
                     _ => false
                 }),
+                ReplaceHeroPowerEffect replaceHeroPower => GetCard(replaceHeroPower.CardId).Definition.Kind == EntityKind.HeroPower,
                 EquipWeaponEffect equip => GetCard(equip.CardId).Definition.Kind == EntityKind.Weapon,
                 ModifyWeaponEffect modifyWeapon => (modifyWeapon.AttackDelta != 0 || modifyWeapon.DurabilityDelta != 0) &&
                     Enum.IsDefined(modifyWeapon.TargetWeapon) && IsOptionalCardIdValid(modifyWeapon.EnchantmentCardId),
@@ -519,6 +535,10 @@ public sealed partial class GameSimulator
                         StatTarget.TriggerSubject => hasCharacterSubject,
                         _ => false
                     }),
+                DrainDivineShieldsBuffEffect drain => hasInPlaySource &&
+                    (drain.AttackPerShield > 0 || drain.HealthPerShield > 0) &&
+                    drain.AttackPerShield >= 0 && drain.HealthPerShield >= 0 &&
+                    IsOptionalCardIdValid(drain.EnchantmentCardId),
                 SilenceEffect => TargetsOnlyMinions(target),
                 DestroyMinionEffect destroy => destroy.Target switch
                 {
@@ -591,6 +611,7 @@ public sealed partial class GameSimulator
                     EffectTarget.TriggerSubject => hasCharacterSubject && !takeControl.ReadyToAttack,
                     _ => false
                 },
+                TakeControlRandomEnemyMinionEffect => true,
                 _ => false
             };
             if (!valid)

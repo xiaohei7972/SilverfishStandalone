@@ -46,6 +46,8 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
     public int AvailableCorpses => Math.Max(0, Corpses.GetValueOrDefault() - CorpsesSpentThisGame);
     public ImmutableDictionary<GameZone, ImmutableArray<EntityId>> Zones { get; init; } =
         ImmutableDictionary<GameZone, ImmutableArray<EntityId>>.Empty;
+    public ImmutableArray<TemporaryCostAura> TemporaryCostAuras { get; init; } = [];
+    public ImmutableArray<string> EndOfTurnHandAdditions { get; init; } = [];
 
     public ImmutableArray<EntityId> In(GameZone zone) =>
         Zones.TryGetValue(zone, out var entities) ? entities : ImmutableArray<EntityId>.Empty;
@@ -287,6 +289,7 @@ public sealed class GameState
     internal GameState AddToPlay(GameEntity entity, int index) => AddEntity(entity, GameZone.Play, index);
 
     internal GameState AddToHand(GameEntity entity) => AddEntity(entity, GameZone.Hand);
+    internal GameState AddToHeroPower(GameEntity entity) => AddEntity(entity, GameZone.HeroPower);
     internal GameState AddChoiceOption(GameEntity entity) => AddEntity(entity, GameZone.SetAside);
 
     internal GameState AddToDeck(GameEntity entity, int index) => AddEntity(entity, GameZone.Deck, index);
@@ -330,6 +333,38 @@ public sealed class GameState
         if (LocationOf(id) != new EntityLocation(player, GameZone.Play) || Entities[id].Weapon is not { Durability: > 0 })
             throw new ArgumentException("武器必须位于场上，且耐久大于零，才能装备。", nameof(id));
         return UpdatePlayer(Players[player] with { EquippedWeapon = id });
+    }
+
+    internal GameState ReplaceHero(PlayerId playerId, EntityId newHero, CharacterState character,
+        ImmutableArray<StatEnchantment> enchantments)
+    {
+        var player = Players[playerId];
+        var oldHeroId = player.Hero;
+        if (oldHeroId == newHero || LocationOf(newHero) != new EntityLocation(playerId, GameZone.Play))
+            throw new ArgumentException("新英雄必须已在控制者的战场上。", nameof(newHero));
+
+        var oldHero = Entities[oldHeroId] with
+        {
+            Character = null, Enchantments = [], AuraGrants = [], Silenced = false, Stealthed = null
+        };
+        var updatedNewHero = Entities[newHero] with
+        {
+            Character = character, Enchantments = enchantments, AuraGrants = []
+        };
+        ValidateEntity(updatedNewHero, Players);
+
+        var playZone = player.In(GameZone.Play).Remove(oldHeroId).Remove(newHero).Insert(0, newHero);
+        var removedZone = player.In(GameZone.Removed).Add(oldHeroId);
+        var updatedPlayer = player with
+        {
+            Hero = newHero,
+            Zones = player.Zones.SetItem(GameZone.Play, playZone).SetItem(GameZone.Removed, removedZone)
+        };
+        return new GameState(
+            Players.SetItem(playerId, updatedPlayer),
+            Entities.SetItem(oldHeroId, oldHero).SetItem(newHero, updatedNewHero),
+            _locations.SetItem(oldHeroId, new(playerId, GameZone.Removed)),
+            ActivePlayer, Turn, NextEntity, NextPlayOrder, Outcome, Winner, MinionDeaths, RandomState, PendingPlayChoice, PendingChoice);
     }
 
     private GameState UpdatePlayer(PlayerState player) =>
@@ -382,7 +417,8 @@ public sealed class GameState
 
     private static void ValidateResources(PlayerState player)
     {
-        if (player.Zones is null || player.Id.Value < 1 || player.Mana < 0 || player.ManaCrystals < 0 ||
+        if (player.Zones is null || player.TemporaryCostAuras.IsDefault || player.EndOfTurnHandAdditions.IsDefault ||
+            player.Id.Value < 1 || player.Mana < 0 || player.ManaCrystals < 0 ||
             player.MaximumManaCrystals < 1 || player.ManaCrystals > player.MaximumManaCrystals ||
             player.Fatigue < 0 || player.HeroPowerUsesThisTurn is < 0 or > 1 || player.ManaSpent is < 0 ||
             player.TemporaryMana < 0 || player.OverloadLocked < 0 || player.OverloadOwed < 0 ||

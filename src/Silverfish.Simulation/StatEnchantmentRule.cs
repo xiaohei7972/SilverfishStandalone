@@ -15,10 +15,10 @@ internal sealed record StatEnchantmentRule(
     {
         EnchantmentCardId = CardId, OnRemoved = OnRemoved, GrantedTag = GrantedTag, CardFilter = cardFilter
     };
-    internal StatAura GrantTo(AuraRecipients recipients, AuraCondition condition = AuraCondition.None) =>
+    internal StatAura GrantTo(AuraRecipients recipients, AuraCondition condition = AuraCondition.None, CardFilter? cardFilter = null) =>
         new(recipients, Modifier)
         {
-            EnchantmentCardId = CardId, Condition = condition, GrantedTag = GrantedTag
+            EnchantmentCardId = CardId, Condition = condition, GrantedTag = GrantedTag, CardFilter = cardFilter
         };
 
     internal WeaponAttackAura GrantToWeapon(AuraCondition condition = AuraCondition.None) =>

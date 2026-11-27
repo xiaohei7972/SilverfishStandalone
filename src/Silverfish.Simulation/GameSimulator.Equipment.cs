@@ -78,15 +78,59 @@ public sealed partial class GameSimulator
             _events.Add(new(SimulationEventKind.WeaponEquipped, player, id, _state.Players[player].Hero));
         }
 
-        private void SpendWeaponDurability(EntityId? weapon)
+        private void SpendWeaponDurability(EntityId? weapon, EntityId defender)
         {
             if (weapon is not EntityId id || _state.LocationOf(id).Zone != GameZone.Play)
                 return;
 
             var entity = _state.Entities[id];
             var stats = entity.Weapon!;
+            if (!entity.Silenced && _rules.Card(entity).MinionAttackRule is { } minionRule &&
+                _state.Entities.TryGetValue(defender, out var targetEntity) &&
+                _rules.Card(targetEntity).Definition.Kind == EntityKind.Minion)
+            {
+                var reducedAttack = Math.Max(0, stats.Attack - minionRule.AttackLoss);
+                _state = _state.UpdateEntity(entity with { Weapon = stats with { Attack = reducedAttack } });
+                _events.Add(new(SimulationEventKind.EnchantmentApplied, entity.Controller, id, id)
+                {
+                    EnchantmentCardId = minionRule.EnchantmentCardId
+                });
+                _state = _rules.RefreshAuras(_state);
+                return;
+            }
+
             _state = _state.UpdateEntity(entity with { Weapon = stats with { Durability = stats.Durability - 1 } });
             _events.Add(new(SimulationEventKind.WeaponDurabilityLost, entity.Controller, id, Amount: 1));
+        }
+
+        private void ReplaceHeroPower(PlayerId playerId, EntityId source, string cardId)
+        {
+            var player = _state.Players[playerId];
+            if (player.HeroPowerUsesThisTurn != 0)
+                _state = _state.UpdateResources(player with { HeroPowerUsesThisTurn = 0 });
+            foreach (var oldPowerId in _state.Players[playerId].In(GameZone.HeroPower))
+                _state = _state.Move(oldPowerId, new(playerId, GameZone.Removed));
+
+            var newId = new EntityId(_state.NextEntity);
+            _state = _state.AddToHeroPower(new(newId, cardId, playerId, playerId));
+            _events.Add(new(SimulationEventKind.CardGenerated, playerId, source, newId));
+        }
+
+        private void PlayHeroCard(PlayerId playerId, EntityId source)
+        {
+            var oldHeroId = _state.Players[playerId].Hero;
+            var oldHero = _state.Entities[oldHeroId];
+            var baseChar = oldHero.Character!;
+            var tempHero = _state.Entities[source] with
+            {
+                Character = baseChar,
+                Enchantments = oldHero.Enchantments,
+                AuraGrants = []
+            };
+            tempHero = RecalculateStats(tempHero, []);
+            _state = _state.ReplaceHero(playerId, source, tempHero.Character!, tempHero.Enchantments);
+            _state = _rules.RefreshAuras(_state);
+            _events.Add(new(SimulationEventKind.Transformed, playerId, source, source));
         }
 
         private void ModifyWeapon(EffectContext context, ModifyWeaponEffect effect)

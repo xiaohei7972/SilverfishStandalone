@@ -26,6 +26,7 @@ public sealed partial class GameSimulator
                 HealTarget.AllFriendlyCharacters => _state.Players[context.Controller].In(GameZone.Play)
                     .Where(id => _state.Entities[id].Character is not null)
                     .OrderBy(id => _state.Entities[id].PlayOrder).ToArray(),
+                HealTarget.RandomDamagedFriendlyCharacter => PickRandomDamagedFriendlyCharacter(context),
                 _ => throw new InvalidOperationException("无法识别治疗目标。")
             };
 
@@ -67,6 +68,15 @@ public sealed partial class GameSimulator
             _events.Add(new(SimulationEventKind.Overhealed, entity.Controller, context.Source, target, excess));
             // The event belongs to the healed minion; the healer may be its opponent.
             return new(TriggerTiming.Overheal, entity.Controller, target, Amount: excess);
+        }
+
+        private EntityId[] PickRandomDamagedFriendlyCharacter(EffectContext context)
+        {
+            var candidates = _state.Players[context.Controller].In(GameZone.Play)
+                .Where(id => IsLivingCharacter(id) && _state.Entities[id].Character is { Damage: > 0 })
+                .OrderBy(id => _state.Entities[id].PlayOrder)
+                .ToArray();
+            return candidates.Length == 0 ? [] : [candidates[ChooseIndex(candidates.Length)]];
         }
     }
 }

@@ -58,6 +58,14 @@ public sealed partial class GameSimulator
         {
             _events.Add(new(SimulationEventKind.TurnEnded, outgoing));
             RunTriggers(new(TriggerTiming.TurnEnded, outgoing), CaptureListeners());
+            var pendingAdditions = _state.Players[outgoing].EndOfTurnHandAdditions;
+            if (!pendingAdditions.IsEmpty)
+            {
+                _state = _state.UpdateResources(_state.Players[outgoing] with { EndOfTurnHandAdditions = [] });
+                var hero = _state.Players[outgoing].Hero;
+                foreach (var cardId in pendingAdditions)
+                    TryCreateCard(cardId, outgoing, hero, CardPlacement.Hand);
+            }
             ResolveDeaths();
             FinishIfHeroesDied();
             if (_state.Outcome != MatchOutcome.InProgress)
@@ -112,6 +120,7 @@ public sealed partial class GameSimulator
             var effects = option?.Effects ?? card.OnPlay;
             var listeners = CaptureListeners();
             PayCardCost(playerId, source, card);
+            ConsumePlayedCardCostAuras(playerId, card);
             var player = _state.Players[playerId];
             var cardsPlayedBefore = Math.Max(player.CardsPlayedThisTurn, player.PlayedCardThisTurn == true ? 1 : 0);
             _state = _state.UpdateResources(player with
@@ -139,6 +148,19 @@ public sealed partial class GameSimulator
             }
             if (card.IsSecret)
                 _events.Add(new(SimulationEventKind.SecretArmed, playerId, source));
+
+            if (kind == EntityKind.Hero)
+            {
+                PlayHeroCard(playerId, source);
+                RunTriggers(new(TriggerTiming.WhenCardPlayed, playerId, source), listeners);
+                AddOverload(playerId, source, card.Overload);
+                ResolveDeaths();
+                if (resolvesEffect)
+                    ResolveEffects(new(source, playerId, target, CardsPlayedBefore: cardsPlayedBefore), effects);
+                ResolveDeaths();
+                RunTriggers(new(TriggerTiming.AfterCardPlayed, playerId, source), listeners);
+                return;
+            }
 
             if (kind == EntityKind.Weapon)
             {
@@ -258,7 +280,7 @@ public sealed partial class GameSimulator
             RunWork(work);
             var afterDamage = _state.Entities[source].Character!;
             _state = _state.UpdateCharacter(source, afterDamage with { AttacksThisTurn = character.AttacksThisTurn + 1 });
-            SpendWeaponDurability(weapon);
+            SpendWeaponDurability(weapon, target);
             }
             finally
             {
@@ -489,11 +511,21 @@ public sealed partial class GameSimulator
                 case ChangeHandCostEffect change:
                     ChangeHandCost(context, change);
                     break;
+                case AddTemporaryCostAuraEffect tempCost:
+                    ApplyTemporaryCostAura(context, tempCost);
+                    break;
                 case RecruitEffect recruit:
                     work.Push(new RecruitCards(context.Controller, recruit.Count, recruit.CardFilter));
                     break;
                 case CreateCardEffect create:
                     CreateCards(context, create);
+                    break;
+                case CreateCardAtTurnEndEffect delayedCreate:
+                    var delayedOwner = _state.Players[context.Controller];
+                    _state = _state.UpdateResources(delayedOwner with
+                    {
+                        EndOfTurnHandAdditions = delayedOwner.EndOfTurnHandAdditions.Add(delayedCreate.CardId)
+                    });
                     break;
                 case CopyDeckCardsEffect copy:
                     CopyDeckCards(context, copy);
@@ -522,6 +554,9 @@ public sealed partial class GameSimulator
                 case SetHeroRemainingHealthEffect setHeroHealth:
                     SetHeroRemainingHealth(context, setHeroHealth);
                     break;
+                case ReplaceHeroPowerEffect replaceHeroPower:
+                    ReplaceHeroPower(context.Controller, context.Source, replaceHeroPower.CardId);
+                    break;
                 case EquipWeaponEffect equip:
                     CreateAndEquipWeapon(context.Controller, equip.CardId);
                     break;
@@ -539,6 +574,9 @@ public sealed partial class GameSimulator
                     break;
                 case DynamicStatChangeEffect dynamicStat:
                     ApplyDynamicStatChange(context, dynamicStat);
+                    break;
+                case DrainDivineShieldsBuffEffect drainShields:
+                    DrainDivineShieldsBuff(context, drainShields);
                     break;
                 case SilenceEffect:
                     Silence(work, context);
@@ -568,6 +606,9 @@ public sealed partial class GameSimulator
                         ? _state.OpponentOf(_state.Entities[context.Source].Controller)
                         : context.Controller;
                     TakeControl(context.Source, targetMinion, destination, takeControl.ReadyToAttack);
+                    break;
+                case TakeControlRandomEnemyMinionEffect:
+                    TakeControlRandomEnemyMinion(context);
                     break;
                 case ReturnMinionEffect returned:
                     ReturnMinion(work, context, returned);

@@ -101,6 +101,15 @@ public sealed partial class GameSimulator
                 }
         }
 
+        foreach (var temp in state.Players[entity.Controller].TemporaryCostAuras)
+        {
+            if (temp.ActiveOnTurn == state.Turn && temp.TargetKind == card.Definition.Kind &&
+                (!temp.SecretOnly || card.IsSecret))
+            {
+                cost = temp.Mode == CostModifierMode.Set ? temp.Amount : cost + temp.Amount;
+            }
+        }
+
         // 把单卡修正和场上光环全部相加后，再限制实际费用的范围。
         return (int)Math.Clamp(cost, 0, int.MaxValue);
     }
@@ -176,6 +185,33 @@ public sealed partial class GameSimulator
             }
         }
 
+        private void ApplyTemporaryCostAura(EffectContext context, AddTemporaryCostAuraEffect effect)
+        {
+            var recipient = effect.Recipient == CardRecipient.Controller
+                ? context.Controller
+                : _state.OpponentOf(context.Controller);
+            var activeTurn = effect.NextTurn ? checked(_state.Turn + 1) : _state.Turn;
+            var aura = new TemporaryCostAura(context.Source, effect.TargetKind, effect.Mode, effect.Amount,
+                activeTurn, effect.SecretOnly, effect.ConsumedOnPlay, effect.EnchantmentCardId);
+            var player = _state.Players[recipient];
+            _state = _state.UpdateResources(player with { TemporaryCostAuras = player.TemporaryCostAuras.Add(aura) });
+            _events.Add(new(SimulationEventKind.EnchantmentApplied, context.Controller, context.Source, player.Hero, effect.Amount)
+                { EnchantmentCardId = effect.EnchantmentCardId });
+        }
+
+        private void ConsumePlayedCardCostAuras(PlayerId playerId, SimulationCard card)
+        {
+            var player = _state.Players[playerId];
+            if (player.TemporaryCostAuras.IsEmpty)
+                return;
+
+            var remaining = player.TemporaryCostAuras.RemoveAll(aura =>
+                aura.ConsumedOnPlay && aura.ActiveOnTurn == _state.Turn &&
+                aura.TargetKind == card.Definition.Kind && (!aura.SecretOnly || card.IsSecret));
+            if (remaining != player.TemporaryCostAuras)
+                _state = _state.UpdateResources(player with { TemporaryCostAuras = remaining });
+        }
+
         private void ChangeCostType(EffectContext context, ChangeCostTypeEffect effect)
         {
             var expires = CostExpiry(effect.Duration);
@@ -196,6 +232,12 @@ public sealed partial class GameSimulator
         private void ExpireTurnHandCostModifiers()
         {
             var turn = _state.Turn;
+            foreach (var player in _state.Players.Values)
+            {
+                var remainingAuras = player.TemporaryCostAuras.RemoveAll(aura => aura.ActiveOnTurn <= turn);
+                if (remainingAuras != player.TemporaryCostAuras)
+                    _state = _state.UpdateResources(player with { TemporaryCostAuras = remainingAuras });
+            }
             foreach (var id in _state.Players.Values.SelectMany(player => player.In(GameZone.Hand)))
             {
                 var entity = _state.Entities[id];

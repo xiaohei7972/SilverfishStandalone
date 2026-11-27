@@ -137,6 +137,49 @@ public sealed partial class GameSimulator
                 _pendingDestruction.Add(id);
         }
 
+        private void TakeControlRandomEnemyMinion(EffectContext context)
+        {
+            var enemy = _state.OpponentOf(context.Controller);
+            var candidates = _rules.BoardMinions(_state, enemy)
+                .Where(id => IsLivingCharacter(id))
+                .OrderBy(id => _state.Entities[id].PlayOrder)
+                .ToArray();
+            if (candidates.Length > 0)
+                TakeControl(context.Source, candidates[ChooseIndex(candidates.Length)], context.Controller);
+        }
+
+        private void DrainDivineShieldsBuff(EffectContext context, DrainDivineShieldsBuffEffect effect)
+        {
+            var minions = _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player))
+                .Where(id => IsLivingCharacter(id))
+                .OrderBy(id => _state.Entities[id].PlayOrder)
+                .ToArray();
+            var shieldsLost = 0;
+            foreach (var id in minions)
+            {
+                var entity = _state.Entities[id];
+                if (entity.Character is not { DivineShield: true } character)
+                    continue;
+
+                shieldsLost++;
+                _state = _state.UpdateEntity(entity with
+                {
+                    Character = character with { DivineShield = false },
+                    Enchantments = [.. entity.Enchantments.Where(layer => layer.GrantedTag != GAME_TAG.DIVINE_SHIELD)]
+                });
+                _events.Add(new(SimulationEventKind.ShieldBroken, entity.Controller, context.Source, id));
+            }
+            if (shieldsLost > 0 && IsLivingCharacter(context.Source))
+            {
+                int? atk = effect.AttackPerShield != 0 ? checked(effect.AttackPerShield * shieldsLost) : null;
+                int? hp = effect.HealthPerShield != 0 ? checked(effect.HealthPerShield * shieldsLost) : null;
+                EnchantStats(context, new(StatTarget.Source, new(StatModifierMode.Add, atk, hp))
+                {
+                    EnchantmentCardId = effect.EnchantmentCardId
+                });
+            }
+        }
+
         private void DestroyAllMinions(EffectContext context, DestroyAllMinionsEffect effect)
         {
             var targets = _state.Players.Keys

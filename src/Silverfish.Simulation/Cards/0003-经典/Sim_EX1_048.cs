@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 破法者
 // Spellbreaker
 // 战吼： 沉默一个随从。
 // Battlecry: Silence a_minion.
+[CardSim("EX1_048")]
 internal static class Sim_EX1_048
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_EX1_048
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new SilenceEffect()]
+    };
 }
