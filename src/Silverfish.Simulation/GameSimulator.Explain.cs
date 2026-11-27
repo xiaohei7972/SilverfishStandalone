@@ -64,7 +64,7 @@ public sealed partial class GameSimulator
         var type = EffectiveCostType(source, card);
         if (!SupportsCostType(type))
             return new($"卡牌「{source.CardId}」的替代费用类型为 {type}，尚未接入该支付方式。", Source: source.Id);
-        var cost = EffectiveCost(source, card, costAuras);
+        var cost = EffectiveCost(state, source, card, costAuras);
         if (!CanPayCardCost(state, player, type, cost))
         {
             var actual = type switch

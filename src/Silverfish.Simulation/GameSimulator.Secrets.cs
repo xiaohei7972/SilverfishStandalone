@@ -7,6 +7,7 @@ public sealed partial class GameSimulator
     private sealed partial class Resolution
     {
         private EntityId _proposedDefender;
+        private bool _damagePrevented;
 
         private bool CanCounterSpell(EntityId id) => _state.LocationOf(id).Zone is GameZone.Play or GameZone.Secret;
 
@@ -19,6 +20,19 @@ public sealed partial class GameSimulator
             _state = _state.Move(id, new(_state.Entities[id].Controller, GameZone.Graveyard));
             _events.Add(new(SimulationEventKind.SpellCountered, context.Controller, context.Source, id));
         }
+
+        private bool ResolveFatalDamageWindow(EntityId target, int amount)
+        {
+            var controller = _state.Entities[target].Controller;
+            if (controller == _state.ActivePlayer || _state.Players[controller].In(GameZone.Secret).IsEmpty)
+                return false;
+
+            _damagePrevented = false;
+            RunTriggers(new(TriggerTiming.FatalDamageWindow, controller, target, Amount: amount), CaptureListeners());
+            return _damagePrevented;
+        }
+
+        private void PreventDamage() => _damagePrevented = true;
 
         private EntityId ResolveAttackProposal(PlayerId actor, EntityId attacker, EntityId defender)
         {

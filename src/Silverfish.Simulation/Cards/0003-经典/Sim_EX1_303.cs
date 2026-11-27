@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 暗影烈焰
 // Shadowflame
 // 消灭一个友方随从，对所有敌方随从造成等同于其攻击力的伤害。
 // Destroy a friendly minion and deal its Attack damage to all enemy minions.
+[CardSim("EX1_303")]
 internal static class Sim_EX1_303
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_EX1_303
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new ScaledDamageEffect(ConditionCharacter.Selected, CharacterMetric.Attack, DamageTarget.EnemyMinions, DestroyValueSource: true)]
+    };
 }

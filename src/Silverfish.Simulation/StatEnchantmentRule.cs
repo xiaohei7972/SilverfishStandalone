@@ -15,6 +15,15 @@ internal sealed record StatEnchantmentRule(
     {
         EnchantmentCardId = CardId, OnRemoved = OnRemoved, GrantedTag = GrantedTag
     };
-    internal StatAura GrantTo(AuraRecipients recipients) =>
-        new(recipients, Modifier ?? throw new InvalidOperationException("属性光环必须包含身材修正。")) { EnchantmentCardId = CardId };
+    internal StatAura GrantTo(AuraRecipients recipients, AuraCondition condition = AuraCondition.None) =>
+        new(recipients, Modifier)
+        {
+            EnchantmentCardId = CardId, Condition = condition, GrantedTag = GrantedTag
+        };
+
+    internal WeaponAttackAura GrantToWeapon(AuraCondition condition = AuraCondition.None) =>
+        new(Modifier?.Attack ?? throw new InvalidOperationException("武器攻击光环必须包含攻击力修正。"), condition)
+        {
+            EnchantmentCardId = CardId
+        };
 }

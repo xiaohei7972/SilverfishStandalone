@@ -41,10 +41,17 @@ public sealed partial class GameSimulator
             _ => false
         });
 
+    private static bool IsSupportedAuraTag(GAME_TAG tag) => tag is
+        GAME_TAG.TAUNT or GAME_TAG.CHARGE or GAME_TAG.RUSH or GAME_TAG.WINDFURY or GAME_TAG.ELUSIVE or
+        GAME_TAG.STEALTH or GAME_TAG.POISONOUS or GAME_TAG.LIFESTEAL or GAME_TAG.IMMUNE;
+
+    private static bool IsSupportedGrantedTag(GAME_TAG tag) =>
+        IsSupportedAuraTag(tag) || tag is GAME_TAG.DIVINE_SHIELD or GAME_TAG.DEATHRATTLE or GAME_TAG.CONTROLLER;
+
     private static bool IsValidEnchantment(StatModifier? modifier, GAME_TAG? tag) =>
-        tag is null ? IsValidModifier(modifier) : modifier is null && tag is
-            GAME_TAG.TAUNT or GAME_TAG.WINDFURY or GAME_TAG.ELUSIVE or GAME_TAG.STEALTH or GAME_TAG.DIVINE_SHIELD or
-            GAME_TAG.POISONOUS or GAME_TAG.DEATHRATTLE;
+        (modifier is not null || tag is not null) &&
+        (modifier is null || IsValidModifier(modifier)) &&
+        (tag is not GAME_TAG granted || IsSupportedGrantedTag(granted));
 
     private void ValidateStatLayers(GameState state, GameEntity entity)
     {
@@ -61,10 +68,20 @@ public sealed partial class GameSimulator
         {
             if (aura is null || !state.Entities.TryGetValue(aura.Source, out var source) || aura.Index < 0 ||
                 aura.Index >= Card(source).Auras.Length || aura.Modifier != Card(source).Auras[aura.Index].Modifier ||
+                aura.GrantedTag != Card(source).Auras[aura.Index].GrantedTag ||
                 (aura.CardId is not null && aura.CardId != Card(source).Auras[aura.Index].EnchantmentCardId))
                 throw new ArgumentException($"实体 {entity.Id} 获得的光环无效。");
         }
     }
+
+    private static bool IsAuraActive(GameState state, GameEntity source, AuraCondition condition) => condition switch
+    {
+        AuraCondition.None => true,
+        AuraCondition.WhileDamaged => source.Character is { Damage: > 0 },
+        AuraCondition.WhileWeaponEquipped => state.Players[source.Controller].EquippedWeapon is EntityId weapon &&
+            state.Entities[weapon].Weapon is { Durability: > 0 },
+        _ => false
+    };
 
     private GameState RefreshAuras(GameState state)
     {
@@ -83,6 +100,14 @@ public sealed partial class GameSimulator
                 for (var auraIndex = 0; auraIndex < auras.Length; auraIndex++)
                 {
                     var aura = auras[auraIndex];
+                    if (!IsAuraActive(state, source, aura.Condition))
+                        continue;
+                    if (aura.Recipients == AuraRecipients.Self)
+                    {
+                        AddGrant(source.Id, source.Id, auraIndex, aura);
+                        continue;
+                    }
+
                     var first = aura.Recipients == AuraRecipients.AdjacentFriendlyMinions ? Math.Max(0, index - 1) : 0;
                     var last = aura.Recipients == AuraRecipients.AdjacentFriendlyMinions
                         ? Math.Min(slots.Length - 1, index + 1) : slots.Length - 1;
@@ -91,13 +116,7 @@ public sealed partial class GameSimulator
                         if (position == index || slots[position].Character is null ||
                             (aura.CardFilter is { } cards && !MatchesCardFilter(Card(slots[position]).Definition, cards)))
                             continue;
-                        var target = slots[position].Id;
-                        if (!grants.TryGetValue(target, out var received))
-                        {
-                            received = ImmutableArray.CreateBuilder<StatAuraGrant>();
-                            grants.Add(target, received);
-                        }
-                        received.Add(new(source.Id, auraIndex, aura.Modifier) { CardId = aura.EnchantmentCardId });
+                        AddGrant(source.Id, slots[position].Id, auraIndex, aura);
                     }
                 }
             }
@@ -114,12 +133,22 @@ public sealed partial class GameSimulator
                 state = state.UpdateEntity(updated);
         }
         return state;
+
+        void AddGrant(EntityId sourceId, EntityId targetId, int auraIndex, StatAura aura)
+        {
+            if (!grants.TryGetValue(targetId, out var received))
+            {
+                received = ImmutableArray.CreateBuilder<StatAuraGrant>();
+                grants.Add(targetId, received);
+            }
+            received.Add(new(sourceId, auraIndex, aura.Modifier) { CardId = aura.EnchantmentCardId, GrantedTag = aura.GrantedTag });
+        }
     }
 
     private static GameEntity RecalculateStats(GameEntity entity, ImmutableArray<StatAuraGrant> grants)
     {
         var character = entity.Character!;
-        if (entity.Enchantments.IsEmpty && grants.IsEmpty &&
+        if (entity.Enchantments.IsEmpty && grants.IsEmpty && entity.AuraGrants.IsEmpty &&
             character.BaseAttack is null && character.BaseMaximumHealth is null)
             return entity;
 
@@ -131,7 +160,8 @@ public sealed partial class GameSimulator
             if (enchantment.Modifier is { } modifier)
                 Apply(modifier);
         foreach (var aura in grants)
-            Apply(aura.Modifier);
+            if (aura.Modifier is { } modifier)
+                Apply(modifier);
 
         // 生命上限提高时等量增加当前生命值。上限降低时只截断超出的生命值，不触发伤害。
         var damage = maximumHealth < character.MaximumHealth
@@ -165,6 +195,7 @@ public sealed partial class GameSimulator
             {
                 StatTarget.Selected => [context.Selected!.Value],
                 StatTarget.Source => [context.Source],
+                StatTarget.TriggerSubject => [context.Subject!.Value],
                 StatTarget.FriendlyHero => [_state.Players[context.Controller].Hero],
                 StatTarget.FriendlyMinions => _rules.BoardMinions(_state, context.Controller),
                 StatTarget.OtherFriendlyMinions => _rules.BoardMinions(_state, context.Controller).Where(id => id != context.Source),
@@ -178,6 +209,7 @@ public sealed partial class GameSimulator
                 EnchantmentDuration.UntilNextTurn => checked(_state.Turn + (_state.ActivePlayer == context.Controller ? 1 : 0)),
                 _ => null
             };
+            var damageCleared = false;
             foreach (var id in targets.ToArray())
             {
                 if (_state.LocationOf(id).Zone != GameZone.Play)
@@ -191,7 +223,10 @@ public sealed partial class GameSimulator
                 };
                 // 设定生命值时只在效果应用的那一刻清除已有伤害。
                 if (effect.Modifier is { Mode: StatModifierMode.Set, MaximumHealth: not null })
+                {
+                    damageCleared |= character.Damage > 0;
                     character = character with { Damage = 0 };
+                }
                 if (effect.GrantedTag == GAME_TAG.DIVINE_SHIELD)
                     character = character with { DivineShield = true };
                 _state = _state.UpdateEntity(RecalculateStats(entity with
@@ -200,6 +235,8 @@ public sealed partial class GameSimulator
                 }, entity.AuraGrants));
                 _events.Add(new(SimulationEventKind.EnchantmentApplied, context.Controller, context.Source, id));
             }
+            if (damageCleared)
+                _state = _rules.RefreshAuras(_state);
         }
 
         private void Silence(Stack<Work> work, EffectContext context)

@@ -10,7 +10,8 @@ public sealed partial class GameSimulator
         private readonly HashSet<ListenerId> _activeTriggers = [];
 
         private readonly record struct EffectContext(EntityId Source, PlayerId Controller,
-            EntityId? Selected = null, EntityId? Subject = null, int? DeathPosition = null);
+            EntityId? Selected = null, EntityId? Subject = null, int? DeathPosition = null,
+            int CardsPlayedBefore = 0);
 
         private readonly record struct DamageSource(EntityId Id, PlayerId Controller);
 
@@ -94,6 +95,8 @@ public sealed partial class GameSimulator
                     (trigger.Relation == TriggerRelation.Opponent && listener.Controller == player) ||
                     (trigger.EntityMatch == TriggerEntityMatch.Self && listener.Id.Entity != entityId) ||
                     (trigger.EntityMatch == TriggerEntityMatch.Other && listener.Id.Entity == entityId) ||
+                    (trigger.SecretOnly &&
+                        (entityId is not EntityId secretId || !_rules.Card(_state.Entities[secretId]).IsSecret)) ||
                     (trigger.EntityKind is EntityKind kind &&
                         (entityId is not EntityId id || _rules.Card(_state.Entities[id]).Definition.Kind != kind)) ||
                     (trigger.CardFilter is { } cards &&

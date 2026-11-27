@@ -4,6 +4,29 @@ namespace Silverfish.Simulation;
 
 public sealed partial class GameSimulator
 {
+    public int EffectiveWeaponAttack(GameState state, GameEntity weapon)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(weapon);
+        if (weapon.Weapon is not { Durability: > 0 } stats || state.LocationOf(weapon.Id).Zone != GameZone.Play)
+            return 0;
+
+        long attack = stats.Attack;
+        if (_hasWeaponAuras)
+        {
+            foreach (var id in BoardMinions(state, weapon.Controller))
+            {
+                var source = state.Entities[id];
+                if (source.Silenced || source.Character is not { Health: > 0 })
+                    continue;
+                foreach (var aura in Card(source).WeaponAuras)
+                    if (IsAuraActive(state, source, aura.Condition))
+                        attack += aura.Attack;
+            }
+        }
+        return (int)Math.Clamp(attack, 0, int.MaxValue);
+    }
+
     public int EffectiveAttack(GameState state, GameEntity entity)
     {
         if (entity.Character is not { } character)
@@ -15,7 +38,7 @@ public sealed partial class GameSimulator
         if (entity.Controller != state.ActivePlayer)
             return 0;
 
-        var weaponAttack = player.EquippedWeapon is EntityId weapon ? state.Entities[weapon].Weapon!.Attack : 0;
+        var weaponAttack = player.EquippedWeapon is EntityId weapon ? EffectiveWeaponAttack(state, state.Entities[weapon]) : 0;
         return checked(character.Attack + weaponAttack);
     }
 
@@ -51,6 +74,7 @@ public sealed partial class GameSimulator
         private void SetEquippedWeapon(PlayerId player, EntityId id)
         {
             _state = _state.EquipWeapon(player, id);
+            _state = _rules.RefreshAuras(_state);
             _events.Add(new(SimulationEventKind.WeaponEquipped, player, id, _state.Players[player].Hero));
         }
 
@@ -65,7 +89,7 @@ public sealed partial class GameSimulator
             _events.Add(new(SimulationEventKind.WeaponDurabilityLost, entity.Controller, id, Amount: 1));
         }
 
-        private void HealFriendlyHero(EffectContext context, int amount) =>
-            _ = HealCharacter(context, _state.Players[context.Controller].Hero, amount);
+        private Occurrence? HealFriendlyHero(EffectContext context, int amount) =>
+            HealCharacter(context, _state.Players[context.Controller].Hero, amount);
     }
 }

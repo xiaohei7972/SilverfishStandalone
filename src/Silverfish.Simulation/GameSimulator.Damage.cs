@@ -11,11 +11,13 @@ public sealed partial class GameSimulator
     private sealed partial class Resolution
     {
         private Occurrence? Damage(EntityId? source, EntityId target, int amount, EntityId? attackingWeapon = null,
-            List<(EffectContext Context, int Amount)>? deferredLifesteal = null)
+            List<(EffectContext Context, int Amount)>? deferredLifesteal = null, bool allowLifesteal = true)
         {
             if (amount <= 0 || _state.LocationOf(target).Zone != GameZone.Play)
                 return null;
             var entity = _state.Entities[target];
+            if (_rules.HasEffectiveTag(entity, GAME_TAG.IMMUNE))
+                return null;
             var character = entity.Character!;
             if (character.DivineShield)
             {
@@ -34,6 +36,9 @@ public sealed partial class GameSimulator
 
             var absorbed = Math.Min(character.Armor, amount);
             var healthDamage = amount - absorbed;
+            if (character.Health > 0 && healthDamage >= character.Health && ResolveFatalDamageWindow(target, amount))
+                return null;
+
             var fromActivePlayer = source is EntityId attacker &&
                 _state.Entities.TryGetValue(attacker, out var attackingEntity) &&
                 attackingEntity.Controller == _state.ActivePlayer;
@@ -51,6 +56,8 @@ public sealed partial class GameSimulator
                 Armor = character.Armor - absorbed,
                 Damage = checked(character.Damage + healthDamage)
             });
+            if (healthDamage > 0)
+                _state = _rules.RefreshAuras(_state);
             _events.Add(new(SimulationEventKind.Damage, entity.Controller, source, target, amount)
             {
                 AttackingWeapon = attackingWeapon,
@@ -61,7 +68,7 @@ public sealed partial class GameSimulator
 
             var poisonous = healthDamage > 0 && _rules.Card(entity).Definition.Kind == EntityKind.Minion &&
                 HasDamageKeyword(CardKeywords.Poisonous);
-            if (HasDamageKeyword(CardKeywords.Lifesteal) && source is EntityId sourceId &&
+            if (allowLifesteal && HasDamageKeyword(CardKeywords.Lifesteal) && source is EntityId sourceId &&
                 _state.Entities.TryGetValue(sourceId, out var sourceEntity))
             {
                 var keywordOwner = attackingWeapon is EntityId weaponId &&
@@ -69,7 +76,7 @@ public sealed partial class GameSimulator
                     _rules.HasKeyword(weaponEntity, CardKeywords.Lifesteal) ? weaponId : sourceId;
                 var healContext = new EffectContext(keywordOwner, sourceEntity.Controller);
                 if (deferredLifesteal is null)
-                    HealFriendlyHero(healContext, amount);
+                    _ = HealFriendlyHero(healContext, amount);
                 else
                     deferredLifesteal.Add((healContext, amount));
             }

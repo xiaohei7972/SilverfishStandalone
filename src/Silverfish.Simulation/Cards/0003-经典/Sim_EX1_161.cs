@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 自然平衡
 // Naturalize
 // 消灭一个随从，你的对手抽两张牌。
 // Destroy a minion. Your opponent draws 2_cards.
+[CardSim("EX1_161")]
 internal static class Sim_EX1_161
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_EX1_161
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new DestroyMinionEffect(), new DrawEffect(2, CardRecipient.Opponent)]
+    };
 }

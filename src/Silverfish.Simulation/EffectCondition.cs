@@ -5,7 +5,7 @@ namespace Silverfish.Simulation;
 
 public enum ConditionCharacter { Source, Selected, TriggerSubject, FriendlyHero, EnemyHero }
 public enum CharacterMetric { Health, Damage, Attack, Armor }
-public enum CharacterDisposition { Alive, Dead }
+public enum CharacterDisposition { Alive, Dead, Frozen }
 public enum ConditionPlayer { Friendly, Opponent }
 public enum NumberComparison { Equal, AtLeast, AtMost }
 
@@ -14,6 +14,7 @@ public enum NumberComparison { Equal, AtLeast, AtMost }
 [JsonDerivedType(typeof(CharacterCondition), "character")]
 [JsonDerivedType(typeof(CharacterStateCondition), "characterState")]
 [JsonDerivedType(typeof(ZoneCountCondition), "zoneCount")]
+[JsonDerivedType(typeof(ComboCondition), "combo")]
 public abstract record EffectCondition;
 
 public sealed record CharacterCondition(
@@ -35,3 +36,5 @@ public sealed record ZoneCountCondition(
 {
     public CardFilter? CardFilter { get; init; }
 }
+
+public sealed record ComboCondition : EffectCondition;

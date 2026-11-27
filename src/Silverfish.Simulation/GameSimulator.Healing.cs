@@ -46,6 +46,9 @@ public sealed partial class GameSimulator
                 entity.Character is not { } character || _pendingDestruction.Contains(target))
                 return null;
 
+            if (HasHealingDealsDamage(context.Controller))
+                return Damage(context.Source, target, amount, allowLifesteal: false);
+
             // Death checking is deferred until the resolution phase ends. A
             // character at zero or negative Health may still be saved by healing.
             var restored = Math.Min(amount, character.Damage);
@@ -53,6 +56,7 @@ public sealed partial class GameSimulator
             if (restored > 0)
             {
                 _state = _state.UpdateCharacter(target, character with { Damage = character.Damage - restored });
+                _state = _rules.RefreshAuras(_state);
                 _events.Add(new(SimulationEventKind.Healed, entity.Controller, context.Source, target, restored));
             }
 

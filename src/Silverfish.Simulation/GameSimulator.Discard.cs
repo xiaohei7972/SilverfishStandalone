@@ -60,7 +60,7 @@ public sealed partial class GameSimulator
                 if (selection == DiscardSelection.Random)
                     return 0;
                 var entity = _state.Entities[id];
-                var cost = EffectiveCost(entity, _rules.Card(entity), auras);
+                var cost = _rules.EffectiveCost(_state, entity, _rules.Card(entity), auras);
                 return selection == DiscardSelection.HighestCost ? cost : -cost;
             }
         }

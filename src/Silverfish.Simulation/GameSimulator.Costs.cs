@@ -33,7 +33,7 @@ public sealed partial class GameSimulator
             state.LocationOf(id).Zone is not (GameZone.Hand or GameZone.HeroPower))
             throw new ArgumentException($"实体 {id} 必须是手牌或英雄技能，才能查询当前费用。", nameof(id));
 
-        return EffectiveCost(entity, Card(entity), ActiveCostAuras(state, entity.Controller));
+        return EffectiveCost(state, entity, Card(entity), ActiveCostAuras(state, entity.Controller));
     }
 
     private ImmutableArray<CostAura> ActiveCostAuras(GameState state, PlayerId recipient)
@@ -54,16 +54,26 @@ public sealed partial class GameSimulator
                     continue;
 
                 foreach (var aura in Card(source).CostAuras)
-                    if (aura.Recipient == relation || aura.Recipient == CostAuraRecipient.BothPlayers)
+                    if ((aura.Recipient == relation || aura.Recipient == CostAuraRecipient.BothPlayers) &&
+                        (!aura.FirstMinionEachTurn || !state.Players[recipient].PlayedMinionThisTurn.GetValueOrDefault()))
                         applicable.Add(aura);
             }
         }
         return applicable.ToImmutable();
     }
 
-    private static int EffectiveCost(GameEntity entity, SimulationCard card, ImmutableArray<CostAura> auras)
+    private int SelfCostDiscount(GameState state, GameEntity entity, SelfCostReduction reduction) => reduction switch
     {
-        long cost = card.Definition.PrintedCost;
+        SelfCostReduction.None => 0,
+        SelfCostReduction.OtherMinionsOnBattlefield => state.Players.Keys
+            .SelectMany(player => BoardMinions(state, player))
+            .Count(id => id != entity.Id),
+        _ => throw new InvalidOperationException("无法识别卡牌自身的减费条件。")
+    };
+
+    private int EffectiveCost(GameState state, GameEntity entity, SimulationCard card, ImmutableArray<CostAura> auras)
+    {
+        long cost = card.Definition.PrintedCost - SelfCostDiscount(state, entity, card.SelfCostReduction);
         foreach (var modifier in entity.CostModifiers)
             cost += modifier.Delta;
 

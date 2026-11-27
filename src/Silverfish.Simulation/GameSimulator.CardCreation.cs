@@ -40,6 +40,28 @@ public sealed partial class GameSimulator
             }
         }
 
+        private void SummonDeckCopy(Stack<Work> work, EffectContext context, SummonDeckCopyEffect effect)
+        {
+            var player = context.Controller;
+            if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
+                return;
+
+            var deckOwner = effect.SourceDeck == ConditionPlayer.Friendly
+                ? player : _state.OpponentOf(player);
+            var deck = _state.Players[deckOwner].In(GameZone.Deck);
+            var chosen = ChooseDeckCard(deck, effect.CardFilter, EntityKind.Minion);
+            var cardId = chosen is EntityId entityId ? _state.Entities[entityId].CardId : effect.FallbackCardId;
+            if (cardId is null)
+                return;
+
+            SpendResolutionStep();
+            if (effect.Count > 1 && chosen is not null)
+                work.Push(new ApplyEffect(context, effect with { Count = effect.Count - 1 }));
+
+            if (Summon(player, cardId, position: null) is EntityId summoned)
+                PushSummonTriggers(work, player, summoned);
+        }
+
         private bool TryCreateCard(string cardId, PlayerId recipient, EntityId source, CardPlacement placement)
         {
             var player = _state.Players[recipient];

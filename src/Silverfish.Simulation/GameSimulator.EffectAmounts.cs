@@ -6,12 +6,20 @@ public sealed partial class GameSimulator
 {
     private sealed partial class Resolution
     {
+        private bool HasHealingDealsDamage(PlayerId controller) =>
+            _rules._hasHealingDealsDamage && _rules.BoardMinions(_state, controller).Any(id =>
+            {
+                var minion = _state.Entities[id];
+                return !minion.Silenced && IsLivingCharacter(id) && _rules.Card(minion).HealingDealsDamage;
+            });
+
         private int ModifiedEffectAmount(EffectContext context, int amount, bool damage)
         {
             var sourceKind = _rules.Card(_state.Entities[context.Source]).Definition.Kind;
             if (sourceKind is not (EntityKind.Spell or EntityKind.HeroPower))
                 return amount;
 
+            var effectiveDamage = damage || HasHealingDealsDamage(context.Controller);
             var multiplier = 1;
             foreach (var id in _rules.BoardMinions(_state, context.Controller))
             {
@@ -20,7 +28,7 @@ public sealed partial class GameSimulator
                     continue;
 
                 var card = _rules.Card(minion);
-                if (damage && sourceKind == EntityKind.Spell)
+                if (effectiveDamage && sourceKind == EntityKind.Spell)
                     amount = checked(amount + card.SpellDamage);
                 if (card.SpellAndHeroPowerMultiplier is int factor)
                     multiplier = checked(multiplier * factor);

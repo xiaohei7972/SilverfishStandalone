@@ -5,7 +5,7 @@ namespace Silverfish.Simulation;
 public sealed partial class GameSimulator
 {
     private static bool IsValidCondition(EffectCondition? condition, TargetRequirement target,
-        bool hasCharacterSubject, bool hasInPlaySource) => condition switch
+        bool hasCharacterSubject, bool hasInPlaySource, bool canUseCombo = false) => condition switch
     {
         CharacterCondition character => IsValidCharacterComparison(character.Metric, character.Comparison, character.Value) &&
             IsValidConditionCharacter(character.Target, target, hasCharacterSubject, hasInPlaySource),
@@ -14,6 +14,7 @@ public sealed partial class GameSimulator
         ZoneCountCondition count => count.Value >= 0 && Enum.IsDefined(count.Player) && Enum.IsDefined(count.Zone) &&
             Enum.IsDefined(count.Comparison) && IsValidCardFilter(count.CardFilter) &&
             (count.EntityKind is not EntityKind kind || (Enum.IsDefined(kind) && kind != EntityKind.Unknown)),
+        ComboCondition => canUseCombo,
         _ => false
     };
 
@@ -60,6 +61,7 @@ public sealed partial class GameSimulator
             CharacterCondition character => MeetsCharacterCondition(context, character),
             CharacterStateCondition state => MeetsCharacterStateCondition(context, state),
             ZoneCountCondition count => TestComparison(CountEntities(context, count), count.Comparison, count.Value),
+            ComboCondition => context.CardsPlayedBefore > 0,
             _ => throw new InvalidOperationException("无法识别效果条件。")
         };
 
@@ -90,6 +92,7 @@ public sealed partial class GameSimulator
             {
                 CharacterDisposition.Alive => IsLivingCharacter(id),
                 CharacterDisposition.Dead => IsDeadOrDyingCharacter(id),
+                CharacterDisposition.Frozen => IsLivingCharacter(id) && _state.Entities[id!.Value].Character is { Frozen: true },
                 _ => throw new InvalidOperationException("无法识别角色状态条件。")
             };
         }

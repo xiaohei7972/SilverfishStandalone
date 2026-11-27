@@ -32,6 +32,9 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
     public int OverloadOwed { get; init; }
     public int OverloadLocked { get; init; }
     public bool? PlayedCardThisTurn { get; init; }
+    public bool? PlayedMinionThisTurn { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int CardsPlayedThisTurn { get; init; }
     public bool? PlayedElementalThisTurn { get; init; }
     public bool? PlayedElementalLastTurn { get; init; }
     public bool? HeroHealthChangedThisTurn { get; init; }
@@ -383,7 +386,7 @@ public sealed class GameState
             player.MaximumManaCrystals < 1 || player.ManaCrystals > player.MaximumManaCrystals ||
             player.Fatigue < 0 || player.HeroPowerUsesThisTurn is < 0 or > 1 || player.ManaSpent is < 0 ||
             player.TemporaryMana < 0 || player.OverloadLocked < 0 || player.OverloadOwed < 0 ||
-            player.Corpses is < 0 || player.CorpsesSpentThisGame < 0)
+            player.CardsPlayedThisTurn < 0 || player.Corpses is < 0 || player.CorpsesSpentThisGame < 0)
             throw new ArgumentException("玩家 ID 或资源数值无效。");
     }
 

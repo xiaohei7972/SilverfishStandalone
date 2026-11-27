@@ -203,7 +203,7 @@ public sealed partial class GameSimulator
         var ch = target.Character;
         bool Printed(GAME_TAG tag) => PlayReqTags.Has(card.RequirementTagMask, (int)tag);
         var stealth = IsStealthed(target);
-        if (!friendly && (stealth || (!target.Silenced && (Printed(GAME_TAG.IMMUNE) || Printed(GAME_TAG.CANT_BE_TARGETED_BY_OPPONENTS)))))
+        if (!friendly && (stealth || HasEffectiveTag(target, GAME_TAG.IMMUNE) || (!target.Silenced && Printed(GAME_TAG.CANT_BE_TARGETED_BY_OPPONENTS))))
             return new("敌方目标不可指定", stealth ? REQ_NONSTEALTH_ENEMY_TARGET : REQ_CAN_BE_TARGETED_BY_OPPONENTS);
         if (sourceKind == EntityKind.Spell && (HasEffectiveTag(target, GAME_TAG.ELUSIVE) || HasEffectiveTag(target, GAME_TAG.CANT_BE_TARGETED_BY_SPELLS)) ||
             sourceKind == EntityKind.HeroPower && (HasEffectiveTag(target, GAME_TAG.ELUSIVE) || HasEffectiveTag(target, GAME_TAG.CANT_BE_TARGETED_BY_HERO_POWERS)))
