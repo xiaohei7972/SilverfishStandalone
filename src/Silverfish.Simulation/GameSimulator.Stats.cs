@@ -91,12 +91,16 @@ public sealed partial class GameSimulator
         }
     }
 
-    private static bool IsAuraActive(GameState state, GameEntity source, AuraCondition condition) => condition switch
+    private bool IsAuraActive(GameState state, GameEntity source, AuraCondition condition) => condition switch
     {
         AuraCondition.None => true,
         AuraCondition.WhileDamaged => source.Character is { Damage: > 0 },
         AuraCondition.WhileWeaponEquipped => state.Players[source.Controller].EquippedWeapon is EntityId weapon &&
             state.Entities[weapon].Weapon is { Durability: > 0 },
+        AuraCondition.WhileControllingMech => BoardMinions(state, source.Controller).Any(id =>
+            state.Entities[id].Character is { Health: > 0 } &&
+            MatchesMinionType(Card(state.Entities[id]).Definition, MinionType.Mech)),
+        AuraCondition.WhileOpponentHasAtLeastSixHandCards => state.Players[state.OpponentOf(source.Controller)].In(GameZone.Hand).Length >= 6,
         _ => false
     };
 
@@ -219,7 +223,7 @@ public sealed partial class GameSimulator
                 StatTarget.FriendlyMinions => _rules.BoardMinions(_state, context.Controller),
                 StatTarget.OtherFriendlyMinions => _rules.BoardMinions(_state, context.Controller).Where(id => id != context.Source),
                 StatTarget.AdjacentFriendlyMinions => AdjacentMinions(context.Source),
-                StatTarget.RandomOtherFriendlyMinion => PickRandomOtherFriendlyMinion(context),
+                StatTarget.RandomOtherFriendlyMinion => PickRandomOtherFriendlyMinion(context, effect.CardFilter),
                 StatTarget.AllMinions => _state.Players.Values.SelectMany(player => _rules.BoardMinions(_state, player.Id))
                     .OrderBy(id => _state.Entities[id].PlayOrder),
                 _ => throw new InvalidOperationException("无法识别属性附魔的目标。")
@@ -233,28 +237,59 @@ public sealed partial class GameSimulator
             var damageCleared = false;
             foreach (var id in targets.ToArray())
             {
-                if (_state.LocationOf(id).Zone != GameZone.Play)
-                    continue;
+                var zone = _state.LocationOf(id).Zone;
                 var entity = _state.Entities[id];
-                if (entity.Character is not { } character ||
-                    (effect.CardFilter is { } cardFilter && !MatchesCardFilter(_rules.Card(entity).Definition, cardFilter)) ||
-                    effect.GrantedTag == GAME_TAG.DIVINE_SHIELD && character.DivineShield)
-                    continue;
-                var enchantment = new StatEnchantment(context.Source, effect.Modifier, expires)
+                if (zone == GameZone.Hand && _rules.Card(entity).Definition.Kind == EntityKind.Minion &&
+                    effect.Target == StatTarget.Source && effect.Modifier is not null)
                 {
-                    CardId = effect.EnchantmentCardId, GrantedTag = effect.GrantedTag
-                };
+                    var handEnchant = new StatEnchantment(context.Source, effect.Modifier, expires)
+                    {
+                        CardId = effect.EnchantmentCardId, GrantedTag = effect.GrantedTag
+                    };
+                    _state = _state.UpdateEntity(entity with { Enchantments = entity.Enchantments.Add(handEnchant) });
+                    _events.Add(new(SimulationEventKind.EnchantmentApplied, context.Controller, context.Source, id));
+                    continue;
+                }
+                if (zone != GameZone.Play)
+                    continue;
+                if (entity.Character is not { } character ||
+                    (effect.CardFilter is { } cardFilter && !MatchesCardFilter(_rules.Card(entity), cardFilter)) ||
+                    (effect.Modifier is null && effect.SecondaryGrantedTag is null &&
+                        effect.GrantedTag == GAME_TAG.DIVINE_SHIELD && character.DivineShield))
+                    continue;
+                var layers = entity.Enchantments;
+                if (effect.Modifier is not null || effect.GrantedTag is not GAME_TAG primaryTag ||
+                    primaryTag != GAME_TAG.DIVINE_SHIELD || !character.DivineShield)
+                {
+                    var enchantment = new StatEnchantment(context.Source, effect.Modifier, expires)
+                    {
+                        CardId = effect.EnchantmentCardId, GrantedTag = effect.GrantedTag
+                    };
+                    if (effect.GrantedTag == GAME_TAG.DIVINE_SHIELD)
+                        character = character with { DivineShield = true };
+                    layers = layers.Add(enchantment);
+                }
+                if (effect.SecondaryGrantedTag is GAME_TAG secondTag &&
+                    !(secondTag == GAME_TAG.DIVINE_SHIELD && character.DivineShield))
+                {
+                    if (secondTag == GAME_TAG.DIVINE_SHIELD)
+                        character = character with { DivineShield = true };
+                    layers = layers.Add(new StatEnchantment(context.Source, null, expires)
+                    {
+                        CardId = effect.EnchantmentCardId, GrantedTag = secondTag
+                    });
+                }
                 // 设定生命值时只在效果应用的那一刻清除已有伤害。
                 if (effect.Modifier is { Mode: StatModifierMode.Set, MaximumHealth: not null })
                 {
                     damageCleared |= character.Damage > 0;
                     character = character with { Damage = 0 };
                 }
-                if (effect.GrantedTag == GAME_TAG.DIVINE_SHIELD)
-                    character = character with { DivineShield = true };
+                if (layers.Length == entity.Enchantments.Length)
+                    continue;
                 _state = _state.UpdateEntity(RecalculateStats(entity with
                 {
-                    Character = character, Enchantments = entity.Enchantments.Add(enchantment)
+                    Character = character, Enchantments = layers
                 }, entity.AuraGrants, !entity.Silenced && _rules.Card(entity).AttackEqualsHealth));
                 _events.Add(new(SimulationEventKind.EnchantmentApplied, context.Controller, context.Source, id));
             }
@@ -262,10 +297,11 @@ public sealed partial class GameSimulator
                 _state = _rules.RefreshAuras(_state);
         }
 
-        private IEnumerable<EntityId> PickRandomOtherFriendlyMinion(EffectContext context)
+        private IEnumerable<EntityId> PickRandomOtherFriendlyMinion(EffectContext context, CardFilter? filter = null)
         {
             var candidates = _rules.BoardMinions(_state, context.Controller)
-                .Where(id => id != context.Source && IsLivingCharacter(id))
+                .Where(id => id != context.Source && IsLivingCharacter(id) &&
+                    (filter is null || MatchesCardFilter(_rules.Card(_state.Entities[id]), filter)))
                 .OrderBy(id => _state.Entities[id].PlayOrder)
                 .ToArray();
             return candidates.Length == 0 ? [] : [candidates[ChooseIndex(candidates.Length)]];
@@ -293,6 +329,9 @@ public sealed partial class GameSimulator
                 StatScaleSource.FriendlyHandCount => _state.Players[context.Controller].In(GameZone.Hand).Length,
                 StatScaleSource.EquippedWeaponAttack => _state.Players[context.Controller].EquippedWeapon is EntityId w
                     ? _rules.EffectiveWeaponAttack(_state, _state.Entities[w]) : 0,
+                StatScaleSource.EnemyDeathrattleMinions => _rules.BoardMinions(_state, _state.OpponentOf(context.Controller))
+                    .Count(id => IsLivingCharacter(id) &&
+                        MatchesCardFilter(_rules.Card(_state.Entities[id]), new() { HasDeathrattle = true })),
                 _ => throw new InvalidOperationException("无法识别属性缩放来源。")
             };
             if (count <= 0)

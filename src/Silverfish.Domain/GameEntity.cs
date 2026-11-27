@@ -78,3 +78,5 @@ public sealed record TemporaryCostAura(
     string? CardId = null,
     MinionType? MinionType = null,
     bool Persistent = false);
+
+public sealed record PendingAwaken(string CardId, int Remaining, MinionType? RequiredMinionType = null);

@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 沃金
 // Vol'jin
 // 战吼：与另一个随从交换生命值。
 // Battlecry: Swap Health with another minion.
+[CardSim("GVG_014")]
 internal static class Sim_GVG_014
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_GVG_014
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new SwapHealthEffect()]
+    };
 }

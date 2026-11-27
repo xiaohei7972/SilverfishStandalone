@@ -20,6 +20,8 @@ public sealed partial class GameSimulator
 
     private int AttackLimit(GameState state, GameEntity attacker)
     {
+        if (!attacker.Silenced && Card(attacker).MegaWindfury)
+            return 4;
         if (HasKeyword(attacker, CardKeywords.Windfury))
             return 2;
 

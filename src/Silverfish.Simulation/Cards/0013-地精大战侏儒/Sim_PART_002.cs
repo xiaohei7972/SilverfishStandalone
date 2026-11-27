@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 时间回溯装置
 // Time Rewinder
 // 将一个友方随从移回你的手牌。
 // Return a friendly minion to your hand.
+[CardSim("PART_002")]
 internal static class Sim_PART_002
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_PART_002
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new ReturnMinionEffect()]
+    };
 }

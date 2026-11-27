@@ -14,6 +14,9 @@ public sealed partial class GameSimulator
         long attack = stats.Attack;
         if (_hasWeaponAuras)
         {
+            foreach (var aura in Card(weapon).WeaponAuras)
+                if (IsAuraActive(state, weapon, aura.Condition))
+                    attack += aura.Attack;
             foreach (var id in BoardMinions(state, weapon.Controller))
             {
                 var source = state.Entities[id];
@@ -34,7 +37,17 @@ public sealed partial class GameSimulator
 
         var player = state.Players[entity.Controller];
         if (entity.Id != player.Hero)
-            return !entity.Silenced && Card(entity).AttackEqualsHealth ? Math.Max(0, character.Health) : character.Attack;
+        {
+            if (entity.Silenced)
+                return character.Attack;
+            var card = Card(entity);
+            var attack = card.AttackEqualsHealth ? Math.Max(0, character.Health) : character.Attack;
+            if (card.AttackPerOtherFriendlyMinionType is MinionType race)
+                attack = checked(attack + BoardMinions(state, entity.Controller).Count(id =>
+                    id != entity.Id && state.Entities[id].Character is { Health: > 0 } &&
+                    MatchesMinionType(Card(state.Entities[id]).Definition, race)));
+            return attack;
+        }
         if (entity.Controller != state.ActivePlayer)
             return 0;
 

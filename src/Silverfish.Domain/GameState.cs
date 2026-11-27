@@ -50,6 +50,8 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
         ImmutableDictionary<GameZone, ImmutableArray<EntityId>>.Empty;
     public ImmutableArray<TemporaryCostAura> TemporaryCostAuras { get; init; } = [];
     public ImmutableArray<string> EndOfTurnHandAdditions { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<PendingAwaken> PendingAwakens { get; init; } = [];
 
     public ImmutableArray<EntityId> In(GameZone zone) =>
         Zones.TryGetValue(zone, out var entities) ? entities : ImmutableArray<EntityId>.Empty;

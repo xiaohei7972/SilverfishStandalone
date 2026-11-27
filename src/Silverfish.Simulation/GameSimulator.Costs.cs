@@ -72,6 +72,8 @@ public sealed partial class GameSimulator
         SelfCostReduction.FriendlyHeroMissingHealth => state.Entities[state.Players[entity.Controller].Hero].Character?.Damage ?? 0,
         SelfCostReduction.MinionsDiedThisTurn => state.MinionDeaths.Count(d => d.Turn == state.Turn),
         SelfCostReduction.OpponentHandCards => state.Players[state.OpponentOf(entity.Controller)].In(GameZone.Hand).Length,
+        SelfCostReduction.FourIfControllingDamagedMinion => BoardMinions(state, entity.Controller)
+            .Any(id => state.Entities[id].Character is { Damage: > 0 }) ? 4 : 0,
         _ => throw new InvalidOperationException("无法识别卡牌自身的减费条件。")
     };
 

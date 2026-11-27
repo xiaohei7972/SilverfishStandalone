@@ -307,7 +307,7 @@ public sealed partial class GameSimulator
 
         private void SummonFromHand(Stack<Work> work, EffectContext context, SummonFromHandEffect effect)
         {
-            var player = context.Controller;
+            var player = ResolveRecipient(effect.Recipient, context.Controller);
             for (var i = 0; i < effect.Count; i++)
             {
                 if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
@@ -347,6 +347,118 @@ public sealed partial class GameSimulator
             {
                 _events.Add(new(SimulationEventKind.Resurrected, owner, id, summoned));
                 PushSummonTriggers(work, owner, summoned);
+            }
+        }
+
+        private void SwapHealth(EffectContext context)
+        {
+            var targetId = context.Selected!.Value;
+            if (!IsLivingCharacter(context.Source) || !IsLivingCharacter(targetId))
+                return;
+
+            var source = _state.Entities[context.Source];
+            var target = _state.Entities[targetId];
+            if (source.Character is not { } sourceChar || target.Character is not { } targetChar)
+                return;
+
+            var sourceHealth = Math.Max(0, sourceChar.Health);
+            var targetHealth = Math.Max(0, targetChar.Health);
+            EnchantStats(context, new(StatTarget.Source, new(StatModifierMode.Set, MaximumHealth: targetHealth)));
+            EnchantStats(context, new(StatTarget.Selected, new(StatModifierMode.Set, MaximumHealth: sourceHealth)));
+        }
+
+        private void ShuffleMinionIntoDeck(Stack<Work> work, EffectContext context, ShuffleMinionIntoDeckEffect effect)
+        {
+            var id = (effect.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value;
+            if (!IsLivingCharacter(id) || _rules.Card(_state.Entities[id]).Definition.Kind != EntityKind.Minion)
+                return;
+
+            var entity = _state.Entities[id];
+            var owner = entity.Controller;
+            _state = _state.Move(id, new(owner, GameZone.Deck));
+            _state = _state.UpdateEntity(_state.Entities[id] with
+            {
+                Character = null, Silenced = false, Stealthed = null, Enchantments = [], AuraGrants = []
+            });
+            _state = _rules.RefreshAuras(_state);
+            _events.Add(new(SimulationEventKind.CardAddedToDeck, owner, context.Source, id));
+            PushEnchantmentRemovalEffects(work, entity, entity.Enchantments, EnchantmentRemovalReason.LeftPlay);
+            ShuffleDeck(owner, context.Source);
+        }
+
+        private void StealRandomEnemySecret(EffectContext context)
+        {
+            var controller = context.Controller;
+            var enemy = _state.OpponentOf(controller);
+            var candidates = _state.Players[enemy].In(GameZone.Secret)
+                .Where(id => CanArmSecret(_state, _state.Players[controller], _state.Entities[id].CardId))
+                .ToArray();
+            if (candidates.Length == 0)
+                return;
+
+            var chosen = candidates[ChooseIndex(candidates.Length)];
+            _state = _state.Move(chosen, new(controller, GameZone.Secret));
+            _events.Add(new(SimulationEventKind.ControlChanged, controller, context.Source, chosen));
+            _events.Add(new(SimulationEventKind.SecretArmed, controller, chosen));
+        }
+
+        private void MimironCombine(Stack<Work> work, EffectContext context, MimironCombineEffect effect)
+        {
+            if (!IsLivingCharacter(context.Source))
+                return;
+
+            var controller = context.Controller;
+            var mechs = _rules.BoardMinions(_state, controller)
+                .Where(id => IsLivingCharacter(id) && MatchesCardFilter(_rules.Card(_state.Entities[id]), new() { MinionType = MinionType.Mech }))
+                .OrderBy(id => _state.Entities[id].PlayOrder)
+                .ToArray();
+            if (mechs.Length < effect.MinimumMechs)
+                return;
+
+            foreach (var id in mechs)
+                RemoveImmediately(_state.Entities[id]);
+            ResolveDeaths();
+            if (_rules.BoardSlotCount(_state, controller) < BoardLimit && Summon(controller, effect.TokenCardId, position: null) is EntityId summoned)
+                PushSummonTriggers(work, controller, summoned);
+        }
+
+        private void ScheduleDormantAwaken(EffectContext context, ScheduleDormantAwakenEffect effect)
+        {
+            var player = _state.Players[context.Controller];
+            var entry = new PendingAwaken(effect.CardId, effect.RequiredDeaths, effect.RequiredMinionType);
+            _state = _state.UpdateResources(player with { PendingAwakens = player.PendingAwakens.Add(entry) });
+        }
+
+        private void ProcessPendingAwakens(Stack<Work> work, PlayerId controller, GameEntity deadMinion)
+        {
+            var player = _state.Players[controller];
+            if (player.PendingAwakens.IsEmpty)
+                return;
+
+            var deadDef = _rules.Card(deadMinion).Definition;
+            var remaining = ImmutableArray.CreateBuilder<PendingAwaken>();
+            var awakened = new List<string>();
+            foreach (var awaken in player.PendingAwakens)
+            {
+                if (awaken.RequiredMinionType is MinionType race && !MatchesMinionType(deadDef, race))
+                {
+                    remaining.Add(awaken);
+                    continue;
+                }
+                var next = awaken.Remaining - 1;
+                if (next <= 0)
+                    awakened.Add(awaken.CardId);
+                else
+                    remaining.Add(awaken with { Remaining = next });
+            }
+
+            _state = _state.UpdateResources(player with { PendingAwakens = remaining.ToImmutable() });
+            foreach (var cardId in awakened)
+            {
+                if (_rules.BoardSlotCount(_state, controller) >= BoardLimit)
+                    break;
+                if (Summon(controller, cardId, position: null) is EntityId summoned)
+                    PushSummonTriggers(work, controller, summoned);
             }
         }
 

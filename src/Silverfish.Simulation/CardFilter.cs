@@ -13,6 +13,7 @@ public sealed record CardFilter
     public bool? HasBattlecry { get; init; }
     public bool? HasDeathrattle { get; init; }
     public bool? IsLegendary { get; init; }
+    public string? CardId { get; init; }
 }
 
 public sealed partial class GameSimulator
@@ -38,7 +39,8 @@ public sealed partial class GameSimulator
         (filter.MinionType is not MinionType type || MatchesMinionType(definition, type)) &&
         (filter.SpellSchool is not SpellSchool school || definition.SpellSchool.GetValueOrDefault() == school) &&
         (filter.MinimumPrintedCost is not int minimum || definition.PrintedCost >= minimum) &&
-        (filter.MaximumPrintedCost is not int maximum || definition.PrintedCost <= maximum);
+        (filter.MaximumPrintedCost is not int maximum || definition.PrintedCost <= maximum) &&
+        (filter.CardId is null || definition.CardId == filter.CardId);
 
     private static bool MatchesCardFilter(SimulationCard card, CardFilter filter) =>
         MatchesCardFilter(card.Definition, filter) &&

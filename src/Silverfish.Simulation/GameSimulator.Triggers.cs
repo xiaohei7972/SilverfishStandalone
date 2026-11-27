@@ -59,6 +59,14 @@ public sealed partial class GameSimulator
                 for (var index = 0; index < triggers.Length; index++)
                     listeners.Add(new(new(entity.Id, index), entity.CardId, entity.Controller, entity.PlayOrder!.Value, zone, triggers[index]));
             }
+            foreach (var player in _state.Players.Values)
+            foreach (var id in player.In(GameZone.Hand))
+            {
+                var entity = _state.Entities[id];
+                var inHand = _rules.Card(entity).InHandTriggers;
+                for (var index = 0; index < inHand.Length; index++)
+                    listeners.Add(new(new(entity.Id, index), entity.CardId, entity.Controller, long.MaxValue - 1, GameZone.Hand, inHand[index]));
+            }
             return listeners.ToImmutable();
         }
 
@@ -96,6 +104,7 @@ public sealed partial class GameSimulator
 
                 if ((trigger.Relation == TriggerRelation.Friendly && listener.Controller != player) ||
                     (trigger.Relation == TriggerRelation.Opponent && listener.Controller == player) ||
+                    (trigger.ControllerTurnOnly && listener.Controller != _state.ActivePlayer) ||
                     (trigger.EntityMatch == TriggerEntityMatch.Self && listener.Id.Entity != entityId) ||
                     (trigger.EntityMatch == TriggerEntityMatch.Other && listener.Id.Entity == entityId) ||
                     (trigger.SecretOnly &&
@@ -106,6 +115,10 @@ public sealed partial class GameSimulator
                         (entityId is not EntityId id || _rules.Card(_state.Entities[id]).Definition.Kind != kind)) ||
                     (trigger.AttackingKind is EntityKind atkKind &&
                         (occurrence.Subject is not EntityId attackerId || _rules.Card(_state.Entities[attackerId]).Definition.Kind != atkKind)) ||
+                    (trigger.ExactPrintedAttack is int exactAtk &&
+                        (entityId is not EntityId atkEntityId || _rules.Card(_state.Entities[atkEntityId]).Definition.PrintedAttack != exactAtk)) ||
+                    (trigger.ExcludeCardId is string excludedCardId &&
+                        entityId is EntityId excludedId && _state.Entities[excludedId].CardId == excludedCardId) ||
                     (trigger.CardFilter is { } cards &&
                         (entityId is not EntityId filtered || !MatchesCardFilter(_rules.Card(_state.Entities[filtered]), cards))) ||
                     (trigger.RequireLivingEntity && !IsLivingCharacter(entityId)))
@@ -229,7 +242,8 @@ public sealed partial class GameSimulator
         {
             var entity = _state.Entities[listener.Id.Entity];
             return !entity.Silenced && _state.LocationOf(entity.Id).Zone == listener.Zone &&
-                entity.Controller == listener.Controller && entity.PlayOrder == listener.PlayOrder &&
+                entity.Controller == listener.Controller &&
+                (listener.Zone == GameZone.Hand || entity.PlayOrder == listener.PlayOrder) &&
                 entity.CardId == listener.CardId &&
                 (entity.Weapon is not { } weapon ||
                     (_state.Players[listener.Controller].EquippedWeapon == entity.Id &&

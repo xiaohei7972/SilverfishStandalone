@@ -26,6 +26,10 @@ public sealed partial class GameSimulator
                 HealTarget.AllFriendlyCharacters => _state.Players[context.Controller].In(GameZone.Play)
                     .Where(id => _state.Entities[id].Character is not null)
                     .OrderBy(id => _state.Entities[id].PlayOrder).ToArray(),
+                HealTarget.AllCharacters => _state.Players.Keys
+                    .SelectMany(player => _state.Players[player].In(GameZone.Play))
+                    .Where(id => _state.Entities[id].Character is not null)
+                    .OrderBy(id => _state.Entities[id].PlayOrder).ToArray(),
                 HealTarget.RandomDamagedFriendlyCharacter => PickRandomDamagedFriendlyCharacter(context),
                 _ => throw new InvalidOperationException("无法识别治疗目标。")
             };

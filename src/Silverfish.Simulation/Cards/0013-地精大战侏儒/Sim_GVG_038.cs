@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 连环爆裂
 // Crackle
 // 造成$3到$6点伤害，过载：（1）
 // Deal $3-$6 damage. Overload: (1)
+[CardSim("GVG_038")]
 internal static class Sim_GVG_038
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_GVG_038
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new RandomDamageRangeEffect(null, DamageTarget.Selected, 3, 6)]
+    };
 }

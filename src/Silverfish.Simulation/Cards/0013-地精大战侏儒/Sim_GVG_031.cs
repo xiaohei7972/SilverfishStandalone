@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 回收
 // Recycle
 // 将一个敌方随从洗入你对手的 牌库。
 // Shuffle an enemy minion into your opponent's deck.
+[CardSim("GVG_031")]
 internal static class Sim_GVG_031
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_GVG_031
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new ShuffleMinionIntoDeckEffect()]
+    };
 }

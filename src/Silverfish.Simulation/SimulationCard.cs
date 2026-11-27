@@ -15,32 +15,32 @@ public enum PlayRequirements { None = 0, BoardSpace = 1, FriendlyMinionDeath = 2
 
 public enum DamageTarget { Selected, EnemyHero, AllMinions, Source, TriggerSubject, FriendlyHero, EnemyMinions, AllEnemies, AllCharacters, OtherCharacters }
 public enum FreezeTarget { Selected, EnemyMinions, TriggerSubject, SelectedAndAdjacentMinions }
-public enum HealTarget { Selected, Source, TriggerSubject, FriendlyHero, EnemyHero, FriendlyMinions, AllMinions, AllFriendlyCharacters, RandomDamagedFriendlyCharacter }
+public enum HealTarget { Selected, Source, TriggerSubject, FriendlyHero, EnemyHero, FriendlyMinions, AllMinions, AllFriendlyCharacters, RandomDamagedFriendlyCharacter, AllCharacters }
 public enum EffectTarget { Selected, TriggerSubject }
-public enum RandomCharacterPool { EnemyCharacters, EnemyMinions, OtherCharacters }
+public enum RandomCharacterPool { EnemyCharacters, EnemyMinions, OtherCharacters, AllMinions, NonMechMinions }
 public enum RandomDamageMode { Sequential, DistinctBatch }
 public enum ManaOperation { GainTemporary, GainEmpty, GainFilled, Refresh, Destroy }
 public enum ManaRecipient { Controller, Opponent, BothPlayers }
 public enum SummonPlacement { Default, Rightmost, LeftOfSource, RightOfSource }
 public enum StatTarget { Selected, Source, TriggerSubject, FriendlyMinions, OtherFriendlyMinions, AdjacentFriendlyMinions, RandomOtherFriendlyMinion, AllMinions, FriendlyHero }
-public enum StatScaleSource { CardsPlayedBeforeThis, FriendlyHandCount, EquippedWeaponAttack }
+public enum StatScaleSource { CardsPlayedBeforeThis, FriendlyHandCount, EquippedWeaponAttack, EnemyDeathrattleMinions }
 public enum DynamicStatMode { AttackEqualsHealth, SwapAttackAndHealth, DoubleAttack }
 public enum DynamicDrawMode { DamagedFriendlyCharacters, MatchOpponentHandSize }
 public enum EnchantmentDuration { Permanent, CurrentTurn, UntilNextTurn }
 public enum EnchantmentRemovalReason { Expired, Silenced, LeftPlay, Transformed, Died }
 public enum AuraRecipients { OtherFriendlyMinions, AdjacentFriendlyMinions, Self }
-public enum AuraCondition { None = 0, WhileDamaged, WhileWeaponEquipped }
+public enum AuraCondition { None = 0, WhileDamaged, WhileWeaponEquipped, WhileControllingMech, WhileOpponentHasAtLeastSixHandCards }
 public enum SelfCostReduction
 {
     None = 0, OtherMinionsOnBattlefield, EquippedWeaponAttack, OtherFriendlyHandCards, FriendlyHeroMissingHealth,
-    MinionsDiedThisTurn, OpponentHandCards
+    MinionsDiedThisTurn, OpponentHandCards, FourIfControllingDamagedMinion
 }
 public enum CostAuraTarget { Hand, Minion, Spell, Weapon, HeroPower, Location }
 public enum CostAuraRecipient { Friendly, Opponent, BothPlayers }
 public enum HandCostTarget { Source, DrawnCard, FriendlyHand }
 public enum HandRecipient { Controller, Opponent }
 public enum DiscardSelection { Random, HighestCost, LowestCost }
-public enum CardRecipient { Controller, Opponent }
+public enum CardRecipient { Controller, Opponent, CurrentTurnPlayer }
 public enum CardPlacement { Hand, DeckTop, DeckBottom, RandomDeckPosition, ShuffleIntoDeck }
 
 public sealed record StatAura(AuraRecipients Recipients, StatModifier? Modifier = null)
@@ -74,7 +74,7 @@ public enum TriggerTiming
     TurnStarted, TurnEnded, WhenMinionSummoned, AfterMinionSummoned,
     BeforeSpellResolved, AfterSpellResolved, MinionDied, Damage, CardDrawn, HeroAttacking, WeaponDestroyed, AfterHeroPowerUsed,
     SpellCounterWindow, SpellTargetWindow, AttackProposed, FatalDamageWindow, AfterMinionPlayed, CardDiscarded,
-    Overkill, HonorableKill, Overheal, WhenCardPlayed, AfterCardPlayed, Healed, SecretRevealed, TargetedBySpell
+    Overkill, HonorableKill, Overheal, WhenCardPlayed, AfterCardPlayed, Healed, SecretRevealed, TargetedBySpell, ArmorGained
 }
 
 public enum TriggerRelation { Friendly, Opponent, Any }
@@ -94,11 +94,16 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
     public bool SecretOnly { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool OverloadOnly { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ControllerTurnOnly { get; init; }
+    public int? ExactPrintedAttack { get; init; }
+    public string? ExcludeCardId { get; init; }
     public EffectCondition? Condition { get; init; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(DamageEffect), "damage")]
+[JsonDerivedType(typeof(DealAttackAsDamageToAllMinionsEffect), "dealAttackAsDamageToAllMinions")]
 [JsonDerivedType(typeof(EventAmountDamageEffect), "eventAmountDamage")]
 [JsonDerivedType(typeof(SplashDamageEffect), "splashDamage")]
 [JsonDerivedType(typeof(ScaledDamageEffect), "scaledDamage")]
@@ -107,6 +112,10 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(DynamicDrawEffect), "dynamicDraw")]
 [JsonDerivedType(typeof(DrawAndDamageByCostEffect), "drawAndDamageByCost")]
 [JsonDerivedType(typeof(DrawMatchingEffect), "drawMatching")]
+[JsonDerivedType(typeof(DrawAndTransformIfMinionEffect), "drawAndTransformIfMinion")]
+[JsonDerivedType(typeof(DrawAndDiscountIfMatchesEffect), "drawAndDiscountIfMatches")]
+[JsonDerivedType(typeof(DrawToHandSizeEffect), "drawToHandSize")]
+[JsonDerivedType(typeof(MillDeckEffect), "millDeck")]
 [JsonDerivedType(typeof(ChangeHandCostEffect), "changeHandCost")]
 [JsonDerivedType(typeof(AddTemporaryCostAuraEffect), "addTemporaryCostAura")]
 [JsonDerivedType(typeof(ChangeCostTypeEffect), "changeCostType")]
@@ -119,6 +128,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(CreateRandomOpponentClassSpellEffect), "createRandomOpponentClassSpell")]
 [JsonDerivedType(typeof(CopyTriggerCardToHandEffect), "copyTriggerCardToHand")]
 [JsonDerivedType(typeof(CopyTargetCardEffect), "copyTargetCard")]
+[JsonDerivedType(typeof(CopyFriendlyBoardToHandEffect), "copyFriendlyBoardToHand")]
 [JsonDerivedType(typeof(CreateCardAtTurnEndEffect), "createCardAtTurnEnd")]
 [JsonDerivedType(typeof(CopyDeckCardsEffect), "copyDeckCards")]
 [JsonDerivedType(typeof(SummonDeckCopyEffect), "summonDeckCopy")]
@@ -132,6 +142,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(ReplaceHeroPowerEffect), "replaceHeroPower")]
 [JsonDerivedType(typeof(ReplaceHeroEffect), "replaceHero")]
 [JsonDerivedType(typeof(EquipWeaponEffect), "equipWeapon")]
+[JsonDerivedType(typeof(EquipRandomWeaponEachPlayerEffect), "equipRandomWeaponEachPlayer")]
 [JsonDerivedType(typeof(ModifyWeaponEffect), "modifyWeapon")]
 [JsonDerivedType(typeof(DestroyEnemyWeaponEffect), "destroyEnemyWeapon")]
 [JsonDerivedType(typeof(DestroyFriendlyWeaponDamageEffect), "destroyFriendlyWeaponDamage")]
@@ -146,6 +157,13 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(SilenceEffect), "silence")]
 [JsonDerivedType(typeof(RemoveAllStealthEffect), "removeAllStealth")]
 [JsonDerivedType(typeof(DestroySecretsEffect), "destroySecrets")]
+[JsonDerivedType(typeof(StealRandomEnemySecretEffect), "stealRandomEnemySecret")]
+[JsonDerivedType(typeof(GrantRandomKeywordToOtherFriendlyMinionsEffect), "grantRandomKeywordToOtherFriendlyMinions")]
+[JsonDerivedType(typeof(SwapHealthEffect), "swapHealth")]
+[JsonDerivedType(typeof(TriggerFriendlyDeathrattlesEffect), "triggerFriendlyDeathrattles")]
+[JsonDerivedType(typeof(ShuffleMinionIntoDeckEffect), "shuffleMinionIntoDeck")]
+[JsonDerivedType(typeof(MimironCombineEffect), "mimironCombine")]
+[JsonDerivedType(typeof(ScheduleDormantAwakenEffect), "scheduleDormantAwaken")]
 [JsonDerivedType(typeof(SummonEffect), "summon")]
 [JsonDerivedType(typeof(SummonPerEnemyMinionEffect), "summonPerEnemyMinion")]
 [JsonDerivedType(typeof(SwapSelfWithRandomHandMinionEffect), "swapSelfWithRandomHandMinion")]
@@ -172,6 +190,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(SummonAttackDefenderEffect), "summonAttackDefender")]
 [JsonDerivedType(typeof(RedirectAttackToRandomOtherCharacterEffect), "redirectAttackToRandomOtherCharacter")]
 [JsonDerivedType(typeof(RandomDamageEffect), "randomDamage")]
+[JsonDerivedType(typeof(RandomDamageRangeEffect), "randomDamageRange")]
 [JsonDerivedType(typeof(DestroyRandomEnemyMinionEffect), "destroyRandomEnemyMinion")]
 [JsonDerivedType(typeof(DestroyAllButOneMinionEffect), "destroyAllButOneMinion")]
 [JsonDerivedType(typeof(SummonRandomMinionEffect), "summonRandomMinion")]
@@ -189,7 +208,9 @@ public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool UndamagedOnly { get; init; }
     public MinionType? ExcludeMinionType { get; init; }
+    public CardFilter? TargetCardFilter { get; init; }
 }
+public sealed record DealAttackAsDamageToAllMinionsEffect : CardEffect;
 public sealed record EventAmountDamageEffect(DamageTarget Target) : CardEffect;
 public sealed record SplashDamageEffect(int CenterAmount, int AdjacentAmount) : CardEffect;
 public sealed record ScaledDamageEffect(
@@ -203,6 +224,13 @@ public sealed record DrawEffect(int Count, CardRecipient Recipient = CardRecipie
 public sealed record DynamicDrawEffect([property: JsonRequired] DynamicDrawMode Mode) : CardEffect;
 public sealed record DrawAndDamageByCostEffect(DamageTarget Target = DamageTarget.Selected) : CardEffect;
 public sealed record DrawMatchingEffect([property: JsonRequired] CardFilter CardFilter, int Count = 1) : CardEffect;
+public sealed record DrawAndTransformIfMinionEffect([property: JsonRequired] string TransformCardId) : CardEffect;
+public sealed record DrawAndDiscountIfMatchesEffect(
+    [property: JsonRequired] CardFilter CardFilter,
+    int CostDelta,
+    string? EnchantmentCardId = null) : CardEffect;
+public sealed record DrawToHandSizeEffect(int TargetSize, CardRecipient Recipient = CardRecipient.CurrentTurnPlayer) : CardEffect;
+public sealed record MillDeckEffect(int Count, CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
 public sealed record ChangeHandCostEffect(
     [property: JsonRequired] HandCostTarget Target,
     [property: JsonRequired] int Delta,
@@ -235,7 +263,10 @@ public sealed record RecruitEffect(int Count = 1, CardRecipient Recipient = Card
     public CardFilter? CardFilter { get; init; }
 }
 public sealed record PutSecretFromDeckEffect(int Count = 1) : CardEffect;
-public sealed record SummonFromHandEffect(CardFilter? CardFilter = null, int Count = 1) : CardEffect;
+public sealed record SummonFromHandEffect(
+    CardFilter? CardFilter = null,
+    int Count = 1,
+    CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
 public sealed record CreateCardEffect(
     [property: JsonRequired] string CardId,
     CardPlacement Placement = CardPlacement.Hand,
@@ -248,7 +279,9 @@ public sealed record CreateRandomCardEffect(
 public sealed record CreateRandomMatchingCardEffect(
     [property: JsonRequired] CardFilter CardFilter,
     int Count = 1,
-    CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
+    CardRecipient Recipient = CardRecipient.Controller,
+    int CostDelta = 0,
+    string? EnchantmentCardId = null) : CardEffect;
 public sealed record CreateRandomOpponentClassSpellEffect(int Count = 1, string? FallbackCardId = null) : CardEffect;
 public sealed record CopyTriggerCardToHandEffect(int Count = 1) : CardEffect;
 public sealed record CopyTargetCardEffect(
@@ -256,6 +289,7 @@ public sealed record CopyTargetCardEffect(
     CardPlacement Placement = CardPlacement.ShuffleIntoDeck,
     CardRecipient Recipient = CardRecipient.Controller,
     int Count = 1) : CardEffect;
+public sealed record CopyFriendlyBoardToHandEffect : CardEffect;
 public sealed record CreateCardAtTurnEndEffect([property: JsonRequired] string CardId) : CardEffect;
 public sealed record CopyDeckCardsEffect(
     ConditionPlayer SourceDeck = ConditionPlayer.Opponent,
@@ -280,6 +314,7 @@ public sealed record ReplaceHeroEffect(
     [property: JsonRequired] string HeroCardId,
     [property: JsonRequired] string HeroPowerCardId) : CardEffect;
 public sealed record EquipWeaponEffect(string CardId) : CardEffect;
+public sealed record EquipRandomWeaponEachPlayerEffect : CardEffect;
 public sealed record ModifyWeaponEffect(
     int AttackDelta = 0,
     int DurabilityDelta = 0,
@@ -295,6 +330,7 @@ public sealed record EnchantStatsEffect(StatTarget Target, StatModifier? Modifie
 {
     public string? EnchantmentCardId { get; init; }
     public GAME_TAG? GrantedTag { get; init; }
+    public GAME_TAG? SecondaryGrantedTag { get; init; }
     public CardFilter? CardFilter { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public ImmutableArray<EnchantmentRemovalRule> OnRemoved { get; init; }
@@ -326,6 +362,16 @@ public sealed record ConsumeAdjacentMinionsEffect(string? EnchantmentCardId = nu
 public sealed record SilenceEffect(bool AllEnemyMinions = false, bool OtherFriendlyMinions = false) : CardEffect;
 public sealed record RemoveAllStealthEffect : CardEffect;
 public sealed record DestroySecretsEffect(ConditionPlayer TargetPlayer = ConditionPlayer.Opponent) : CardEffect;
+public sealed record StealRandomEnemySecretEffect : CardEffect;
+public sealed record GrantRandomKeywordToOtherFriendlyMinionsEffect(ImmutableArray<GAME_TAG> Tags) : CardEffect;
+public sealed record SwapHealthEffect : CardEffect;
+public sealed record TriggerFriendlyDeathrattlesEffect : CardEffect;
+public sealed record ShuffleMinionIntoDeckEffect(EffectTarget Target = EffectTarget.Selected) : CardEffect;
+public sealed record MimironCombineEffect([property: JsonRequired] string TokenCardId, int MinimumMechs = 3) : CardEffect;
+public sealed record ScheduleDormantAwakenEffect(
+    [property: JsonRequired] string CardId,
+    int RequiredDeaths,
+    MinionType? RequiredMinionType = null) : CardEffect;
 /// <summary>亡语召唤沿用死亡位置，其他情况放到场上最右侧。</summary>
 public sealed record SummonEffect(string CardId, SummonPlacement Placement = SummonPlacement.Default,
     CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
@@ -363,6 +409,13 @@ public sealed record SummonAttackDefenderEffect(string CardId) : CardEffect;
 public sealed record RedirectAttackToRandomOtherCharacterEffect : CardEffect;
 public sealed record RandomDamageEffect(RandomCharacterPool Pool, int Amount, int Count = 1,
     RandomDamageMode Mode = RandomDamageMode.Sequential) : CardEffect;
+public sealed record RandomDamageRangeEffect(
+    RandomCharacterPool? Pool,
+    DamageTarget? Target,
+    int MinAmount,
+    int MaxAmount,
+    string? SummonPerDamageCardId = null,
+    bool RepeatUntilDeath = false) : CardEffect;
 public sealed record DestroyRandomEnemyMinionEffect(int? MaximumAttack = null) : CardEffect;
 public sealed record DestroyAllButOneMinionEffect : CardEffect;
 public sealed record SummonRandomMinionEffect(ImmutableArray<string> CardIds) : CardEffect;
@@ -435,6 +488,7 @@ public record CardRules
     public ImmutableArray<CardEffect> WhenDrawn { get; init; } = [];
     public ImmutableArray<CardEffect>? WhenDiscarded { get; init; }
     public ImmutableArray<CardTrigger> Triggers { get; init; } = [];
+    public ImmutableArray<CardTrigger> InHandTriggers { get; init; } = [];
     public ImmutableArray<StatAura> Auras { get; init; } = [];
     public ImmutableArray<WeaponAttackAura> WeaponAuras { get; init; } = [];
     public ImmutableArray<CostAura> CostAuras { get; init; } = [];
@@ -448,6 +502,19 @@ public record CardRules
     public bool AttackEqualsHealth { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool HeroImmuneWhileAttacking { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool FriendlyHeroImmune { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AllowHeroPowerTargetMinions { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CleaveAdjacentOnAttack { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool MegaWindfury { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AttackWrongEnemyChance { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AllMinionsAttackWrongEnemyChance { get; init; }
+    public MinionType? AttackPerOtherFriendlyMinionType { get; init; }
     public WeaponMinionAttackRule? MinionAttackRule { get; init; }
     // CardDefs 的 SPELLPOWER 标记关键词，实际加成由单卡声明。
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

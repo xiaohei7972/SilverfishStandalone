@@ -6,9 +6,17 @@ public sealed partial class GameSimulator
 {
     private sealed partial class Resolution
     {
+        private PlayerId ResolveRecipient(CardRecipient recipient, PlayerId controller) => recipient switch
+        {
+            CardRecipient.Controller => controller,
+            CardRecipient.Opponent => _state.OpponentOf(controller),
+            CardRecipient.CurrentTurnPlayer => _state.ActivePlayer,
+            _ => throw new InvalidOperationException("无法识别卡牌接收方。")
+        };
+
         private void CreateCards(EffectContext context, CreateCardEffect effect)
         {
-            var recipient = effect.Recipient == CardRecipient.Controller ? context.Controller : _state.OpponentOf(context.Controller);
+            var recipient = ResolveRecipient(effect.Recipient, context.Controller);
             for (var i = 0; i < effect.Count; i++)
             {
                 if (!TryCreateCard(effect.CardId, recipient, context.Source, effect.Placement))
@@ -22,16 +30,33 @@ public sealed partial class GameSimulator
 
         private void CreateRandomMatchingCard(EffectContext context, CreateRandomMatchingCardEffect effect)
         {
-            var candidates = _rules.MatchingMinionCandidates(effect.CardFilter);
+            var candidates = effect.CardFilter.Kind == EntityKind.Spell
+                ? [.. _rules._cards.Values
+                    .Where(card => !card.IsPlayChoiceOption && MatchesCardFilter(card, effect.CardFilter))
+                    .Select(card => card.Definition.CardId)
+                    .OrderBy(id => id, StringComparer.Ordinal)]
+                : _rules.MatchingMinionCandidates(effect.CardFilter);
             if (candidates.IsEmpty)
                 return;
 
-            var recipient = effect.Recipient == CardRecipient.Controller ? context.Controller : _state.OpponentOf(context.Controller);
+            var recipient = ResolveRecipient(effect.Recipient, context.Controller);
             for (var i = 0; i < effect.Count; i++)
             {
                 var cardId = candidates[ChooseIndex(candidates.Length)];
+                var beforeCount = _state.Players[recipient].In(GameZone.Hand).Length;
                 if (!TryCreateCard(cardId, recipient, context.Source, CardPlacement.Hand))
                     break;
+                if (effect.CostDelta != 0 && _state.Players[recipient].In(GameZone.Hand).Length > beforeCount)
+                {
+                    var createdId = _state.Players[recipient].In(GameZone.Hand)[^1];
+                    var created = _state.Entities[createdId];
+                    var modifier = CreateCostModifier(context.Source, effect.CostDelta, effect.EnchantmentCardId, EnchantmentDuration.Permanent);
+                    _state = _state.UpdateEntity(created with { CostModifiers = created.CostModifiers.Add(modifier) });
+                    _events.Add(new(SimulationEventKind.EnchantmentApplied, context.Controller, context.Source, createdId, effect.CostDelta)
+                    {
+                        EnchantmentCardId = modifier.CardId
+                    });
+                }
                 SpendResolutionStep();
             }
         }
@@ -68,6 +93,21 @@ public sealed partial class GameSimulator
             {
                 var cardId = candidates.Length > 0 ? candidates[ChooseIndex(candidates.Length)] : effect.FallbackCardId!;
                 if (!TryCreateCard(cardId, context.Controller, context.Source, CardPlacement.Hand))
+                    break;
+                SpendResolutionStep();
+            }
+        }
+
+        private void CopyFriendlyBoardToHand(EffectContext context)
+        {
+            var controller = context.Controller;
+            var board = _rules.BoardMinions(_state, controller)
+                .Where(id => IsLivingCharacter(id))
+                .OrderBy(id => _state.Entities[id].PlayOrder)
+                .ToArray();
+            foreach (var id in board)
+            {
+                if (!TryCreateCard(_state.Entities[id].CardId, controller, context.Source, CardPlacement.Hand))
                     break;
                 SpendResolutionStep();
             }

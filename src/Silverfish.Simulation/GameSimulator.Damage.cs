@@ -16,7 +16,7 @@ public sealed partial class GameSimulator
             if (amount <= 0 || _state.LocationOf(target).Zone != GameZone.Play)
                 return null;
             var entity = _state.Entities[target];
-            if (_rules.HasEffectiveTag(entity, GAME_TAG.IMMUNE) || IsImmuneAttackingHero(target))
+            if (_rules.IsEntityImmune(_state, entity) || IsImmuneAttackingHero(target))
                 return null;
             var character = entity.Character!;
             if (character.DivineShield)

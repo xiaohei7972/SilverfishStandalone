@@ -203,7 +203,7 @@ public sealed partial class GameSimulator
         var ch = target.Character;
         bool Printed(GAME_TAG tag) => PlayReqTags.Has(card.RequirementTagMask, (int)tag);
         var stealth = IsStealthed(target);
-        if (!friendly && (stealth || HasEffectiveTag(target, GAME_TAG.IMMUNE) || (!target.Silenced && Printed(GAME_TAG.CANT_BE_TARGETED_BY_OPPONENTS))))
+        if (!friendly && (stealth || IsEntityImmune(state, target) || (!target.Silenced && Printed(GAME_TAG.CANT_BE_TARGETED_BY_OPPONENTS))))
             return new("敌方目标不可指定", stealth ? REQ_NONSTEALTH_ENEMY_TARGET : REQ_CAN_BE_TARGETED_BY_OPPONENTS);
         if (sourceKind == EntityKind.Spell && (HasEffectiveTag(target, GAME_TAG.ELUSIVE) || HasEffectiveTag(target, GAME_TAG.CANT_BE_TARGETED_BY_SPELLS)) ||
             sourceKind == EntityKind.HeroPower && (HasEffectiveTag(target, GAME_TAG.ELUSIVE) || HasEffectiveTag(target, GAME_TAG.CANT_BE_TARGETED_BY_HERO_POWERS)))
@@ -259,7 +259,12 @@ public sealed partial class GameSimulator
                         REQ_NONSELF_TARGET => source.Id != target.Id,
                         REQ_MINION_OR_ENEMY_HERO => kind == EntityKind.Minion || (!friendly && kind == EntityKind.Hero),
                         REQ_STEADY_SHOT => !friendly && kind == EntityKind.Hero ||
-                            kind == EntityKind.Minion && state.Players[source.Controller].SteadyShotCanTargetMinions,
+                            (kind == EntityKind.Minion && (state.Players[source.Controller].SteadyShotCanTargetMinions ||
+                                BoardMinions(state, source.Controller).Any(id =>
+                                {
+                                    var ally = state.Entities[id];
+                                    return !ally.Silenced && ally.Character is { Health: > 0 } && Card(ally).AllowHeroPowerTargetMinions;
+                                }))),
                         REQ_FROZEN_TARGET => ch?.Frozen == true,
                         REQ_TARGET_WITH_RACE => req.Parameter is int race && MatchesMinionType(card.Definition, CardTraitReader.RaceType((TAG_RACE)race)),
                         REQ_TARGET_WITH_DEATHRATTLE => (!target.Silenced && !card.Deathrattle.IsEmpty) ||

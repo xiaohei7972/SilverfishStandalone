@@ -179,6 +179,9 @@ public sealed partial class GameSimulator
                 RandomCharacterPool.EnemyCharacters => _state.Players[enemy].In(GameZone.Play),
                 RandomCharacterPool.OtherCharacters => _state.Players.Values.SelectMany(player => player.In(GameZone.Play))
                     .Where(id => id != context.Source),
+                RandomCharacterPool.AllMinions => _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player)),
+                RandomCharacterPool.NonMechMinions => _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player))
+                    .Where(id => !MatchesMinionType(_rules.Card(_state.Entities[id]).Definition, MinionType.Mech)),
                 _ => throw new InvalidOperationException("无法识别随机伤害的目标范围。")
             };
             return candidates.Where(id => IsLivingCharacter(id)).OrderBy(id => _state.Entities[id].PlayOrder);

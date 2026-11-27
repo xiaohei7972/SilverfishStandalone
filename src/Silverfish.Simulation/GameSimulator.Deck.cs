@@ -62,6 +62,75 @@ public sealed partial class GameSimulator
             }
         }
 
+        private void DrawAndTransformIfMinion(Stack<Work> work, EffectContext context, DrawAndTransformIfMinionEffect effect)
+        {
+            var player = _state.Players[context.Controller];
+            var beforeHand = player.In(GameZone.Hand).ToHashSet();
+            Draw(work, new DrawCards(player.Id, 1));
+            var afterHand = _state.Players[player.Id].In(GameZone.Hand);
+            var drawnId = afterHand.FirstOrDefault(id => !beforeHand.Contains(id));
+            if (drawnId == default)
+                return;
+
+            var drawnEntity = _state.Entities[drawnId];
+            if (_rules.Card(drawnEntity).Definition.Kind == EntityKind.Minion)
+            {
+                _state = _state.UpdateEntity(drawnEntity with
+                {
+                    CardId = effect.TransformCardId,
+                    CostModifiers = [],
+                    CostTypeModifiers = null,
+                    Enchantments = []
+                });
+                _events.Add(new(SimulationEventKind.Transformed, player.Id, context.Source, drawnId));
+            }
+        }
+
+        private void DrawAndDiscountIfMatches(Stack<Work> work, EffectContext context, DrawAndDiscountIfMatchesEffect effect)
+        {
+            var player = _state.Players[context.Controller];
+            var beforeHand = player.In(GameZone.Hand).ToHashSet();
+            Draw(work, new DrawCards(player.Id, 1));
+            var afterHand = _state.Players[player.Id].In(GameZone.Hand);
+            var drawnId = afterHand.FirstOrDefault(id => !beforeHand.Contains(id));
+            if (drawnId == default)
+                return;
+
+            var drawnEntity = _state.Entities[drawnId];
+            if (MatchesCardFilter(_rules.Card(drawnEntity), effect.CardFilter))
+            {
+                var modifier = CreateCostModifier(context.Source, effect.CostDelta, effect.EnchantmentCardId, EnchantmentDuration.Permanent);
+                _state = _state.UpdateEntity(drawnEntity with { CostModifiers = drawnEntity.CostModifiers.Add(modifier) });
+                _events.Add(new(SimulationEventKind.EnchantmentApplied, player.Id, context.Source, drawnId, effect.CostDelta)
+                {
+                    EnchantmentCardId = modifier.CardId
+                });
+            }
+        }
+
+        private void DrawToHandSize(Stack<Work> work, EffectContext context, DrawToHandSizeEffect effect)
+        {
+            var player = ResolveRecipient(effect.Recipient, context.Controller);
+            var needed = Math.Max(0, effect.TargetSize - _state.Players[player].In(GameZone.Hand).Length);
+            if (needed > 0)
+                work.Push(new DrawCards(player, needed));
+        }
+
+        private void MillDeck(EffectContext context, MillDeckEffect effect)
+        {
+            var player = ResolveRecipient(effect.Recipient, context.Controller);
+            for (var i = 0; i < effect.Count; i++)
+            {
+                var deck = _state.Players[player].In(GameZone.Deck);
+                if (deck.IsEmpty)
+                    break;
+                SpendResolutionStep();
+                var top = deck[0];
+                _state = _state.Move(top, new(player, GameZone.Graveyard));
+                _events.Add(new(SimulationEventKind.CardBurned, player, top));
+            }
+        }
+
         private void Recruit(Stack<Work> work, RecruitCards recruit)
         {
             var player = recruit.Player;
