@@ -122,6 +122,9 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(EquipWeaponEffect), "equipWeapon")]
 [JsonDerivedType(typeof(ModifyWeaponEffect), "modifyWeapon")]
 [JsonDerivedType(typeof(DestroyEnemyWeaponEffect), "destroyEnemyWeapon")]
+[JsonDerivedType(typeof(DestroyFriendlyWeaponDamageEffect), "destroyFriendlyWeaponDamage")]
+[JsonDerivedType(typeof(ProtectFriendlyMinionsMinimumHealthEffect), "protectFriendlyMinionsMinimumHealth")]
+[JsonDerivedType(typeof(CopyTriggerSpellToOtherPlayerEffect), "copyTriggerSpellToOtherPlayer")]
 [JsonDerivedType(typeof(EnchantStatsEffect), "enchantStats")]
 [JsonDerivedType(typeof(ScaledEnchantStatsEffect), "scaledEnchantStats")]
 [JsonDerivedType(typeof(DynamicStatChangeEffect), "dynamicStatChange")]
@@ -149,6 +152,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(RedirectSpellTargetEffect), "redirectSpellTarget")]
 [JsonDerivedType(typeof(PreventDamageEffect), "preventDamage")]
 [JsonDerivedType(typeof(SummonAttackDefenderEffect), "summonAttackDefender")]
+[JsonDerivedType(typeof(RedirectAttackToRandomOtherCharacterEffect), "redirectAttackToRandomOtherCharacter")]
 [JsonDerivedType(typeof(RandomDamageEffect), "randomDamage")]
 [JsonDerivedType(typeof(DestroyRandomEnemyMinionEffect), "destroyRandomEnemyMinion")]
 [JsonDerivedType(typeof(DestroyAllButOneMinionEffect), "destroyAllButOneMinion")]
@@ -156,6 +160,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(SummonMatchingMinionEffect), "summonMatchingMinion")]
 [JsonDerivedType(typeof(ChangeManaEffect), "changeMana")]
 [JsonDerivedType(typeof(ConditionalEffect), "conditional")]
+[JsonDerivedType(typeof(RandomChanceEffect), "randomChance")]
 public abstract record CardEffect;
 
 public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect
@@ -237,6 +242,9 @@ public sealed record ModifyWeaponEffect(
     ConditionPlayer TargetWeapon = ConditionPlayer.Friendly,
     string? EnchantmentCardId = null) : CardEffect;
 public sealed record DestroyEnemyWeaponEffect(bool DrawDurability = false) : CardEffect;
+public sealed record DestroyFriendlyWeaponDamageEffect(DamageTarget Target = DamageTarget.EnemyMinions) : CardEffect;
+public sealed record ProtectFriendlyMinionsMinimumHealthEffect : CardEffect;
+public sealed record CopyTriggerSpellToOtherPlayerEffect : CardEffect;
 public sealed record EnchantmentRemovalRule(EnchantmentRemovalReason Reason, ImmutableArray<CardEffect> Effects);
 public sealed record EnchantStatsEffect(StatTarget Target, StatModifier? Modifier,
     EnchantmentDuration Duration = EnchantmentDuration.Permanent) : CardEffect
@@ -292,6 +300,7 @@ public sealed record CounterSpellEffect : CardEffect;
 public sealed record RedirectSpellTargetEffect(string CardId) : CardEffect;
 public sealed record PreventDamageEffect : CardEffect;
 public sealed record SummonAttackDefenderEffect(string CardId) : CardEffect;
+public sealed record RedirectAttackToRandomOtherCharacterEffect : CardEffect;
 public sealed record RandomDamageEffect(RandomCharacterPool Pool, int Amount, int Count = 1,
     RandomDamageMode Mode = RandomDamageMode.Sequential) : CardEffect;
 public sealed record DestroyRandomEnemyMinionEffect : CardEffect;
@@ -305,6 +314,8 @@ public sealed record ConditionalEffect(EffectCondition Condition, ImmutableArray
 {
     public ImmutableArray<CardEffect> Otherwise { get; init; } = [];
 }
+
+public sealed record RandomChanceEffect(int Numerator, int Denominator, ImmutableArray<CardEffect> Then) : CardEffect;
 
 public sealed record CardPlayChoice(string Id, ImmutableArray<CardEffect> Effects)
 {

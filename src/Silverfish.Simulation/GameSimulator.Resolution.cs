@@ -83,7 +83,8 @@ public sealed partial class GameSimulator
             ExpireTurnHandCostModifiers();
             var previous = _state.Players[outgoing];
             _state = _state.UpdateResources(previous with { TemporaryMana = 0, CardsPlayedThisTurn = 0,
-                PlayedElementalLastTurn = previous.PlayedElementalThisTurn, HeroHealthChangedThisTurn = false });
+                PlayedElementalLastTurn = previous.PlayedElementalThisTurn, HeroHealthChangedThisTurn = false,
+                MinionsMinimumOneHealthThisTurn = false });
             _state = _state.PassTurn();
             var next = _state.Players[_state.ActivePlayer];
             _state = _state.UpdateResources(next with
@@ -576,6 +577,24 @@ public sealed partial class GameSimulator
                             work.Push(new DrawCards(context.Controller, enemyWeaponStats.Durability));
                     }
                     break;
+                case DestroyFriendlyWeaponDamageEffect flurry:
+                    if (_state.Players[context.Controller].EquippedWeapon is EntityId friendlyWeapon &&
+                        _state.LocationOf(friendlyWeapon).Zone == GameZone.Play &&
+                        _state.Entities[friendlyWeapon].Weapon is { Durability: > 0 })
+                    {
+                        var weaponAttack = _rules.EffectiveWeaponAttack(_state, _state.Entities[friendlyWeapon]);
+                        MarkEquippedWeaponForDestruction(context.Controller);
+                        ApplyDamageTarget(work, context, flurry.Target,
+                            ModifiedEffectAmount(context, weaponAttack, damage: true));
+                    }
+                    break;
+                case ProtectFriendlyMinionsMinimumHealthEffect:
+                    _state = _state.UpdateResources(_state.Players[context.Controller] with { MinionsMinimumOneHealthThisTurn = true });
+                    break;
+                case CopyTriggerSpellToOtherPlayerEffect:
+                    if (context.Subject is EntityId castSpellId && _state.Entities.TryGetValue(castSpellId, out var castSpell))
+                        TryCreateCard(castSpell.CardId, _state.OpponentOf(castSpell.Controller), context.Source, CardPlacement.Hand);
+                    break;
                 case EnchantStatsEffect enchant:
                     EnchantStats(context, enchant);
                     break;
@@ -668,6 +687,9 @@ public sealed partial class GameSimulator
                 case SummonAttackDefenderEffect redirect:
                     SummonAttackDefender(work, context, redirect.CardId);
                     break;
+                case RedirectAttackToRandomOtherCharacterEffect:
+                    RedirectAttackToRandomOtherCharacter(context);
+                    break;
                 case RandomDamageEffect random:
                     ApplyRandomDamage(work, context, random);
                     break;
@@ -689,6 +711,10 @@ public sealed partial class GameSimulator
                 case ConditionalEffect conditional:
                     var branch = MeetsCondition(context, conditional.Condition) ? conditional.Then : conditional.Otherwise;
                     PushEffects(work, context, branch);
+                    break;
+                case RandomChanceEffect chance:
+                    if (ChooseIndex(chance.Denominator) < chance.Numerator)
+                        PushEffects(work, context, chance.Then);
                     break;
             }
         }

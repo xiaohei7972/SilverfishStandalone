@@ -38,6 +38,8 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
     public bool? PlayedElementalThisTurn { get; init; }
     public bool? PlayedElementalLastTurn { get; init; }
     public bool? HeroHealthChangedThisTurn { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool MinionsMinimumOneHealthThisTurn { get; init; }
     public bool SteadyShotCanTargetMinions { get; init; }
     public int? Corpses { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

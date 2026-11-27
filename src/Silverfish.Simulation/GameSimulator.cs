@@ -448,6 +448,14 @@ public sealed partial class GameSimulator
                     pending.Push(then);
                 continue;
             }
+            if (effect is RandomChanceEffect chance &&
+                chance.Numerator > 0 && chance.Numerator < chance.Denominator &&
+                !chance.Then.IsDefaultOrEmpty)
+            {
+                foreach (var then in chance.Then)
+                    pending.Push(then);
+                continue;
+            }
 
             var valid = effect switch
             {
@@ -515,6 +523,9 @@ public sealed partial class GameSimulator
                 ModifyWeaponEffect modifyWeapon => (modifyWeapon.AttackDelta != 0 || modifyWeapon.DurabilityDelta != 0) &&
                     Enum.IsDefined(modifyWeapon.TargetWeapon) && IsOptionalCardIdValid(modifyWeapon.EnchantmentCardId),
                 DestroyEnemyWeaponEffect => true,
+                DestroyFriendlyWeaponDamageEffect flurry => IsValidDamageTarget(flurry.Target),
+                ProtectFriendlyMinionsMinimumHealthEffect => true,
+                CopyTriggerSpellToOtherPlayerEffect => timing is TriggerTiming.BeforeSpellResolved or TriggerTiming.AfterSpellResolved,
                 EnchantStatsEffect enchant => Enum.IsDefined(enchant.Target) && Enum.IsDefined(enchant.Duration) &&
                     IsValidEnchantment(enchant.Modifier, enchant.GrantedTag) && IsOptionalCardIdValid(enchant.EnchantmentCardId) &&
                     IsValidCardFilter(enchant.CardFilter) &&
@@ -586,6 +597,7 @@ public sealed partial class GameSimulator
                 PreventDamageEffect => card.IsSecret && timing == TriggerTiming.FatalDamageWindow,
                 SummonAttackDefenderEffect redirect => card.IsSecret && timing == TriggerTiming.AttackProposed &&
                     GetCard(redirect.CardId).Definition.Kind == EntityKind.Minion,
+                RedirectAttackToRandomOtherCharacterEffect => card.IsSecret && timing == TriggerTiming.AttackProposed,
                 RandomDamageEffect random => random.Amount > 0 && random.Count > 0 && Enum.IsDefined(random.Pool) && Enum.IsDefined(random.Mode),
                 DestroyRandomEnemyMinionEffect or DestroyAllButOneMinionEffect => true,
                 SummonRandomMinionEffect summon => !summon.CardIds.IsDefaultOrEmpty &&

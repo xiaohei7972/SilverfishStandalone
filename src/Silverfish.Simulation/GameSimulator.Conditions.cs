@@ -16,6 +16,8 @@ public sealed partial class GameSimulator
             (count.EntityKind is not EntityKind kind || (Enum.IsDefined(kind) && kind != EntityKind.Unknown)),
         ComboCondition => canUseCombo,
         WeaponEquippedCondition weapon => Enum.IsDefined(weapon.Player),
+        CharacterMatchCondition match => Enum.IsDefined(match.Relation) && IsValidCardFilter(match.CardFilter) &&
+            IsValidConditionCharacter(match.Target, target, hasCharacterSubject, hasInPlaySource),
         _ => false
     };
 
@@ -67,6 +69,7 @@ public sealed partial class GameSimulator
                 ? context.Controller : _state.OpponentOf(context.Controller)].EquippedWeapon is EntityId equipped &&
                 _state.LocationOf(equipped).Zone == GameZone.Play &&
                 _state.Entities[equipped].Weapon is { Durability: > 0 },
+            CharacterMatchCondition match => MeetsCharacterMatchCondition(context, match),
             _ => throw new InvalidOperationException("无法识别效果条件。")
         };
 
@@ -88,6 +91,19 @@ public sealed partial class GameSimulator
 
             return _rules.MatchesCharacterComparison(_state, _state.Entities[id!.Value],
                 condition.Metric, condition.Comparison, condition.Value);
+        }
+
+        private bool MeetsCharacterMatchCondition(EffectContext context, CharacterMatchCondition condition)
+        {
+            var id = ResolveConditionCharacter(context, condition.Target);
+            if (!IsLivingCharacter(id))
+                return false;
+
+            var entity = _state.Entities[id!.Value];
+            if ((condition.Relation == TriggerRelation.Friendly && entity.Controller != context.Controller) ||
+                (condition.Relation == TriggerRelation.Opponent && entity.Controller == context.Controller))
+                return false;
+            return condition.CardFilter is null || MatchesCardFilter(_rules.Card(entity).Definition, condition.CardFilter);
         }
 
         private bool MeetsCharacterStateCondition(EffectContext context, CharacterStateCondition condition)

@@ -57,6 +57,23 @@ public sealed partial class GameSimulator
             PushSummonTriggers(work, context.Controller, defender);
         }
 
+        private EntityId[] RandomRedirectAttackCandidates(EntityId attacker, EntityId currentDefender) =>
+            _state.Players.Values.SelectMany(player => player.In(GameZone.Play))
+                .Where(id => id != attacker && id != currentDefender && IsLivingCharacter(id))
+                .OrderBy(id => _state.Entities[id].PlayOrder)
+                .ToArray();
+
+        private void RedirectAttackToRandomOtherCharacter(EffectContext context)
+        {
+            var candidates = RandomRedirectAttackCandidates(context.Subject!.Value, _proposedDefender);
+            if (candidates.Length == 0)
+                return;
+
+            var chosen = candidates[ChooseIndex(candidates.Length)];
+            _proposedDefender = chosen;
+            _events.Add(new(SimulationEventKind.AttackRedirected, context.Controller, context.Source, chosen));
+        }
+
         private EntityId ResolveSpellTargetProposal(PlayerId caster, EntityId target)
         {
             while (true)

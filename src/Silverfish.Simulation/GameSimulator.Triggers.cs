@@ -195,6 +195,9 @@ public sealed partial class GameSimulator
                                     _state.Players[listener.Controller].EquippedWeapon != listener.Id.Entity) ||
                                 (listener.Trigger.Timing == TriggerTiming.SpellCounterWindow &&
                                     !CanCounterSpell(trigger.Context.Subject!.Value)) ||
+                                (listener.Trigger.Timing == TriggerTiming.AttackProposed &&
+                                    listener.Trigger.Effects.Any(e => e is RedirectAttackToRandomOtherCharacterEffect) &&
+                                    RandomRedirectAttackCandidates(trigger.Context.Subject!.Value, _proposedDefender).Length == 0) ||
                                 (listener.Trigger.RequiresBoardSpace && _rules.BoardSlotCount(_state, listener.Controller) >= BoardLimit) ||
                                 (trigger.LivingEntity is EntityId living && !IsLivingCharacter(living)) ||
                                 (listener.Trigger.Condition is { } condition && !MeetsCondition(trigger.Context, condition)) ||

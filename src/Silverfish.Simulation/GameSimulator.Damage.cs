@@ -36,6 +36,18 @@ public sealed partial class GameSimulator
 
             var absorbed = Math.Min(character.Armor, amount);
             var healthDamage = amount - absorbed;
+            if (_rules.Card(entity).Definition.Kind == EntityKind.Minion &&
+                _state.Players[entity.Controller].MinionsMinimumOneHealthThisTurn)
+            {
+                var maxAllowed = Math.Max(0, character.Health - 1);
+                if (healthDamage > maxAllowed)
+                {
+                    healthDamage = maxAllowed;
+                    amount = absorbed + healthDamage;
+                    if (amount <= 0)
+                        return null;
+                }
+            }
             if (character.Health > 0 && healthDamage >= character.Health && ResolveFatalDamageWindow(target, amount))
                 return null;
 

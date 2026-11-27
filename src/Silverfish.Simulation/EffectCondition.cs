@@ -16,6 +16,7 @@ public enum NumberComparison { Equal, AtLeast, AtMost }
 [JsonDerivedType(typeof(ZoneCountCondition), "zoneCount")]
 [JsonDerivedType(typeof(ComboCondition), "combo")]
 [JsonDerivedType(typeof(WeaponEquippedCondition), "weaponEquipped")]
+[JsonDerivedType(typeof(CharacterMatchCondition), "characterMatch")]
 public abstract record EffectCondition;
 
 public sealed record CharacterCondition(
@@ -41,3 +42,8 @@ public sealed record ZoneCountCondition(
 public sealed record ComboCondition : EffectCondition;
 
 public sealed record WeaponEquippedCondition(ConditionPlayer Player = ConditionPlayer.Friendly) : EffectCondition;
+
+public sealed record CharacterMatchCondition(
+    [property: JsonRequired] ConditionCharacter Target,
+    TriggerRelation Relation = TriggerRelation.Any,
+    CardFilter? CardFilter = null) : EffectCondition;
