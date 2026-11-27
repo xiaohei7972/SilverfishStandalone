@@ -116,6 +116,18 @@ public sealed partial class GameSimulator
             _events.Add(new(SimulationEventKind.CardGenerated, playerId, source, newId));
         }
 
+        private void ReplaceHero(PlayerId playerId, EntityId source, ReplaceHeroEffect effect)
+        {
+            var heroCard = _rules.GetCard(effect.HeroCardId);
+            var character = heroCard.CreateCharacter();
+            var id = new EntityId(_state.NextEntity);
+            _state = _state.AddToPlay(new GameEntity(id, effect.HeroCardId, playerId, playerId) { Character = character }, 0);
+            _state = _state.ReplaceHero(playerId, id, character, []);
+            _state = _rules.RefreshAuras(_state);
+            _events.Add(new(SimulationEventKind.Transformed, playerId, source, id));
+            ReplaceHeroPower(playerId, source, effect.HeroPowerCardId);
+        }
+
         private void PlayHeroCard(PlayerId playerId, EntityId source)
         {
             var oldHeroId = _state.Players[playerId].Hero;

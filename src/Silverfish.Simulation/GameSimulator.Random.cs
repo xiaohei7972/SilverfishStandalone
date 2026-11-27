@@ -11,7 +11,7 @@ public sealed partial class GameSimulator
     private ImmutableArray<string> MatchingMinionCandidates(CardFilter filter) =>
         _matchingMinionPools.GetOrAdd(filter, key =>
             [.. _randomMinionCosts.Value.Values.SelectMany(bucket => bucket).Order(StringComparer.Ordinal)
-                .Where(id => MatchesCardFilter(GetCard(id).Definition, key))]);
+                .Where(id => MatchesCardFilter(GetCard(id), key))]);
     /// <summary>在预算内枚举随机分支，必要时使用独立于回放种子的采样。</summary>
     /// <remarks>预测保留输入的回放种子。实际推进对局时调用 Apply。</remarks>
     public SimulationDistribution ApplyDistribution(GameState state, SimulationAction action, int workLimit = 64)
@@ -218,7 +218,9 @@ public sealed partial class GameSimulator
 
         private void SummonMatchingMinion(Stack<Work> work, EffectContext context, SummonMatchingMinionEffect effect)
         {
-            var player = context.Controller;
+            var player = effect.Recipient == CardRecipient.Controller
+                ? context.Controller
+                : _state.OpponentOf(context.Controller);
             if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
                 return;
 

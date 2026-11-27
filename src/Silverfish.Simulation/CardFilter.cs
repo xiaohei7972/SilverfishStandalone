@@ -12,6 +12,7 @@ public sealed record CardFilter
     public int? MaximumPrintedCost { get; init; }
     public bool? HasBattlecry { get; init; }
     public bool? HasDeathrattle { get; init; }
+    public bool? IsLegendary { get; init; }
 }
 
 public sealed partial class GameSimulator
@@ -44,7 +45,9 @@ public sealed partial class GameSimulator
         (filter.HasBattlecry is not bool battlecry ||
             (card.Definition.Kind == EntityKind.Minion && (!card.OnPlay.IsEmpty || card.ChooseAfterPlay is not null)) == battlecry) &&
         (filter.HasDeathrattle is not bool deathrattle ||
-            (!card.Deathrattle.IsEmpty || PlayReqTags.Has(card.RequirementTagMask, (int)Silverfish.Domain.Client.GAME_TAG.DEATHRATTLE)) == deathrattle);
+            (!card.Deathrattle.IsEmpty || PlayReqTags.Has(card.RequirementTagMask, (int)Silverfish.Domain.Client.GAME_TAG.DEATHRATTLE)) == deathrattle) &&
+        (filter.IsLegendary is not bool legendary ||
+            PlayReqTags.Has(card.RequirementTagMask, (int)Silverfish.Domain.Client.GAME_TAG.RARITY) == legendary);
 
     private static bool MatchesMinionType(CardDefinition definition, MinionType type)
     {

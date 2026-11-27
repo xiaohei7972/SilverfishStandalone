@@ -30,7 +30,11 @@ public enum EnchantmentDuration { Permanent, CurrentTurn, UntilNextTurn }
 public enum EnchantmentRemovalReason { Expired, Silenced, LeftPlay, Transformed, Died }
 public enum AuraRecipients { OtherFriendlyMinions, AdjacentFriendlyMinions, Self }
 public enum AuraCondition { None = 0, WhileDamaged, WhileWeaponEquipped }
-public enum SelfCostReduction { None = 0, OtherMinionsOnBattlefield, EquippedWeaponAttack, OtherFriendlyHandCards, FriendlyHeroMissingHealth }
+public enum SelfCostReduction
+{
+    None = 0, OtherMinionsOnBattlefield, EquippedWeaponAttack, OtherFriendlyHandCards, FriendlyHeroMissingHealth,
+    MinionsDiedThisTurn, OpponentHandCards
+}
 public enum CostAuraTarget { Hand, Minion, Spell, Weapon, HeroPower, Location }
 public enum CostAuraRecipient { Friendly, Opponent, BothPlayers }
 public enum HandCostTarget { Source, DrawnCard, FriendlyHand }
@@ -70,7 +74,7 @@ public enum TriggerTiming
     TurnStarted, TurnEnded, WhenMinionSummoned, AfterMinionSummoned,
     BeforeSpellResolved, AfterSpellResolved, MinionDied, Damage, CardDrawn, HeroAttacking, WeaponDestroyed, AfterHeroPowerUsed,
     SpellCounterWindow, SpellTargetWindow, AttackProposed, FatalDamageWindow, AfterMinionPlayed, CardDiscarded,
-    Overkill, HonorableKill, Overheal, WhenCardPlayed, AfterCardPlayed, Healed, SecretRevealed
+    Overkill, HonorableKill, Overheal, WhenCardPlayed, AfterCardPlayed, Healed, SecretRevealed, TargetedBySpell
 }
 
 public enum TriggerRelation { Friendly, Opponent, Any }
@@ -112,7 +116,9 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(CreateCardEffect), "createCard")]
 [JsonDerivedType(typeof(CreateRandomCardEffect), "createRandomCard")]
 [JsonDerivedType(typeof(CreateRandomMatchingCardEffect), "createRandomMatchingCard")]
+[JsonDerivedType(typeof(CreateRandomOpponentClassSpellEffect), "createRandomOpponentClassSpell")]
 [JsonDerivedType(typeof(CopyTriggerCardToHandEffect), "copyTriggerCardToHand")]
+[JsonDerivedType(typeof(CopyTargetCardEffect), "copyTargetCard")]
 [JsonDerivedType(typeof(CreateCardAtTurnEndEffect), "createCardAtTurnEnd")]
 [JsonDerivedType(typeof(CopyDeckCardsEffect), "copyDeckCards")]
 [JsonDerivedType(typeof(SummonDeckCopyEffect), "summonDeckCopy")]
@@ -124,6 +130,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(HealEffect), "heal")]
 [JsonDerivedType(typeof(SetHeroRemainingHealthEffect), "setHeroRemainingHealth")]
 [JsonDerivedType(typeof(ReplaceHeroPowerEffect), "replaceHeroPower")]
+[JsonDerivedType(typeof(ReplaceHeroEffect), "replaceHero")]
 [JsonDerivedType(typeof(EquipWeaponEffect), "equipWeapon")]
 [JsonDerivedType(typeof(ModifyWeaponEffect), "modifyWeapon")]
 [JsonDerivedType(typeof(DestroyEnemyWeaponEffect), "destroyEnemyWeapon")]
@@ -131,6 +138,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(ProtectFriendlyMinionsMinimumHealthEffect), "protectFriendlyMinionsMinimumHealth")]
 [JsonDerivedType(typeof(CopyTriggerSpellToOtherPlayerEffect), "copyTriggerSpellToOtherPlayer")]
 [JsonDerivedType(typeof(EnchantStatsEffect), "enchantStats")]
+[JsonDerivedType(typeof(RandomEnchantStatsEffect), "randomEnchantStats")]
 [JsonDerivedType(typeof(ScaledEnchantStatsEffect), "scaledEnchantStats")]
 [JsonDerivedType(typeof(DynamicStatChangeEffect), "dynamicStatChange")]
 [JsonDerivedType(typeof(DrainDivineShieldsBuffEffect), "drainDivineShieldsBuff")]
@@ -178,6 +186,9 @@ public sealed record DamageEffect(DamageTarget Target, int Amount) : CardEffect
     /// <summary>在同一目标受到伤害后、伤害触发器执行前施加。</summary>
     public EnchantStatsEffect? Enchantment { get; init; }
     public string? ExcludeCardId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool UndamagedOnly { get; init; }
+    public MinionType? ExcludeMinionType { get; init; }
 }
 public sealed record EventAmountDamageEffect(DamageTarget Target) : CardEffect;
 public sealed record SplashDamageEffect(int CenterAmount, int AdjacentAmount) : CardEffect;
@@ -208,7 +219,9 @@ public sealed record AddTemporaryCostAuraEffect(
     bool NextTurn = false,
     bool SecretOnly = false,
     bool ConsumedOnPlay = false,
-    string? EnchantmentCardId = null) : CardEffect;
+    string? EnchantmentCardId = null,
+    MinionType? MinionType = null,
+    bool Persistent = false) : CardEffect;
 public sealed record ChangeCostTypeEffect(
     [property: JsonRequired] HandCostTarget Target,
     [property: JsonRequired] TAG_CARD_ALTERNATE_COST Type,
@@ -236,7 +249,13 @@ public sealed record CreateRandomMatchingCardEffect(
     [property: JsonRequired] CardFilter CardFilter,
     int Count = 1,
     CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
+public sealed record CreateRandomOpponentClassSpellEffect(int Count = 1, string? FallbackCardId = null) : CardEffect;
 public sealed record CopyTriggerCardToHandEffect(int Count = 1) : CardEffect;
+public sealed record CopyTargetCardEffect(
+    EffectTarget Target = EffectTarget.Selected,
+    CardPlacement Placement = CardPlacement.ShuffleIntoDeck,
+    CardRecipient Recipient = CardRecipient.Controller,
+    int Count = 1) : CardEffect;
 public sealed record CreateCardAtTurnEndEffect([property: JsonRequired] string CardId) : CardEffect;
 public sealed record CopyDeckCardsEffect(
     ConditionPlayer SourceDeck = ConditionPlayer.Opponent,
@@ -257,6 +276,9 @@ public sealed record HealFriendlyHeroEffect(int Amount) : CardEffect;
 public sealed record HealEffect(HealTarget Target, int Amount) : CardEffect;
 public sealed record SetHeroRemainingHealthEffect(int Health = 15, EffectTarget Target = EffectTarget.Selected) : CardEffect;
 public sealed record ReplaceHeroPowerEffect([property: JsonRequired] string CardId) : CardEffect;
+public sealed record ReplaceHeroEffect(
+    [property: JsonRequired] string HeroCardId,
+    [property: JsonRequired] string HeroPowerCardId) : CardEffect;
 public sealed record EquipWeaponEffect(string CardId) : CardEffect;
 public sealed record ModifyWeaponEffect(
     int AttackDelta = 0,
@@ -279,6 +301,13 @@ public sealed record EnchantStatsEffect(StatTarget Target, StatModifier? Modifie
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public ImmutableArray<CardEffect> OnAttack { get; init; }
 }
+public sealed record RandomEnchantStatsEffect(
+    StatTarget Target,
+    int MinAttack,
+    int MaxAttack,
+    int MinHealth = 0,
+    int MaxHealth = 0,
+    string? EnchantmentCardId = null) : CardEffect;
 public sealed record ScaledEnchantStatsEffect(
     StatTarget Target,
     StatScaleSource Scale,
@@ -337,7 +366,10 @@ public sealed record RandomDamageEffect(RandomCharacterPool Pool, int Amount, in
 public sealed record DestroyRandomEnemyMinionEffect(int? MaximumAttack = null) : CardEffect;
 public sealed record DestroyAllButOneMinionEffect : CardEffect;
 public sealed record SummonRandomMinionEffect(ImmutableArray<string> CardIds) : CardEffect;
-public sealed record SummonMatchingMinionEffect([property: JsonRequired] CardFilter CardFilter, int Count = 1) : CardEffect;
+public sealed record SummonMatchingMinionEffect(
+    [property: JsonRequired] CardFilter CardFilter,
+    int Count = 1,
+    CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
 public sealed record ChangeManaEffect(ManaOperation Operation, int Amount, ManaRecipient Recipient = ManaRecipient.Controller,
     string? OverflowCardId = null) : CardEffect;
 

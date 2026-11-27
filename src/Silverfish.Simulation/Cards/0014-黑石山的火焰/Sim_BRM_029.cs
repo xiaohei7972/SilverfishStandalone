@@ -5,6 +5,7 @@ namespace Silverfish.Simulation.Cards;
 // Rend Blackhand
 // 战吼：如果你的手牌中有龙牌，则消灭一个传说随从。
 // Battlecry: If you're holding a Dragon, destroy a Legendary minion.
+[CardSim("BRM_029")]
 internal static class Sim_BRM_029
 {
     // <legacy-play-requirements>
@@ -13,4 +14,11 @@ internal static class Sim_BRM_029
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new DestroyMinionEffect()
+        ]
+    };
 }

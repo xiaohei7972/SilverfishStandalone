@@ -70,6 +70,8 @@ public sealed partial class GameSimulator
         SelfCostReduction.OtherFriendlyHandCards => state.Players[entity.Controller].In(GameZone.Hand)
             .Count(id => id != entity.Id),
         SelfCostReduction.FriendlyHeroMissingHealth => state.Entities[state.Players[entity.Controller].Hero].Character?.Damage ?? 0,
+        SelfCostReduction.MinionsDiedThisTurn => state.MinionDeaths.Count(d => d.Turn == state.Turn),
+        SelfCostReduction.OpponentHandCards => state.Players[state.OpponentOf(entity.Controller)].In(GameZone.Hand).Length,
         _ => throw new InvalidOperationException("无法识别卡牌自身的减费条件。")
     };
 
@@ -108,8 +110,9 @@ public sealed partial class GameSimulator
 
         foreach (var temp in state.Players[entity.Controller].TemporaryCostAuras)
         {
-            if (temp.ActiveOnTurn == state.Turn && temp.TargetKind == card.Definition.Kind &&
-                (!temp.SecretOnly || card.IsSecret))
+            if ((temp.Persistent || temp.ActiveOnTurn == state.Turn) && temp.TargetKind == card.Definition.Kind &&
+                (!temp.SecretOnly || card.IsSecret) &&
+                (temp.MinionType is not MinionType race || MatchesMinionType(card.Definition, race)))
             {
                 cost = temp.Mode == CostModifierMode.Set ? temp.Amount : cost + temp.Amount;
             }
@@ -168,7 +171,7 @@ public sealed partial class GameSimulator
                     continue;
 
                 var entity = _state.Entities[id];
-                if (filter is null || MatchesCardFilter(_rules.Card(entity).Definition, filter))
+                if (filter is null || MatchesCardFilter(_rules.Card(entity), filter))
                     yield return entity;
             }
         }
@@ -197,7 +200,8 @@ public sealed partial class GameSimulator
                 : _state.OpponentOf(context.Controller);
             var activeTurn = effect.NextTurn ? checked(_state.Turn + 1) : _state.Turn;
             var aura = new TemporaryCostAura(context.Source, effect.TargetKind, effect.Mode, effect.Amount,
-                activeTurn, effect.SecretOnly, effect.ConsumedOnPlay, effect.EnchantmentCardId);
+                activeTurn, effect.SecretOnly, effect.ConsumedOnPlay, effect.EnchantmentCardId,
+                effect.MinionType, effect.Persistent);
             var player = _state.Players[recipient];
             _state = _state.UpdateResources(player with { TemporaryCostAuras = player.TemporaryCostAuras.Add(aura) });
             _events.Add(new(SimulationEventKind.EnchantmentApplied, context.Controller, context.Source, player.Hero, effect.Amount)
@@ -211,8 +215,9 @@ public sealed partial class GameSimulator
                 return;
 
             var remaining = player.TemporaryCostAuras.RemoveAll(aura =>
-                aura.ConsumedOnPlay && aura.ActiveOnTurn == _state.Turn &&
-                aura.TargetKind == card.Definition.Kind && (!aura.SecretOnly || card.IsSecret));
+                aura.ConsumedOnPlay && (aura.Persistent || aura.ActiveOnTurn == _state.Turn) &&
+                aura.TargetKind == card.Definition.Kind && (!aura.SecretOnly || card.IsSecret) &&
+                (aura.MinionType is not MinionType race || MatchesMinionType(card.Definition, race)));
             if (remaining != player.TemporaryCostAuras)
                 _state = _state.UpdateResources(player with { TemporaryCostAuras = remaining });
         }
@@ -239,7 +244,7 @@ public sealed partial class GameSimulator
             var turn = _state.Turn;
             foreach (var player in _state.Players.Values)
             {
-                var remainingAuras = player.TemporaryCostAuras.RemoveAll(aura => aura.ActiveOnTurn <= turn);
+                var remainingAuras = player.TemporaryCostAuras.RemoveAll(aura => !aura.Persistent && aura.ActiveOnTurn <= turn);
                 if (remainingAuras != player.TemporaryCostAuras)
                     _state = _state.UpdateResources(player with { TemporaryCostAuras = remainingAuras });
             }

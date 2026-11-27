@@ -271,6 +271,20 @@ public sealed partial class GameSimulator
             return candidates.Length == 0 ? [] : [candidates[ChooseIndex(candidates.Length)]];
         }
 
+        private void ApplyRandomEnchantStats(EffectContext context, RandomEnchantStatsEffect effect)
+        {
+            var atk = effect.MinAttack + ChooseIndex(effect.MaxAttack - effect.MinAttack + 1);
+            var hp = effect.MinHealth + ChooseIndex(effect.MaxHealth - effect.MinHealth + 1);
+            if (atk <= 0 && hp <= 0)
+                return;
+
+            EnchantStats(context, new(effect.Target,
+                new(StatModifierMode.Add, atk > 0 ? atk : null, hp > 0 ? hp : null))
+            {
+                EnchantmentCardId = effect.EnchantmentCardId
+            });
+        }
+
         private void ApplyScaledEnchantStats(EffectContext context, ScaledEnchantStatsEffect effect)
         {
             var count = effect.Scale switch

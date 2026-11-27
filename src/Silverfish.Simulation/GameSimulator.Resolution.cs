@@ -203,6 +203,8 @@ public sealed partial class GameSimulator
             RunTriggers(new(TriggerTiming.WhenCardPlayed, playerId, source), listeners);
             var before = isMinion ? TriggerTiming.WhenMinionSummoned : TriggerTiming.BeforeSpellResolved;
             RunTriggers(new(before, playerId, source), listeners);
+            if (!isMinion && target is EntityId spellTarget)
+                RunTriggers(new(TriggerTiming.TargetedBySpell, playerId, spellTarget), listeners);
             AddOverload(playerId, source, card.Overload);
             ResolveDeaths();
 
@@ -321,7 +323,8 @@ public sealed partial class GameSimulator
         }
 
         private void ApplyDamageTarget(Stack<Work> work, EffectContext context, DamageTarget target, int damageAmount,
-            EnchantStatsEffect? enchantment = null, string? excludeCardId = null)
+            EnchantStatsEffect? enchantment = null, string? excludeCardId = null,
+            bool undamagedOnly = false, MinionType? excludeMinionType = null)
         {
             if (target is DamageTarget.AllMinions or DamageTarget.EnemyMinions or DamageTarget.AllEnemies or
                 DamageTarget.AllCharacters or DamageTarget.OtherCharacters)
@@ -339,6 +342,10 @@ public sealed partial class GameSimulator
                 };
                 if (excludeCardId is not null)
                     targets = targets.Where(id => _state.Entities[id].CardId != excludeCardId);
+                if (undamagedOnly)
+                    targets = targets.Where(id => _state.Entities[id].Character?.Damage == 0);
+                if (excludeMinionType is MinionType excludedRace)
+                    targets = targets.Where(id => !MatchesMinionType(_rules.Card(_state.Entities[id]).Definition, excludedRace));
                 var hits = targets
                     .OrderBy(id => _state.Entities[id].PlayOrder)
                     .Select(id => Damage(context.Source, id, damageAmount)).ToArray();
@@ -480,7 +487,8 @@ public sealed partial class GameSimulator
             {
                 case DamageEffect damage:
                     ApplyDamageTarget(work, context, damage.Target,
-                        ModifiedEffectAmount(context, damage.Amount, damage: true), damage.Enchantment, damage.ExcludeCardId);
+                        ModifiedEffectAmount(context, damage.Amount, damage: true), damage.Enchantment, damage.ExcludeCardId,
+                        damage.UndamagedOnly, damage.ExcludeMinionType);
                     break;
                 case EventAmountDamageEffect eventDamage:
                     if (context.EventAmount is int eventAmount && eventAmount > 0)
@@ -550,8 +558,14 @@ public sealed partial class GameSimulator
                 case CreateRandomMatchingCardEffect createMatching:
                     CreateRandomMatchingCard(context, createMatching);
                     break;
+                case CreateRandomOpponentClassSpellEffect createOpponentSpell:
+                    CreateRandomOpponentClassSpell(context, createOpponentSpell);
+                    break;
                 case CopyTriggerCardToHandEffect copyTrigger:
                     CopyTriggerCardToHand(context, copyTrigger);
+                    break;
+                case CopyTargetCardEffect copyTarget:
+                    CopyTargetCard(context, copyTarget);
                     break;
                 case CreateCardAtTurnEndEffect delayedCreate:
                     var delayedOwner = _state.Players[context.Controller];
@@ -590,6 +604,9 @@ public sealed partial class GameSimulator
                 case ReplaceHeroPowerEffect replaceHeroPower:
                     ReplaceHeroPower(context.Controller, context.Source, replaceHeroPower.CardId);
                     break;
+                case ReplaceHeroEffect replaceHero:
+                    ReplaceHero(context.Controller, context.Source, replaceHero);
+                    break;
                 case EquipWeaponEffect equip:
                     CreateAndEquipWeapon(context.Controller, equip.CardId);
                     break;
@@ -627,6 +644,9 @@ public sealed partial class GameSimulator
                     break;
                 case EnchantStatsEffect enchant:
                     EnchantStats(context, enchant);
+                    break;
+                case RandomEnchantStatsEffect randomEnchant:
+                    ApplyRandomEnchantStats(context, randomEnchant);
                     break;
                 case ScaledEnchantStatsEffect scaledEnchant:
                     ApplyScaledEnchantStats(context, scaledEnchant);

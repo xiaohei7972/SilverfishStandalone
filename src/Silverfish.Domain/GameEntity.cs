@@ -75,4 +75,6 @@ public sealed record TemporaryCostAura(
     int ActiveOnTurn,
     bool SecretOnly = false,
     bool ConsumedOnPlay = false,
-    string? CardId = null);
+    string? CardId = null,
+    MinionType? MinionType = null,
+    bool Persistent = false);

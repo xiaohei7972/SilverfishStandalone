@@ -49,6 +49,48 @@ public sealed partial class GameSimulator
             }
         }
 
+        private void CreateRandomOpponentClassSpell(EffectContext context, CreateRandomOpponentClassSpellEffect effect)
+        {
+            var enemy = _state.OpponentOf(context.Controller);
+            var enemyClass = _rules.Card(_state.Entities[_state.Players[enemy].Hero]).Definition.ClassMask;
+            var candidates = enemyClass == 0
+                ? []
+                : _rules._cards.Values
+                    .Where(card => card.Definition.Kind == EntityKind.Spell && !card.IsPlayChoiceOption &&
+                        (card.Definition.ClassMask & enemyClass) != 0)
+                    .Select(card => card.Definition.CardId)
+                    .OrderBy(id => id, StringComparer.Ordinal)
+                    .ToArray();
+            if (candidates.Length == 0 && effect.FallbackCardId is null)
+                return;
+
+            for (var i = 0; i < effect.Count; i++)
+            {
+                var cardId = candidates.Length > 0 ? candidates[ChooseIndex(candidates.Length)] : effect.FallbackCardId!;
+                if (!TryCreateCard(cardId, context.Controller, context.Source, CardPlacement.Hand))
+                    break;
+                SpendResolutionStep();
+            }
+        }
+
+        private void CopyTargetCard(EffectContext context, CopyTargetCardEffect effect)
+        {
+            var targetId = (effect.Target == EffectTarget.Selected ? context.Selected : context.Subject);
+            if (targetId is not EntityId id || !_state.Entities.TryGetValue(id, out var entity))
+                return;
+
+            var recipient = effect.Recipient == CardRecipient.Controller ? context.Controller : _state.OpponentOf(context.Controller);
+            for (var i = 0; i < effect.Count; i++)
+            {
+                if (!TryCreateCard(entity.CardId, recipient, context.Source, effect.Placement))
+                    break;
+                SpendResolutionStep();
+            }
+
+            if (effect.Placement == CardPlacement.ShuffleIntoDeck)
+                ShuffleDeck(recipient, context.Source);
+        }
+
         private void CopyDeckCards(EffectContext context, CopyDeckCardsEffect effect)
         {
             var deckOwner = effect.SourceDeck == ConditionPlayer.Friendly

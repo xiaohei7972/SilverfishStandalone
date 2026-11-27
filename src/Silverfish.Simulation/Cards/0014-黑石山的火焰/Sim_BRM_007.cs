@@ -5,6 +5,7 @@ namespace Silverfish.Simulation.Cards;
 // Gang Up
 // 选择一个随从。将该随从的三张复制洗入你的牌库。
 // Choose a minion. Shuffle 3 copies of it into your deck.
+[CardSim("BRM_007")]
 internal static class Sim_BRM_007
 {
     // <legacy-play-requirements>
@@ -13,4 +14,11 @@ internal static class Sim_BRM_007
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new CopyTargetCardEffect(EffectTarget.Selected, CardPlacement.ShuffleIntoDeck, Count: 3)
+        ]
+    };
 }

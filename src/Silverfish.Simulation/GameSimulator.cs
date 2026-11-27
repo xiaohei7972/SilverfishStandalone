@@ -213,7 +213,9 @@ public sealed partial class GameSimulator
             if (player.TemporaryCostAuras.Any(aura => aura is null || !state.Entities.ContainsKey(aura.Source) ||
                 !Enum.IsDefined(aura.TargetKind) || aura.TargetKind == EntityKind.Unknown || !Enum.IsDefined(aura.Mode) ||
                 (aura.Mode == CostModifierMode.Set ? aura.Amount < 0 : aura.Amount == 0) ||
-                aura.ActiveOnTurn < state.Turn || !IsOptionalCardIdValid(aura.CardId)))
+                (!aura.Persistent && aura.ActiveOnTurn < state.Turn) ||
+                (aura.MinionType is MinionType race && !Enum.IsDefined(race)) ||
+                !IsOptionalCardIdValid(aura.CardId)))
                 throw new ArgumentException($"玩家 {player.Id.Value} 的临时费用光环无效。");
             if (player.EndOfTurnHandAdditions.Any(cardId => !CanCreateCard(cardId)))
                 throw new ArgumentException($"玩家 {player.Id.Value} 的回合结束待生成卡牌无效。");
@@ -461,6 +463,7 @@ public sealed partial class GameSimulator
             var valid = effect switch
             {
                 DamageEffect damage => damage.Amount > 0 &&
+                    (damage.ExcludeMinionType is not MinionType excludedRace || Enum.IsDefined(excludedRace)) &&
                     (damage.Enchantment is null || (damage.Target == DamageTarget.Selected && damage.Enchantment.Target == StatTarget.Selected)) &&
                     IsValidDamageTarget(damage.Target),
                 EventAmountDamageEffect eventDamage => timing == TriggerTiming.Damage && IsValidDamageTarget(eventDamage.Target),
@@ -487,6 +490,7 @@ public sealed partial class GameSimulator
                     Enum.IsDefined(tempCost.Mode) && Enum.IsDefined(tempCost.Recipient) &&
                     (tempCost.Mode == CostModifierMode.Set ? tempCost.Amount >= 0 : tempCost.Amount != 0) &&
                     (!tempCost.SecretOnly || tempCost.TargetKind == EntityKind.Spell) &&
+                    (tempCost.MinionType is not MinionType race || Enum.IsDefined(race)) &&
                     IsOptionalCardIdValid(tempCost.EnchantmentCardId),
                 ChangeCostTypeEffect change => SupportsCostType(change.Type) && IsHandCostDuration(change.Duration) &&
                     IsOptionalCardIdValid(change.EnchantmentCardId) && HasHandCostTarget(change.Target, change.CardFilter),
@@ -501,8 +505,18 @@ public sealed partial class GameSimulator
                     Enum.IsDefined(createRandom.Recipient) && createRandom.CardIds.All(CanCreateCard),
                 CreateRandomMatchingCardEffect createMatching => createMatching.Count > 0 && createMatching.CardFilter is not null &&
                     IsValidCardFilter(createMatching.CardFilter) && Enum.IsDefined(createMatching.Recipient),
+                CreateRandomOpponentClassSpellEffect createOpponentSpell => createOpponentSpell.Count > 0 &&
+                    (createOpponentSpell.FallbackCardId is null || CanCreateCard(createOpponentSpell.FallbackCardId)),
                 CopyTriggerCardToHandEffect copyTrigger => copyTrigger.Count > 0 &&
-                    (timing == TriggerTiming.MinionDied || hasCharacterSubject),
+                    (timing is TriggerTiming.MinionDied or TriggerTiming.CardDrawn || hasCharacterSubject),
+                CopyTargetCardEffect copyTarget => copyTarget.Count > 0 &&
+                    Enum.IsDefined(copyTarget.Placement) && Enum.IsDefined(copyTarget.Recipient) &&
+                    (copyTarget.Target switch
+                    {
+                        EffectTarget.Selected => TargetsOnlyMinions(target),
+                        EffectTarget.TriggerSubject => hasCharacterSubject,
+                        _ => false
+                    }),
                 CreateCardAtTurnEndEffect delayedCreate => CanCreateCard(delayedCreate.CardId),
                 CopyDeckCardsEffect copy => copy.Count > 0 && Enum.IsDefined(copy.SourceDeck) && IsValidCardFilter(copy.CardFilter),
                 SummonDeckCopyEffect copy => copy.Count > 0 && Enum.IsDefined(copy.SourceDeck) &&
@@ -529,6 +543,8 @@ public sealed partial class GameSimulator
                     _ => false
                 }),
                 ReplaceHeroPowerEffect replaceHeroPower => GetCard(replaceHeroPower.CardId).Definition.Kind == EntityKind.HeroPower,
+                ReplaceHeroEffect replaceHero => GetCard(replaceHero.HeroCardId).Definition.Kind == EntityKind.Hero &&
+                    GetCard(replaceHero.HeroPowerCardId).Definition.Kind == EntityKind.HeroPower,
                 EquipWeaponEffect equip => GetCard(equip.CardId).Definition.Kind == EntityKind.Weapon,
                 ModifyWeaponEffect modifyWeapon => (modifyWeapon.AttackDelta != 0 || modifyWeapon.DurabilityDelta != 0) &&
                     Enum.IsDefined(modifyWeapon.TargetWeapon) && IsOptionalCardIdValid(modifyWeapon.EnchantmentCardId),
@@ -546,6 +562,14 @@ public sealed partial class GameSimulator
                     (enchant.Target != StatTarget.Selected || target != TargetRequirement.None) &&
                     (enchant.Target != StatTarget.TriggerSubject || hasCharacterSubject) &&
                     (enchant.Target is not (StatTarget.Source or StatTarget.OtherFriendlyMinions or StatTarget.AdjacentFriendlyMinions) || hasInPlaySource),
+                RandomEnchantStatsEffect randomEnchant => Enum.IsDefined(randomEnchant.Target) &&
+                    randomEnchant.MinAttack >= 0 && randomEnchant.MaxAttack >= randomEnchant.MinAttack &&
+                    randomEnchant.MinHealth >= 0 && randomEnchant.MaxHealth >= randomEnchant.MinHealth &&
+                    (randomEnchant.MaxAttack > 0 || randomEnchant.MaxHealth > 0) &&
+                    IsOptionalCardIdValid(randomEnchant.EnchantmentCardId) &&
+                    (randomEnchant.Target != StatTarget.Selected || target != TargetRequirement.None) &&
+                    (randomEnchant.Target != StatTarget.TriggerSubject || hasCharacterSubject) &&
+                    (randomEnchant.Target is not (StatTarget.Source or StatTarget.OtherFriendlyMinions or StatTarget.AdjacentFriendlyMinions) || hasInPlaySource),
                 ScaledEnchantStatsEffect scaled => Enum.IsDefined(scaled.Target) && Enum.IsDefined(scaled.Scale) &&
                     (scaled.AttackPerUnit > 0 || scaled.HealthPerUnit > 0) && scaled.AttackPerUnit >= 0 && scaled.HealthPerUnit >= 0 &&
                     IsOptionalCardIdValid(scaled.EnchantmentCardId) &&
@@ -625,6 +649,7 @@ public sealed partial class GameSimulator
                 SummonRandomMinionEffect summon => !summon.CardIds.IsDefaultOrEmpty &&
                     summon.CardIds.All(id => GetCard(id).Definition.Kind == EntityKind.Minion),
                 SummonMatchingMinionEffect summon => summon.Count > 0 && summon.CardFilter is not null &&
+                    Enum.IsDefined(summon.Recipient) &&
                     IsValidCardFilter(summon.CardFilter) && summon.CardFilter.Kind is null or EntityKind.Minion,
                 ChangeManaEffect mana => mana.Amount > 0 && Enum.IsDefined(mana.Operation) && Enum.IsDefined(mana.Recipient) &&
                     (mana.OverflowCardId is null || (mana.Operation is ManaOperation.GainEmpty or ManaOperation.GainFilled &&
@@ -687,7 +712,8 @@ public sealed partial class GameSimulator
         timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
             TriggerTiming.AfterMinionPlayed or TriggerTiming.Damage or TriggerTiming.Overkill or
             TriggerTiming.HonorableKill or TriggerTiming.Healed or TriggerTiming.Overheal or TriggerTiming.HeroAttacking or
-            TriggerTiming.AttackProposed or TriggerTiming.FatalDamageWindow or TriggerTiming.SpellTargetWindow;
+            TriggerTiming.AttackProposed or TriggerTiming.FatalDamageWindow or TriggerTiming.SpellTargetWindow or
+            TriggerTiming.TargetedBySpell;
 
     private static bool IsOptionalCardIdValid(string? cardId) => cardId is null || !string.IsNullOrWhiteSpace(cardId);
 

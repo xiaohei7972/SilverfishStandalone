@@ -5,6 +5,7 @@ namespace Silverfish.Simulation.Cards;
 // Blackwing Corruptor
 // 战吼：如果你的手牌中有龙牌，则造成5点伤害。
 // Battlecry: If you're holding a Dragon, deal 5 damage.
+[CardSim("BRM_034")]
 internal static class Sim_BRM_034
 {
     // <legacy-play-requirements>
@@ -13,4 +14,11 @@ internal static class Sim_BRM_034
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new DamageEffect(DamageTarget.Selected, 5)
+        ]
+    };
 }
