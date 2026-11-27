@@ -15,6 +15,7 @@ public sealed partial class GameSimulator
             Enum.IsDefined(count.Comparison) && IsValidCardFilter(count.CardFilter) &&
             (count.EntityKind is not EntityKind kind || (Enum.IsDefined(kind) && kind != EntityKind.Unknown)),
         ComboCondition => canUseCombo,
+        WeaponEquippedCondition weapon => Enum.IsDefined(weapon.Player),
         _ => false
     };
 
@@ -62,6 +63,10 @@ public sealed partial class GameSimulator
             CharacterStateCondition state => MeetsCharacterStateCondition(context, state),
             ZoneCountCondition count => TestComparison(CountEntities(context, count), count.Comparison, count.Value),
             ComboCondition => context.CardsPlayedBefore > 0,
+            WeaponEquippedCondition weapon => _state.Players[weapon.Player == ConditionPlayer.Friendly
+                ? context.Controller : _state.OpponentOf(context.Controller)].EquippedWeapon is EntityId equipped &&
+                _state.LocationOf(equipped).Zone == GameZone.Play &&
+                _state.Entities[equipped].Weapon is { Durability: > 0 },
             _ => throw new InvalidOperationException("无法识别效果条件。")
         };
 

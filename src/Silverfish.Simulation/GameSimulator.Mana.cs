@@ -40,8 +40,9 @@ public sealed partial class GameSimulator
 
         private void ChangeMana(EffectContext context, ChangeManaEffect effect)
         {
-            ChangeMana(context.Source, context.Controller, effect);
-            if (effect.Recipient == ManaRecipient.BothPlayers)
+            if (effect.Recipient is ManaRecipient.Controller or ManaRecipient.BothPlayers)
+                ChangeMana(context.Source, context.Controller, effect);
+            if (effect.Recipient is ManaRecipient.Opponent or ManaRecipient.BothPlayers)
                 ChangeMana(context.Source, _state.OpponentOf(context.Controller), effect);
         }
 

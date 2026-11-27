@@ -42,22 +42,19 @@ public sealed partial class GameSimulator
             return [];
 
         var applicable = ImmutableArray.CreateBuilder<CostAura>();
-        foreach (var player in state.Players.Values)
+        var emitters = state.Players.Values
+            .SelectMany(player => player.In(GameZone.Play).Select(id => (Player: player, Entity: state.Entities[id])))
+            .Where(entry => !entry.Entity.Silenced &&
+                (entry.Entity.Character is { Health: > 0 } ||
+                    (entry.Player.EquippedWeapon == entry.Entity.Id && entry.Entity.Weapon is { Durability: > 0 })))
+            .OrderBy(entry => entry.Entity.PlayOrder);
+        foreach (var (player, source) in emitters)
         {
             var relation = player.Id == recipient ? CostAuraRecipient.Friendly : CostAuraRecipient.Opponent;
-            foreach (var id in player.In(GameZone.Play))
-            {
-                var source = state.Entities[id];
-                if (source.Silenced ||
-                    (source.Character is not { Health: > 0 } &&
-                        (player.EquippedWeapon != id || source.Weapon is not { Durability: > 0 })))
-                    continue;
-
-                foreach (var aura in Card(source).CostAuras)
-                    if ((aura.Recipient == relation || aura.Recipient == CostAuraRecipient.BothPlayers) &&
-                        (!aura.FirstMinionEachTurn || !state.Players[recipient].PlayedMinionThisTurn.GetValueOrDefault()))
-                        applicable.Add(aura);
-            }
+            foreach (var aura in Card(source).CostAuras)
+                if ((aura.Recipient == relation || aura.Recipient == CostAuraRecipient.BothPlayers) &&
+                    (!aura.FirstMinionEachTurn || !state.Players[recipient].PlayedMinionThisTurn.GetValueOrDefault()))
+                    applicable.Add(aura);
         }
         return applicable.ToImmutable();
     }
@@ -91,7 +88,17 @@ public sealed partial class GameSimulator
             foreach (var aura in auras)
                 if ((aura.Target == target || (aura.Target == CostAuraTarget.Hand && target != CostAuraTarget.HeroPower)) &&
                     (aura.CardFilter is not { } cards || MatchesCardFilter(card.Definition, cards)))
-                    cost += aura.Delta;
+                {
+                    if (aura.MinimumCost is int minCost && aura.Delta < 0)
+                    {
+                        if (cost > minCost)
+                            cost = Math.Max(minCost, cost + aura.Delta);
+                    }
+                    else
+                    {
+                        cost += aura.Delta;
+                    }
+                }
         }
 
         // 把单卡修正和场上光环全部相加后，再限制实际费用的范围。

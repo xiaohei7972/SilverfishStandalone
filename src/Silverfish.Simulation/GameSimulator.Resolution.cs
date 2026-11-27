@@ -144,11 +144,15 @@ public sealed partial class GameSimulator
             {
                 var weapon = _state.Entities[source];
                 _state = _state.UpdateEntity(weapon with { Weapon = card.CreateWeapon() });
+                RunTriggers(new(TriggerTiming.WhenCardPlayed, playerId, source), listeners);
                 AddOverload(playerId, source, card.Overload);
+                ResolveDeaths();
                 if (resolvesEffect)
                     ResolveEffects(new(source, playerId, target, CardsPlayedBefore: cardsPlayedBefore), effects);
                 MarkEquippedWeaponForDestruction(playerId);
                 SetEquippedWeapon(playerId, source);
+                ResolveDeaths();
+                RunTriggers(new(TriggerTiming.AfterCardPlayed, playerId, source), listeners);
                 return;
             }
 
@@ -157,9 +161,13 @@ public sealed partial class GameSimulator
                 var entity = _state.Entities[source];
                 _state = _state.UpdateEntity(entity with { Location = new(card.Definition.PrintedDurability) });
                 _state = _rules.RefreshAuras(_state);
+                RunTriggers(new(TriggerTiming.WhenCardPlayed, playerId, source), listeners);
                 AddOverload(playerId, source, card.Overload);
+                ResolveDeaths();
                 if (resolvesEffect)
                     ResolveEffects(new(source, playerId, target, CardsPlayedBefore: cardsPlayedBefore), effects);
+                ResolveDeaths();
+                RunTriggers(new(TriggerTiming.AfterCardPlayed, playerId, source), listeners);
                 return;
             }
 
@@ -169,6 +177,7 @@ public sealed partial class GameSimulator
                 FinishSummon(playerId, source);
             }
 
+            RunTriggers(new(TriggerTiming.WhenCardPlayed, playerId, source), listeners);
             var before = isMinion ? TriggerTiming.WhenMinionSummoned : TriggerTiming.BeforeSpellResolved;
             RunTriggers(new(before, playerId, source), listeners);
             AddOverload(playerId, source, card.Overload);
@@ -197,6 +206,7 @@ public sealed partial class GameSimulator
                 var after = isMinion ? TriggerTiming.AfterMinionPlayed : TriggerTiming.AfterSpellResolved;
                 RunTriggers(new(after, _state.Entities[source].Controller, source), listeners);
             }
+            RunTriggers(new(TriggerTiming.AfterCardPlayed, playerId, source), listeners);
         }
 
         private void Attack(PlayerId player, EntityId source, EntityId target)
@@ -439,6 +449,11 @@ public sealed partial class GameSimulator
                     ApplyDamageTarget(work, context, damage.Target,
                         ModifiedEffectAmount(context, damage.Amount, damage: true), damage.Enchantment);
                     break;
+                case EventAmountDamageEffect eventDamage:
+                    if (context.EventAmount is int eventAmount && eventAmount > 0)
+                        ApplyDamageTarget(work, context, eventDamage.Target,
+                            ModifiedEffectAmount(context, eventAmount, damage: true));
+                    break;
                 case SplashDamageEffect splash:
                     ApplySplashDamage(work, context, splash);
                     break;
@@ -504,8 +519,14 @@ public sealed partial class GameSimulator
                 case HealEffect heal:
                     HealCharacters(work, context, heal with { Amount = ModifiedEffectAmount(context, heal.Amount, damage: false) });
                     break;
+                case SetHeroRemainingHealthEffect setHeroHealth:
+                    SetHeroRemainingHealth(context, setHeroHealth);
+                    break;
                 case EquipWeaponEffect equip:
                     CreateAndEquipWeapon(context.Controller, equip.CardId);
+                    break;
+                case ModifyWeaponEffect modifyWeapon:
+                    ModifyWeapon(context, modifyWeapon);
                     break;
                 case DestroyEnemyWeaponEffect:
                     MarkEquippedWeaponForDestruction(_state.OpponentOf(context.Controller));
@@ -523,15 +544,23 @@ public sealed partial class GameSimulator
                     Silence(work, context);
                     break;
                 case SummonEffect summon:
-                    var position = ResolveSummonPosition(context, summon.Placement);
-                    if (Summon(context.Controller, summon.CardId, position) is EntityId summoned)
-                        PushSummonTriggers(work, context.Controller, summoned);
+                    var summonOwner = summon.Recipient == CardRecipient.Controller
+                        ? context.Controller
+                        : _state.OpponentOf(context.Controller);
+                    var position = summon.Recipient == CardRecipient.Controller
+                        ? ResolveSummonPosition(context, summon.Placement)
+                        : null;
+                    if (Summon(summonOwner, summon.CardId, position) is EntityId summoned)
+                        PushSummonTriggers(work, summonOwner, summoned);
                     break;
                 case FillBoardSummonEffect fill:
                     ApplyFillBoardSummon(work, context, fill);
                     break;
                 case SummonCopyEffect copy:
                     SummonCopy(work, context, copy);
+                    break;
+                case CopyMinionToSelfEffect:
+                    CopyMinionToSelf(context);
                     break;
                 case TakeControlEffect takeControl:
                     var targetMinion = (takeControl.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value;
@@ -544,7 +573,10 @@ public sealed partial class GameSimulator
                     ReturnMinion(work, context, returned);
                     break;
                 case TransformMinionEffect transform:
-                    TransformMinion(work, context, transform.CardId);
+                    TransformMinion(work, context, transform.CardId, transform.Self);
+                    break;
+                case RandomTransformOtherMinionEffect randomTransform:
+                    RandomTransformOtherMinion(work, context, randomTransform);
                     break;
                 case TransformMinionByCostEffect transform:
                     TransformMinionByCost(work, context, transform.Increase);

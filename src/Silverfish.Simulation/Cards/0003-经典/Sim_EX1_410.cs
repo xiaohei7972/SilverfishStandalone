@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 盾牌猛击
 // Shield Slam
 // 你每有1点护甲值，便对一个随从造成1点伤害。
 // Deal 1 damage to a minion for each Armor you have.
+[CardSim("EX1_410")]
 internal static class Sim_EX1_410
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_EX1_410
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new ScaledDamageEffect(ConditionCharacter.FriendlyHero, CharacterMetric.Armor, DamageTarget.Selected)]
+    };
 }

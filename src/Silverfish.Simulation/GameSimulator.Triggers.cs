@@ -11,7 +11,7 @@ public sealed partial class GameSimulator
 
         private readonly record struct EffectContext(EntityId Source, PlayerId Controller,
             EntityId? Selected = null, EntityId? Subject = null, int? DeathPosition = null,
-            int CardsPlayedBefore = 0);
+            int CardsPlayedBefore = 0, int? EventAmount = null);
 
         private readonly record struct DamageSource(EntityId Id, PlayerId Controller);
 
@@ -73,7 +73,8 @@ public sealed partial class GameSimulator
                     (occurrence.Timing is TriggerTiming.Overkill or TriggerTiming.HonorableKill &&
                         listener.Id.Entity != occurrence.Source?.Id) ||
                     (listener.Zone == GameZone.Secret && listener.Controller == _state.ActivePlayer) ||
-                    (occurrence.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or TriggerTiming.AfterMinionPlayed &&
+                    (occurrence.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
+                        TriggerTiming.AfterMinionPlayed or TriggerTiming.WhenCardPlayed or TriggerTiming.AfterCardPlayed &&
                         listener.Id.Entity == occurrence.Subject))
                     continue;
 
@@ -98,6 +99,8 @@ public sealed partial class GameSimulator
                     (trigger.EntityMatch == TriggerEntityMatch.Other && listener.Id.Entity == entityId) ||
                     (trigger.SecretOnly &&
                         (entityId is not EntityId secretId || !_rules.Card(_state.Entities[secretId]).IsSecret)) ||
+                    (trigger.OverloadOnly &&
+                        (entityId is not EntityId overloadId || _rules.Card(_state.Entities[overloadId]).Overload <= 0)) ||
                     (trigger.EntityKind is EntityKind kind &&
                         (entityId is not EntityId id || _rules.Card(_state.Entities[id]).Definition.Kind != kind)) ||
                     (trigger.AttackingKind is EntityKind atkKind &&
@@ -107,7 +110,7 @@ public sealed partial class GameSimulator
                     (trigger.RequireLivingEntity && !IsLivingCharacter(entityId)))
                     continue;
 
-                yield return new(new(listener.Id.Entity, listener.Controller, Subject: occurrence.Subject),
+                yield return new(new(listener.Id.Entity, listener.Controller, Subject: occurrence.Subject, EventAmount: occurrence.Amount),
                     listener.PlayOrder, trigger.Effects, listener, trigger.RequireLivingEntity ? entityId : null, occurrence.Amount);
             }
         }

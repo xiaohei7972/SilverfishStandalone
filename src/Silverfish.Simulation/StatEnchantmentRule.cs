@@ -26,4 +26,7 @@ internal sealed record StatEnchantmentRule(
         {
             EnchantmentCardId = CardId
         };
+
+    internal ModifyWeaponEffect ApplyToWeapon(ConditionPlayer target = ConditionPlayer.Friendly) =>
+        new(Modifier?.Attack ?? 0, Modifier?.MaximumHealth ?? 0, target, CardId);
 }

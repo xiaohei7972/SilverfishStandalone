@@ -149,6 +149,7 @@ public sealed partial class GameSimulator
             var after = card.Definition.Kind == EntityKind.Minion ? TriggerTiming.AfterMinionPlayed : TriggerTiming.AfterSpellResolved;
             return listeners.Where(listener =>
                 (listener.Trigger.Timing == after ||
+                    listener.Trigger.Timing == TriggerTiming.AfterCardPlayed ||
                     after == TriggerTiming.AfterMinionPlayed && listener.Trigger.Timing == TriggerTiming.AfterMinionSummoned) &&
                 IsCurrent(listener)).Select(ChoiceListener).Distinct().ToImmutableArray();
         }

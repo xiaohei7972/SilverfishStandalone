@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 无面操纵者
 // Faceless Manipulator
 // 战吼：选择一个随从，成为它的复制。
 // Battlecry: Choose a minion and become a copy of it.
+[CardSim("EX1_564")]
 internal static class Sim_EX1_564
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_EX1_564
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new CopyMinionToSelfEffect()]
+    };
 }

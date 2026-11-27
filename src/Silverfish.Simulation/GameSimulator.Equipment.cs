@@ -89,6 +89,43 @@ public sealed partial class GameSimulator
             _events.Add(new(SimulationEventKind.WeaponDurabilityLost, entity.Controller, id, Amount: 1));
         }
 
+        private void ModifyWeapon(EffectContext context, ModifyWeaponEffect effect)
+        {
+            var owner = effect.TargetWeapon == ConditionPlayer.Friendly
+                ? context.Controller
+                : _state.OpponentOf(context.Controller);
+            if (_state.Players[owner].EquippedWeapon is not EntityId id || _state.LocationOf(id).Zone != GameZone.Play)
+                return;
+
+            var entity = _state.Entities[id];
+            if (entity.Weapon is not { Durability: > 0 } stats)
+                return;
+
+            var attack = Math.Max(0, checked(stats.Attack + effect.AttackDelta));
+            var durability = Math.Max(0, checked(stats.Durability + effect.DurabilityDelta));
+            var maxDurability = effect.DurabilityDelta > 0
+                ? checked(stats.MaximumDurability + effect.DurabilityDelta)
+                : stats.MaximumDurability;
+            _state = _state.UpdateEntity(entity with
+            {
+                Weapon = stats with { Attack = attack, Durability = durability, MaximumDurability = maxDurability }
+            });
+            if (effect.AttackDelta != 0 || effect.DurabilityDelta > 0)
+            {
+                _events.Add(new(SimulationEventKind.EnchantmentApplied, context.Controller, context.Source, id)
+                {
+                    EnchantmentCardId = effect.EnchantmentCardId
+                });
+            }
+            if (effect.DurabilityDelta < 0)
+            {
+                var lost = stats.Durability - durability;
+                if (lost > 0)
+                    _events.Add(new(SimulationEventKind.WeaponDurabilityLost, owner, id, Amount: lost));
+            }
+            _state = _rules.RefreshAuras(_state);
+        }
+
         private Occurrence? HealFriendlyHero(EffectContext context, int amount) =>
             HealCharacter(context, _state.Players[context.Controller].Hero, amount);
     }

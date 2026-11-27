@@ -46,9 +46,11 @@ public sealed partial class GameSimulator
             PushEnchantmentRemovalEffects(work, entity, entity.Enchantments, EnchantmentRemovalReason.LeftPlay);
         }
 
-        private void TransformMinion(Stack<Work> work, EffectContext context, string cardId)
+        private void TransformMinion(Stack<Work> work, EffectContext context, string cardId, bool self = false) =>
+            TransformMinionId(work, context.Source, self ? context.Source : context.Selected!.Value, cardId);
+
+        private void TransformMinionId(Stack<Work> work, EntityId source, EntityId id, string cardId)
         {
-            var id = context.Selected!.Value;
             if (!IsLivingCharacter(id))
                 return;
 
@@ -61,8 +63,72 @@ public sealed partial class GameSimulator
             // Transform can remove the source card's aura before a later
             // effect in the same resolution applies damage.
             _state = _rules.RefreshAuras(_state);
-            _events.Add(new(SimulationEventKind.Transformed, entity.Controller, context.Source, id));
+            _events.Add(new(SimulationEventKind.Transformed, entity.Controller, source, id));
             PushEnchantmentRemovalEffects(work, entity, entity.Enchantments, EnchantmentRemovalReason.Transformed);
+        }
+
+        private void RandomTransformOtherMinion(Stack<Work> work, EffectContext context, RandomTransformOtherMinionEffect effect)
+        {
+            var candidates = _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player))
+                .Where(id => id != context.Source && IsLivingCharacter(id))
+                .OrderBy(id => _state.Entities[id].PlayOrder)
+                .ToArray();
+            if (candidates.Length == 0)
+                return;
+
+            var targetId = candidates[ChooseIndex(candidates.Length)];
+            var cardId = effect.CardIds[ChooseIndex(effect.CardIds.Length)];
+            TransformMinionId(work, context.Source, targetId, cardId);
+        }
+
+        private void CopyMinionToSelf(EffectContext context)
+        {
+            var targetId = context.Selected!.Value;
+            if (!IsLivingCharacter(targetId) || !IsLivingCharacter(context.Source))
+                return;
+
+            var original = _state.Entities[targetId];
+            var self = _state.Entities[context.Source];
+            if (_rules.Card(original).Definition.Kind != EntityKind.Minion || original.Character is not { } character)
+                return;
+
+            var copied = self with
+            {
+                CardId = original.CardId,
+                Stealthed = original.Stealthed,
+                Silenced = original.Silenced,
+                Enchantments = [.. original.Enchantments.Where(layer => layer.GrantedTag != GAME_TAG.CONTROLLER)],
+                AuraGrants = [],
+                Character = character with { AttacksThisTurn = 0, Exhausted = true }
+            };
+            copied = RecalculateStats(copied, []);
+            _state = _state.UpdateEntity(copied);
+            _state = _rules.RefreshAuras(_state);
+            _events.Add(new(SimulationEventKind.Transformed, self.Controller, context.Source, self.Id));
+        }
+
+        private void SetHeroRemainingHealth(EffectContext context, SetHeroRemainingHealthEffect effect)
+        {
+            var targetId = (effect.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value;
+            if (!IsLivingCharacter(targetId))
+                return;
+
+            var entity = _state.Entities[targetId];
+            if (_rules.Card(entity).Definition.Kind != EntityKind.Hero || entity.Character is not { } character)
+                return;
+
+            var oldHealth = character.Health;
+            var updated = character.MaximumHealth < effect.Health
+                ? character with { MaximumHealth = effect.Health, Damage = 0 }
+                : character with { Damage = character.MaximumHealth - effect.Health };
+            _state = _state.UpdateCharacter(targetId, updated);
+            if (updated.Health != oldHealth)
+            {
+                var owner = _state.Players[entity.Controller];
+                _state = _state.UpdateResources(owner with { HeroHealthChangedThisTurn = true });
+                _state = _rules.RefreshAuras(_state);
+            }
+            _events.Add(new(SimulationEventKind.EnchantmentApplied, context.Controller, context.Source, targetId));
         }
 
         private void DestroyMinion(EntityId id)
