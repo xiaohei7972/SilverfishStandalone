@@ -243,6 +243,14 @@ public sealed partial class GameSimulator
                     target = ResolveAttackProposal(player, source, target);
                 if (isHero)
                     RunTriggers(new(TriggerTiming.HeroAttacking, player, source), CaptureListeners());
+                if (_rules._enchantmentAttackEffects.Count != 0 &&
+                    _state.LocationOf(source).Zone == GameZone.Play)
+                {
+                    var layers = _state.Entities[source].Enchantments;
+                    foreach (var layer in layers)
+                        if (layer.CardId is { } cid && _rules._enchantmentAttackEffects.TryGetValue(cid, out var onAttack))
+                            ResolveEffects(new(layer.Source, _state.Entities[layer.Source].Owner, Subject: source), onAttack);
+                }
 
             var attacker = _state.Entities[source];
             if (attacker.Character is not { } character || !IsLivingCharacter(source) || !IsLivingCharacter(target) ||
@@ -313,7 +321,7 @@ public sealed partial class GameSimulator
         }
 
         private void ApplyDamageTarget(Stack<Work> work, EffectContext context, DamageTarget target, int damageAmount,
-            EnchantStatsEffect? enchantment = null)
+            EnchantStatsEffect? enchantment = null, string? excludeCardId = null)
         {
             if (target is DamageTarget.AllMinions or DamageTarget.EnemyMinions or DamageTarget.AllEnemies or
                 DamageTarget.AllCharacters or DamageTarget.OtherCharacters)
@@ -329,6 +337,8 @@ public sealed partial class GameSimulator
                         .Where(id => id != context.Source && _state.Entities[id].Character is not null),
                     _ => _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player))
                 };
+                if (excludeCardId is not null)
+                    targets = targets.Where(id => _state.Entities[id].CardId != excludeCardId);
                 var hits = targets
                     .OrderBy(id => _state.Entities[id].PlayOrder)
                     .Select(id => Damage(context.Source, id, damageAmount)).ToArray();
@@ -470,7 +480,7 @@ public sealed partial class GameSimulator
             {
                 case DamageEffect damage:
                     ApplyDamageTarget(work, context, damage.Target,
-                        ModifiedEffectAmount(context, damage.Amount, damage: true), damage.Enchantment);
+                        ModifiedEffectAmount(context, damage.Amount, damage: true), damage.Enchantment, damage.ExcludeCardId);
                     break;
                 case EventAmountDamageEffect eventDamage:
                     if (context.EventAmount is int eventAmount && eventAmount > 0)
@@ -522,6 +532,12 @@ public sealed partial class GameSimulator
                     break;
                 case CreateCardEffect create:
                     CreateCards(context, create);
+                    break;
+                case CreateRandomCardEffect createRandom:
+                    var randomRecipient = createRandom.Recipient == CardRecipient.Controller
+                        ? context.Controller : _state.OpponentOf(context.Controller);
+                    for (var i = 0; i < createRandom.Count; i++)
+                        TryCreateCard(createRandom.CardIds[ChooseIndex(createRandom.CardIds.Length)], randomRecipient, context.Source, CardPlacement.Hand);
                     break;
                 case CreateCardAtTurnEndEffect delayedCreate:
                     var delayedOwner = _state.Players[context.Controller];
@@ -607,8 +623,11 @@ public sealed partial class GameSimulator
                 case DrainDivineShieldsBuffEffect drainShields:
                     DrainDivineShieldsBuff(context, drainShields);
                     break;
-                case SilenceEffect:
-                    Silence(work, context);
+                case ConsumeAdjacentMinionsEffect consume:
+                    ConsumeAdjacentMinions(context, consume);
+                    break;
+                case SilenceEffect silence:
+                    Silence(work, context, silence);
                     break;
                 case RemoveAllStealthEffect:
                     RemoveAllStealth();
@@ -625,6 +644,15 @@ public sealed partial class GameSimulator
                         : null;
                     if (Summon(summonOwner, summon.CardId, position) is EntityId summoned)
                         PushSummonTriggers(work, summonOwner, summoned);
+                    break;
+                case SummonPerEnemyMinionEffect perEnemy:
+                    var enemyMinionCount = _rules.BoardMinions(_state, _state.OpponentOf(context.Controller))
+                        .Count(id => IsLivingCharacter(id));
+                    for (var i = 0; i < enemyMinionCount; i++)
+                        work.Push(new ApplyEffect(context, new SummonEffect(perEnemy.CardId)));
+                    break;
+                case SwapSelfWithRandomHandMinionEffect:
+                    SwapSelfWithRandomHandMinion(work, context);
                     break;
                 case FillBoardSummonEffect fill:
                     ApplyFillBoardSummon(work, context, fill);
@@ -693,8 +721,8 @@ public sealed partial class GameSimulator
                 case RandomDamageEffect random:
                     ApplyRandomDamage(work, context, random);
                     break;
-                case DestroyRandomEnemyMinionEffect:
-                    DestroyRandomEnemyMinion(context);
+                case DestroyRandomEnemyMinionEffect destroyRandom:
+                    DestroyRandomEnemyMinion(context, destroyRandom);
                     break;
                 case DestroyAllButOneMinionEffect:
                     DestroyAllButOneMinion();

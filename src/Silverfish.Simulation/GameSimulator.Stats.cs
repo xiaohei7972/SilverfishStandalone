@@ -32,6 +32,21 @@ public sealed partial class GameSimulator
         }
     }
 
+    private void RegisterEnchantmentAttackEffects(SimulationCard card, EnchantStatsEffect enchantment)
+    {
+        if (enchantment.EnchantmentCardId is not { } cardId)
+            throw new ArgumentException("声明攻击触发效果的属性附魔必须提供卡牌 ID。");
+
+        if (_enchantmentAttackEffects.TryAdd(cardId, enchantment.OnAttack))
+        {
+            ValidateEffects(card, enchantment.OnAttack, hasCharacterSubject: true);
+            return;
+        }
+        var existing = _enchantmentAttackEffects[cardId];
+        if (existing != enchantment.OnAttack && JsonSerializer.Serialize(existing) != JsonSerializer.Serialize(enchantment.OnAttack))
+            throw new ArgumentException($"附魔「{cardId}」的攻击触发效果定义不一致。");
+    }
+
     private static bool IsValidModifier(StatModifier? modifier) =>
         modifier is not null && (modifier.Attack is not null || modifier.MaximumHealth is not null) &&
         (modifier.Mode switch
@@ -48,8 +63,8 @@ public sealed partial class GameSimulator
     private static bool IsSupportedGrantedTag(GAME_TAG tag) =>
         IsSupportedAuraTag(tag) || tag is GAME_TAG.DIVINE_SHIELD or GAME_TAG.DEATHRATTLE or GAME_TAG.CONTROLLER or GAME_TAG.SPELLPOWER;
 
-    private static bool IsValidEnchantment(StatModifier? modifier, GAME_TAG? tag) =>
-        (modifier is not null || tag is not null) &&
+    private static bool IsValidEnchantment(StatModifier? modifier, GAME_TAG? tag, bool hasTrigger = false) =>
+        (modifier is not null || tag is not null || hasTrigger) &&
         (modifier is null || IsValidModifier(modifier)) &&
         (tag is not GAME_TAG granted || IsSupportedGrantedTag(granted));
 
@@ -58,7 +73,8 @@ public sealed partial class GameSimulator
         foreach (var enchantment in entity.Enchantments)
         {
             if (enchantment is null || !state.Entities.ContainsKey(enchantment.Source) ||
-                !IsValidEnchantment(enchantment.Modifier, enchantment.GrantedTag) ||
+                !IsValidEnchantment(enchantment.Modifier, enchantment.GrantedTag,
+                    enchantment.CardId is { } cid && _enchantmentAttackEffects.ContainsKey(cid)) ||
                 !IsOptionalCardIdValid(enchantment.CardId) ||
                 (enchantment.ExpiresAfterTurn is int turn && turn < state.Turn))
                 throw new ArgumentException($"实体 {entity.Id} 的属性附魔无效。");
@@ -300,9 +316,21 @@ public sealed partial class GameSimulator
             EnchantStats(context, new(effect.Target, modifier) { EnchantmentCardId = effect.EnchantmentCardId });
         }
 
-        private void Silence(Stack<Work> work, EffectContext context)
+        private void Silence(Stack<Work> work, EffectContext context, SilenceEffect effect)
         {
-            var id = context.Selected!.Value;
+            if (effect.AllEnemyMinions)
+            {
+                var enemies = _rules.BoardMinions(_state, _state.OpponentOf(context.Controller))
+                    .OrderBy(id => _state.Entities[id].PlayOrder).ToArray();
+                foreach (var enemyId in enemies)
+                    SilenceEntity(work, context.Controller, context.Source, enemyId);
+                return;
+            }
+            SilenceEntity(work, context.Controller, context.Source, context.Selected!.Value);
+        }
+
+        private void SilenceEntity(Stack<Work> work, PlayerId controller, EntityId source, EntityId id)
+        {
             if (_state.LocationOf(id).Zone != GameZone.Play)
                 return;
 
@@ -316,7 +344,7 @@ public sealed partial class GameSimulator
             // A silenced aura source stops buffing other minions immediately,
             // including during a multi-effect spell before its damage step.
             _state = _rules.RefreshAuras(_state);
-            _events.Add(new(SimulationEventKind.Silenced, context.Controller, context.Source, id));
+            _events.Add(new(SimulationEventKind.Silenced, controller, source, id));
             PushEnchantmentRemovalEffects(work, entity, entity.Enchantments, EnchantmentRemovalReason.Silenced);
         }
 

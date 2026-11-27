@@ -171,6 +171,6 @@ public sealed partial class GameSimulator
         }
 
         private Occurrence? HealFriendlyHero(EffectContext context, int amount) =>
-            HealCharacter(context, _state.Players[context.Controller].Hero, amount);
+            HealCharacter(context, _state.Players[context.Controller].Hero, amount).Healed;
     }
 }

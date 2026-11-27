@@ -32,7 +32,10 @@ public sealed partial class GameSimulator
 
             var outcomes = targetIds.Select(id => HealCharacter(context, id, effect.Amount)).ToArray();
             for (var i = outcomes.Length - 1; i >= 0; i--)
-                PushOccurrence(work, outcomes[i]);
+            {
+                PushOccurrence(work, outcomes[i].Overhealed);
+                PushOccurrence(work, outcomes[i].Healed);
+            }
         }
 
         /// <summary>
@@ -40,34 +43,36 @@ public sealed partial class GameSimulator
         /// trigger activates when the requested heal exceeds missing Health,
         /// including a positive heal applied to an already-full minion.
         /// </summary>
-        private Occurrence? HealCharacter(EffectContext context, EntityId target, int amount)
+        private (Occurrence? Healed, Occurrence? Overhealed) HealCharacter(EffectContext context, EntityId target, int amount)
         {
             if (amount <= 0 || !_state.Entities.TryGetValue(target, out var entity) ||
                 _state.LocationOf(target).Zone != GameZone.Play ||
                 entity.Character is not { } character || _pendingDestruction.Contains(target))
-                return null;
+                return (null, null);
 
             if (HasHealingDealsDamage(context.Controller))
-                return Damage(context.Source, target, amount, allowLifesteal: false);
+                return (Damage(context.Source, target, amount, allowLifesteal: false), null);
 
             // Death checking is deferred until the resolution phase ends. A
             // character at zero or negative Health may still be saved by healing.
             var restored = Math.Min(amount, character.Damage);
             var excess = amount - restored;
+            Occurrence? healedEvent = null;
             if (restored > 0)
             {
                 _state = _state.UpdateCharacter(target, character with { Damage = character.Damage - restored });
                 _state = _rules.RefreshAuras(_state);
                 _events.Add(new(SimulationEventKind.Healed, entity.Controller, context.Source, target, restored));
+                healedEvent = new(TriggerTiming.Healed, entity.Controller, target, Amount: restored);
             }
 
             if (excess <= 0 || _rules.Card(entity).Definition.Kind != EntityKind.Minion ||
                 !_rules.HasKeyword(entity, CardKeywords.Overheal))
-                return null;
+                return (healedEvent, null);
 
             _events.Add(new(SimulationEventKind.Overhealed, entity.Controller, context.Source, target, excess));
             // The event belongs to the healed minion; the healer may be its opponent.
-            return new(TriggerTiming.Overheal, entity.Controller, target, Amount: excess);
+            return (healedEvent, new(TriggerTiming.Overheal, entity.Controller, target, Amount: excess));
         }
 
         private EntityId[] PickRandomDamagedFriendlyCharacter(EffectContext context)

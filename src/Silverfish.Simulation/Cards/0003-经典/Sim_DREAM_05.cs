@@ -1,10 +1,13 @@
 using Silverfish.Domain.Client;
+using Silverfish.Simulation.Cards.Enchantments;
+
 namespace Silverfish.Simulation.Cards;
 
 // 梦魇
 // Nightmare
 // 使一个随从获得+5/+5，在你的下个回合开始时，消灭该随从。
 // Give a minion +5/+5. At the start of your next turn, destroy it.
+[CardSim("DREAM_05")]
 internal static class Sim_DREAM_05
 {
     // <legacy-play-requirements>
@@ -13,4 +16,8 @@ internal static class Sim_DREAM_05
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [Sim_DREAM_05e.Rule.ApplyTo(StatTarget.Selected)]
+    };
 }

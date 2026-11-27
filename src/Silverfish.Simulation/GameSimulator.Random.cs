@@ -184,9 +184,11 @@ public sealed partial class GameSimulator
             return candidates.Where(id => IsLivingCharacter(id)).OrderBy(id => _state.Entities[id].PlayOrder);
         }
 
-        private void DestroyRandomEnemyMinion(EffectContext context)
+        private void DestroyRandomEnemyMinion(EffectContext context, DestroyRandomEnemyMinionEffect effect)
         {
-            var candidates = DamageCandidates(context, RandomCharacterPool.EnemyMinions).ToArray();
+            var candidates = DamageCandidates(context, RandomCharacterPool.EnemyMinions)
+                .Where(id => effect.MaximumAttack is not int maxAtk || _rules.EffectiveAttack(_state, _state.Entities[id]) <= maxAtk)
+                .ToArray();
             if (candidates.Length > 0)
                 DestroyMinion(candidates[ChooseIndex(candidates.Length)]);
         }

@@ -209,6 +209,8 @@ public sealed partial class GameSimulator
                                 _state = _state.Move(listener.Id.Entity, new(listener.Controller, GameZone.Graveyard));
                             _events.Add(new(kind, listener.Controller, listener.Id.Entity,
                                 trigger.Context.Subject, trigger.Amount, listener.Trigger.Timing));
+                            if (listener.Zone == GameZone.Secret)
+                                work.Push(new Dispatch(new(TriggerTiming.SecretRevealed, listener.Controller, listener.Id.Entity)));
                         }
                         else
                         {

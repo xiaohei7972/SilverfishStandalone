@@ -9,11 +9,12 @@ internal sealed record StatEnchantmentRule(
     string CardId, StatModifier? Modifier, EnchantmentDuration Duration = EnchantmentDuration.Permanent)
 {
     internal ImmutableArray<EnchantmentRemovalRule> OnRemoved { get; init; }
+    internal ImmutableArray<CardEffect> OnAttack { get; init; }
     internal GAME_TAG? GrantedTag { get; init; }
 
     internal EnchantStatsEffect ApplyTo(StatTarget target, CardFilter? cardFilter = null) => new(target, Modifier, Duration)
     {
-        EnchantmentCardId = CardId, OnRemoved = OnRemoved, GrantedTag = GrantedTag, CardFilter = cardFilter
+        EnchantmentCardId = CardId, OnRemoved = OnRemoved, OnAttack = OnAttack, GrantedTag = GrantedTag, CardFilter = cardFilter
     };
     internal StatAura GrantTo(AuraRecipients recipients, AuraCondition condition = AuraCondition.None, CardFilter? cardFilter = null) =>
         new(recipients, Modifier)

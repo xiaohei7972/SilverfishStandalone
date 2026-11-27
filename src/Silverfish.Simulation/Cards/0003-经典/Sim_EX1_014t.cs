@@ -1,10 +1,13 @@
 using Silverfish.Domain.Client;
+using Silverfish.Simulation.Cards.Enchantments;
+
 namespace Silverfish.Simulation.Cards;
 
 // 香蕉
 // Bananas
 // 使一个随从获得+1/+1。
 // Give a minion +1/+1.
+[CardSim("EX1_014t")]
 internal static class Sim_EX1_014t
 {
     // <legacy-play-requirements>
@@ -13,4 +16,8 @@ internal static class Sim_EX1_014t
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [Sim_EX1_014te.Rule.ApplyTo(StatTarget.Selected)]
+    };
 }

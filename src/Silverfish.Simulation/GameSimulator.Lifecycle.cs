@@ -180,6 +180,62 @@ public sealed partial class GameSimulator
             }
         }
 
+        private void ConsumeAdjacentMinions(EffectContext context, ConsumeAdjacentMinionsEffect effect)
+        {
+            if (!IsLivingCharacter(context.Source))
+                return;
+
+            var adjacent = AdjacentMinions(context.Source);
+            if (adjacent.IsEmpty)
+                return;
+
+            var totalAttack = 0;
+            var totalHealth = 0;
+            foreach (var id in adjacent)
+            {
+                var entity = _state.Entities[id];
+                totalAttack = checked(totalAttack + _rules.EffectiveAttack(_state, entity));
+                totalHealth = checked(totalHealth + Math.Max(0, entity.Character!.Health));
+                DestroyMinion(id);
+            }
+            if (totalAttack > 0 || totalHealth > 0)
+            {
+                EnchantStats(context, new(StatTarget.Source,
+                    new(StatModifierMode.Add, totalAttack > 0 ? totalAttack : null, totalHealth > 0 ? totalHealth : null))
+                {
+                    EnchantmentCardId = effect.EnchantmentCardId
+                });
+            }
+        }
+
+        private void SwapSelfWithRandomHandMinion(Stack<Work> work, EffectContext context)
+        {
+            if (!IsLivingCharacter(context.Source))
+                return;
+
+            var controller = context.Controller;
+            var candidates = _state.Players[controller].In(GameZone.Hand)
+                .Where(id => _rules.Card(_state.Entities[id]).Definition.Kind == EntityKind.Minion)
+                .ToArray();
+            if (candidates.Length == 0)
+                return;
+
+            var chosen = candidates[ChooseIndex(candidates.Length)];
+            var slot = _rules.BoardSlots(_state, controller).TakeWhile(id => id != context.Source).Count();
+            var selfEntity = _state.Entities[context.Source];
+            _state = _state.Move(context.Source, new(controller, GameZone.Hand));
+            _state = _state.UpdateEntity(_state.Entities[context.Source] with { Character = null, Silenced = false });
+            _events.Add(new(SimulationEventKind.ReturnedToHand, controller, context.Source, context.Source));
+            PushEnchantmentRemovalEffects(work, selfEntity, selfEntity.Enchantments, EnchantmentRemovalReason.LeftPlay);
+
+            var card = _rules.Card(_state.Entities[chosen]);
+            var index = _rules.BoardIndex(_state, controller, slot);
+            _state = _state.Move(chosen, new(controller, GameZone.Play), index);
+            _state = _state.UpdateCharacter(chosen, card.CreateCharacter());
+            FinishSummon(controller, chosen);
+            PushSummonTriggers(work, controller, chosen);
+        }
+
         private void DestroyAllMinions(EffectContext context, DestroyAllMinionsEffect effect)
         {
             var targets = _state.Players.Keys
