@@ -7,6 +7,7 @@ public sealed partial class GameSimulator
     private sealed partial class Resolution
     {
         private EntityId _proposedDefender;
+        private EntityId _proposedSpellTarget;
         private bool _damagePrevented;
 
         private bool CanCounterSpell(EntityId id) => _state.LocationOf(id).Zone is GameZone.Play or GameZone.Secret;
@@ -53,6 +54,28 @@ public sealed partial class GameSimulator
 
             _proposedDefender = defender;
             _events.Add(new(SimulationEventKind.AttackRedirected, context.Controller, context.Source, defender));
+            PushSummonTriggers(work, context.Controller, defender);
+        }
+
+        private EntityId ResolveSpellTargetProposal(PlayerId caster, EntityId target)
+        {
+            while (true)
+            {
+                _proposedSpellTarget = target;
+                RunTriggers(new(TriggerTiming.SpellTargetWindow, caster, target), CaptureListeners());
+                if (_proposedSpellTarget == target)
+                    return target;
+                target = _proposedSpellTarget;
+            }
+        }
+
+        private void RedirectSpellTarget(Stack<Work> work, EffectContext context, string cardId)
+        {
+            if (Summon(context.Controller, cardId, position: null) is not EntityId defender)
+                return;
+
+            _proposedSpellTarget = defender;
+            _events.Add(new(SimulationEventKind.SpellRedirected, context.Controller, context.Source, defender));
             PushSummonTriggers(work, context.Controller, defender);
         }
     }

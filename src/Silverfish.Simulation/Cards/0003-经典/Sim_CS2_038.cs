@@ -1,10 +1,13 @@
 using Silverfish.Domain.Client;
+using Silverfish.Simulation.Cards.Enchantments;
+
 namespace Silverfish.Simulation.Cards;
 
 // 先祖之魂
 // Ancestral Spirit
 // 使一个随从获得“亡语：再次召唤本随从。”
 // Give a minion "Deathrattle: Resummon this minion."
+[CardSim("CS2_038")]
 internal static class Sim_CS2_038
 {
     // <legacy-play-requirements>
@@ -13,4 +16,8 @@ internal static class Sim_CS2_038
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [Sim_CS2_038e.Rule.ApplyTo(StatTarget.Selected)]
+    };
 }

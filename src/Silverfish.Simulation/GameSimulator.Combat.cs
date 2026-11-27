@@ -8,7 +8,10 @@ public sealed partial class GameSimulator
 
     private AttackReach GetAttackReach(GameState state, GameEntity attacker)
     {
-        if (attacker.Character is not { Health: > 0 } character || character.AttacksThisTurn >= AttackLimit(state, attacker))
+        if (attacker.Character is not { Health: > 0 } character ||
+            (!attacker.Silenced && Card(attacker).CannotAttack) ||
+            HasEffectiveTag(attacker, Silverfish.Domain.Client.GAME_TAG.CANT_ATTACK) ||
+            character.AttacksThisTurn >= AttackLimit(state, attacker))
             return AttackReach.None;
         if (!character.Exhausted || HasKeyword(attacker, CardKeywords.Charge))
             return AttackReach.AnyCharacter;
@@ -34,6 +37,12 @@ public sealed partial class GameSimulator
                 var targets = _rules.BoardMinions(_state, _state.OpponentOf(context.Controller))
                     .OrderBy(id => _state.Entities[id].PlayOrder).ToArray();
                 foreach (var target in targets)
+                    FreezeCharacter(context.Source, target);
+                return;
+            }
+            if (effect.Target == FreezeTarget.SelectedAndAdjacentMinions)
+            {
+                foreach (var target in TargetAndAdjacentMinions(context.Selected!.Value))
                     FreezeCharacter(context.Source, target);
                 return;
             }

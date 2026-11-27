@@ -1,10 +1,13 @@
 using Silverfish.Domain.Client;
+using Silverfish.Simulation.Cards.Enchantments;
+
 namespace Silverfish.Simulation.Cards;
 
 // 黑铁矮人
 // Dark Iron Dwarf
 // 战吼：在本回合中，使一个随从获得+2攻击力。
 // Battlecry: Give a minion +2_Attack this turn.
+[CardSim("EX1_046")]
 internal static class Sim_EX1_046
 {
     // <legacy-play-requirements>
@@ -13,4 +16,8 @@ internal static class Sim_EX1_046
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [Sim_EX1_046e.Rule.ApplyTo(StatTarget.Selected)]
+    };
 }

@@ -37,7 +37,7 @@ public sealed partial class GameSimulator
         (modifier.Mode switch
         {
             StatModifierMode.Add => modifier.MaximumHealth is null or >= 0,
-            StatModifierMode.Set => (modifier.Attack is null or >= 0) && (modifier.MaximumHealth is null or > 0),
+            StatModifierMode.Set => (modifier.Attack is null or >= 0) && (modifier.MaximumHealth is null or >= 0),
             _ => false
         });
 
@@ -199,6 +199,8 @@ public sealed partial class GameSimulator
                 StatTarget.FriendlyHero => [_state.Players[context.Controller].Hero],
                 StatTarget.FriendlyMinions => _rules.BoardMinions(_state, context.Controller),
                 StatTarget.OtherFriendlyMinions => _rules.BoardMinions(_state, context.Controller).Where(id => id != context.Source),
+                StatTarget.AdjacentFriendlyMinions => AdjacentMinions(context.Source),
+                StatTarget.RandomOtherFriendlyMinion => PickRandomOtherFriendlyMinion(context),
                 StatTarget.AllMinions => _state.Players.Values.SelectMany(player => _rules.BoardMinions(_state, player.Id))
                     .OrderBy(id => _state.Entities[id].PlayOrder),
                 _ => throw new InvalidOperationException("无法识别属性附魔的目标。")
@@ -215,7 +217,9 @@ public sealed partial class GameSimulator
                 if (_state.LocationOf(id).Zone != GameZone.Play)
                     continue;
                 var entity = _state.Entities[id];
-                if (entity.Character is not { } character || effect.GrantedTag == GAME_TAG.DIVINE_SHIELD && character.DivineShield)
+                if (entity.Character is not { } character ||
+                    (effect.CardFilter is { } cardFilter && !MatchesCardFilter(_rules.Card(entity).Definition, cardFilter)) ||
+                    effect.GrantedTag == GAME_TAG.DIVINE_SHIELD && character.DivineShield)
                     continue;
                 var enchantment = new StatEnchantment(context.Source, effect.Modifier, expires)
                 {
@@ -237,6 +241,61 @@ public sealed partial class GameSimulator
             }
             if (damageCleared)
                 _state = _rules.RefreshAuras(_state);
+        }
+
+        private IEnumerable<EntityId> PickRandomOtherFriendlyMinion(EffectContext context)
+        {
+            var candidates = _rules.BoardMinions(_state, context.Controller)
+                .Where(id => id != context.Source && IsLivingCharacter(id))
+                .OrderBy(id => _state.Entities[id].PlayOrder)
+                .ToArray();
+            return candidates.Length == 0 ? [] : [candidates[ChooseIndex(candidates.Length)]];
+        }
+
+        private void ApplyScaledEnchantStats(EffectContext context, ScaledEnchantStatsEffect effect)
+        {
+            var count = effect.Scale switch
+            {
+                StatScaleSource.CardsPlayedBeforeThis => context.CardsPlayedBefore,
+                StatScaleSource.FriendlyHandCount => _state.Players[context.Controller].In(GameZone.Hand).Length,
+                StatScaleSource.EquippedWeaponAttack => _state.Players[context.Controller].EquippedWeapon is EntityId w
+                    ? _rules.EffectiveWeaponAttack(_state, _state.Entities[w]) : 0,
+                _ => throw new InvalidOperationException("无法识别属性缩放来源。")
+            };
+            if (count <= 0)
+                return;
+
+            int? atk = effect.AttackPerUnit != 0 ? checked(effect.AttackPerUnit * count) : null;
+            int? hp = effect.HealthPerUnit != 0 ? checked(effect.HealthPerUnit * count) : null;
+            EnchantStats(context, new(effect.Target, new(StatModifierMode.Add, atk, hp))
+            {
+                EnchantmentCardId = effect.EnchantmentCardId
+            });
+        }
+
+        private void ApplyDynamicStatChange(EffectContext context, DynamicStatChangeEffect effect)
+        {
+            EntityId targetId = effect.Target switch
+            {
+                StatTarget.Selected => context.Selected!.Value,
+                StatTarget.Source => context.Source,
+                StatTarget.TriggerSubject => context.Subject!.Value,
+                _ => throw new InvalidOperationException("无法识别动态属性修改的目标。")
+            };
+            if (_state.LocationOf(targetId).Zone != GameZone.Play || _state.Entities[targetId].Character is not { } character)
+                return;
+
+            var entity = _state.Entities[targetId];
+            var modifier = effect.Mode switch
+            {
+                DynamicStatMode.AttackEqualsHealth => new StatModifier(StatModifierMode.Set, Attack: Math.Max(0, character.Health)),
+                DynamicStatMode.DoubleAttack => new StatModifier(StatModifierMode.Set, Attack: checked(_rules.EffectiveAttack(_state, entity) * 2)),
+                DynamicStatMode.SwapAttackAndHealth => new StatModifier(StatModifierMode.Set,
+                    Attack: Math.Max(0, character.Health),
+                    MaximumHealth: Math.Max(0, _rules.EffectiveAttack(_state, entity))),
+                _ => throw new InvalidOperationException("无法识别动态属性修改的模式。")
+            };
+            EnchantStats(context, new(effect.Target, modifier) { EnchantmentCardId = effect.EnchantmentCardId });
         }
 
         private void Silence(Stack<Work> work, EffectContext context)

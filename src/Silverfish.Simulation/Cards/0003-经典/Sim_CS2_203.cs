@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 铁喙猫头鹰
 // Ironbeak Owl
 // 战吼： 沉默一个随从。
 // Battlecry: Silence a_minion.
+[CardSim("CS2_203")]
 internal static class Sim_CS2_203
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_CS2_203
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new SilenceEffect()]
+    };
 }

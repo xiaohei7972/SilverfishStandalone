@@ -104,12 +104,12 @@ public sealed partial class GameSimulator
 
         private void ResummonMinion(Stack<Work> work, EffectContext context, ResummonMinionEffect effect)
         {
-            var id = (effect.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value;
+            var id = (effect.Target == EffectTarget.Selected ? context.Selected : (context.Subject ?? context.Source))!.Value;
             if (!_state.Entities.TryGetValue(id, out var target) ||
                 _rules.Card(target).Definition.Kind != EntityKind.Minion)
                 return;
 
-            if (Summon(context.Controller, target.CardId, position: null, effect.RemainingHealth) is EntityId summoned)
+            if (Summon(context.Controller, target.CardId, context.DeathPosition, effect.RemainingHealth) is EntityId summoned)
             {
                 _events.Add(new(SimulationEventKind.Resurrected, context.Controller, id, summoned));
                 PushSummonTriggers(work, context.Controller, summoned);

@@ -10,7 +10,7 @@ public static class PlayReqTags
         (int)GAME_TAG.STEALTH, (int)GAME_TAG.TITAN, (int)GAME_TAG.RARITY, (int)GAME_TAG.DEATHRATTLE,
         (int)GAME_TAG.ELUSIVE, (int)GAME_TAG.IMMUNE, (int)GAME_TAG.CANT_BE_TARGETED_BY_OPPONENTS,
         (int)GAME_TAG.CANT_BE_TARGETED_BY_SPELLS, (int)GAME_TAG.CANT_BE_TARGETED_BY_HERO_POWERS,
-        (int)GAME_TAG.POISONOUS];
+        (int)GAME_TAG.POISONOUS, (int)GAME_TAG.CANT_ATTACK];
 
     internal static bool Has(int mask, int tag)
     {

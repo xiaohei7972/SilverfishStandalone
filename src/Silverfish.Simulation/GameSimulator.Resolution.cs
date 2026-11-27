@@ -13,6 +13,14 @@ public sealed partial class GameSimulator
         private readonly Func<int, int>? _randomChoice = randomChoice;
         private GameState _state = state;
         private int _remainingSteps = rules._resolutionLimit;
+        private EntityId? _activeAttackingHero;
+
+        private bool IsImmuneAttackingHero(EntityId id) =>
+            _activeAttackingHero == id &&
+            _state.Players[_state.Entities[id].Controller].EquippedWeapon is EntityId eq &&
+            _state.LocationOf(eq).Zone == GameZone.Play &&
+            !_state.Entities[eq].Silenced &&
+            _rules.Card(_state.Entities[eq]).HeroImmuneWhileAttacking;
 
         public SimulationResult Run(SimulationAction action, bool resolvesEffects)
         {
@@ -122,6 +130,12 @@ public sealed partial class GameSimulator
                 RunTriggers(new(TriggerTiming.SpellCounterWindow, playerId, source), listeners);
                 if (!CanCounterSpell(source))
                     return;
+                if (target is EntityId proposedTarget &&
+                    _rules.Card(_state.Entities[proposedTarget]).Definition.Kind == EntityKind.Minion &&
+                    !_state.Players[_state.OpponentOf(playerId)].In(GameZone.Secret).IsEmpty)
+                {
+                    target = ResolveSpellTargetProposal(playerId, proposedTarget);
+                }
             }
             if (card.IsSecret)
                 _events.Add(new(SimulationEventKind.SecretArmed, playerId, source));
@@ -187,12 +201,15 @@ public sealed partial class GameSimulator
 
         private void Attack(PlayerId player, EntityId source, EntityId target)
         {
-            _events.Add(new(SimulationEventKind.Attack, player, source, target));
-            if (!_state.Players[_state.OpponentOf(player)].In(GameZone.Secret).IsEmpty)
-                target = ResolveAttackProposal(player, source, target);
             var isHero = source == _state.Players[player].Hero;
-            if (isHero)
-                RunTriggers(new(TriggerTiming.HeroAttacking, player, source), CaptureListeners());
+            _activeAttackingHero = isHero ? source : null;
+            try
+            {
+                _events.Add(new(SimulationEventKind.Attack, player, source, target));
+                if (!_state.Players[_state.OpponentOf(player)].In(GameZone.Secret).IsEmpty)
+                    target = ResolveAttackProposal(player, source, target);
+                if (isHero)
+                    RunTriggers(new(TriggerTiming.HeroAttacking, player, source), CaptureListeners());
 
             var attacker = _state.Entities[source];
             if (attacker.Character is not { } character || !IsLivingCharacter(source) || !IsLivingCharacter(target) ||
@@ -232,6 +249,11 @@ public sealed partial class GameSimulator
             var afterDamage = _state.Entities[source].Character!;
             _state = _state.UpdateCharacter(source, afterDamage with { AttacksThisTurn = character.AttacksThisTurn + 1 });
             SpendWeaponDurability(weapon);
+            }
+            finally
+            {
+                _activeAttackingHero = null;
+            }
         }
 
         private void GainArmor(EffectContext context, int amount)
@@ -260,13 +282,18 @@ public sealed partial class GameSimulator
         private void ApplyDamageTarget(Stack<Work> work, EffectContext context, DamageTarget target, int damageAmount,
             EnchantStatsEffect? enchantment = null)
         {
-            if (target is DamageTarget.AllMinions or DamageTarget.EnemyMinions or DamageTarget.AllEnemies)
+            if (target is DamageTarget.AllMinions or DamageTarget.EnemyMinions or DamageTarget.AllEnemies or
+                DamageTarget.AllCharacters or DamageTarget.OtherCharacters)
             {
                 var enemy = _state.OpponentOf(context.Controller);
                 var targets = target switch
                 {
                     DamageTarget.AllEnemies => _state.Players[enemy].In(GameZone.Play).Where(id => _state.Entities[id].Character is not null),
                     DamageTarget.EnemyMinions => _rules.BoardMinions(_state, enemy),
+                    DamageTarget.AllCharacters => _state.Players.Keys.SelectMany(player => _state.Players[player].In(GameZone.Play))
+                        .Where(id => _state.Entities[id].Character is not null),
+                    DamageTarget.OtherCharacters => _state.Players.Keys.SelectMany(player => _state.Players[player].In(GameZone.Play))
+                        .Where(id => id != context.Source && _state.Entities[id].Character is not null),
                     _ => _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player))
                 };
                 var hits = targets
@@ -318,6 +345,92 @@ public sealed partial class GameSimulator
                 PushOccurrence(work, hits[index]);
         }
 
+        private ImmutableArray<EntityId> AdjacentMinions(EntityId centerId)
+        {
+            if (!_state.Entities.TryGetValue(centerId, out var center) || _state.LocationOf(centerId).Zone != GameZone.Play)
+                return [];
+            var slots = _rules.BoardSlots(_state, center.Controller).Select(id => _state.Entities[id]).ToArray();
+            var position = Array.FindIndex(slots, entity => entity.Id == centerId);
+            if (position < 0)
+                return [];
+
+            var adjacent = ImmutableArray.CreateBuilder<EntityId>(2);
+            if (position > 0 && slots[position - 1].Character is not null && IsLivingCharacter(slots[position - 1].Id))
+                adjacent.Add(slots[position - 1].Id);
+            if (position + 1 < slots.Length && slots[position + 1].Character is not null && IsLivingCharacter(slots[position + 1].Id))
+                adjacent.Add(slots[position + 1].Id);
+            return adjacent.ToImmutable();
+        }
+
+        private ImmutableArray<EntityId> TargetAndAdjacentMinions(EntityId centerId)
+        {
+            if (!IsLivingCharacter(centerId) || _rules.Card(_state.Entities[centerId]).Definition.Kind != EntityKind.Minion)
+                return [];
+            var adjacent = AdjacentMinions(centerId);
+            return adjacent.Add(centerId).OrderBy(id => _state.Entities[id].PlayOrder).ToImmutableArray();
+        }
+
+        private void ApplySplashDamage(Stack<Work> work, EffectContext context, SplashDamageEffect effect)
+        {
+            var centerId = context.Selected!.Value;
+            if (!IsLivingCharacter(centerId) || _rules.Card(_state.Entities[centerId]).Definition.Kind != EntityKind.Minion)
+                return;
+
+            var centerDamage = ModifiedEffectAmount(context, effect.CenterAmount, damage: true);
+            var sideDamage = ModifiedEffectAmount(context, effect.AdjacentAmount, damage: true);
+            var targets = AdjacentMinions(centerId)
+                .Select(id => (Id: id, Amount: sideDamage))
+                .Append((Id: centerId, Amount: centerDamage))
+                .OrderBy(entry => _state.Entities[entry.Id].PlayOrder)
+                .ToArray();
+            var hits = targets.Select(entry => Damage(context.Source, entry.Id, entry.Amount)).ToArray();
+            for (var index = hits.Length - 1; index >= 0; index--)
+                PushOccurrence(work, hits[index]);
+        }
+
+        private void ApplyDynamicDraw(Stack<Work> work, EffectContext context, DynamicDrawEffect effect)
+        {
+            var count = effect.Mode switch
+            {
+                DynamicDrawMode.DamagedFriendlyCharacters => _state.Players[context.Controller].In(GameZone.Play)
+                    .Count(id => IsLivingCharacter(id) && _state.Entities[id].Character is { Damage: > 0 }),
+                DynamicDrawMode.MatchOpponentHandSize =>
+                    _state.Players[_state.OpponentOf(context.Controller)].In(GameZone.Hand).Length -
+                    _state.Players[context.Controller].In(GameZone.Hand).Length,
+                _ => throw new InvalidOperationException("无法识别动态抽牌方式。")
+            };
+            if (count > 0)
+                work.Push(new DrawCards(context.Controller, count));
+        }
+
+        private void ApplyDrawAndDamageByCost(Stack<Work> work, EffectContext context, DrawAndDamageByCostEffect effect)
+        {
+            var deck = _state.Players[context.Controller].In(GameZone.Deck);
+            if (!deck.IsEmpty)
+            {
+                var printedCost = _rules.Card(_state.Entities[deck[0]]).Definition.PrintedCost;
+                work.Push(new DealDrawnCostDamage(context, effect.Target, printedCost));
+            }
+            work.Push(new DrawCards(context.Controller, 1));
+        }
+
+        private void ApplyFillBoardSummon(Stack<Work> work, EffectContext context, FillBoardSummonEffect effect)
+        {
+            if (_rules.BoardSlotCount(_state, context.Controller) >= BoardLimit)
+                return;
+
+            var placement = effect.AlternateSides
+                ? (effect.PlaceLeftNext ? SummonPlacement.LeftOfSource : SummonPlacement.RightOfSource)
+                : SummonPlacement.Rightmost;
+            var position = ResolveSummonPosition(context, placement);
+            if (Summon(context.Controller, effect.CardId, position) is EntityId summoned)
+            {
+                if (_rules.BoardSlotCount(_state, context.Controller) < BoardLimit)
+                    work.Push(new ApplyEffect(context, effect with { PlaceLeftNext = !effect.PlaceLeftNext }));
+                PushSummonTriggers(work, context.Controller, summoned);
+            }
+        }
+
         private void ExecuteEffect(Stack<Work> work, EffectContext context, CardEffect effect)
         {
             switch (effect)
@@ -325,6 +438,9 @@ public sealed partial class GameSimulator
                 case DamageEffect damage:
                     ApplyDamageTarget(work, context, damage.Target,
                         ModifiedEffectAmount(context, damage.Amount, damage: true), damage.Enchantment);
+                    break;
+                case SplashDamageEffect splash:
+                    ApplySplashDamage(work, context, splash);
                     break;
                 case ScaledDamageEffect scaled:
                     var valueTarget = ResolveConditionCharacter(context, scaled.ValueSource);
@@ -342,6 +458,12 @@ public sealed partial class GameSimulator
                 case DrawEffect draw:
                     var drawer = draw.Recipient == CardRecipient.Controller ? context.Controller : _state.OpponentOf(context.Controller);
                     work.Push(new DrawCards(drawer, draw.Count));
+                    break;
+                case DynamicDrawEffect dynamicDraw:
+                    ApplyDynamicDraw(work, context, dynamicDraw);
+                    break;
+                case DrawAndDamageByCostEffect costDraw:
+                    ApplyDrawAndDamageByCost(work, context, costDraw);
                     break;
                 case DrawMatchingEffect draw:
                     work.Push(new DrawCards(context.Controller, draw.Count, draw.CardFilter));
@@ -391,6 +513,12 @@ public sealed partial class GameSimulator
                 case EnchantStatsEffect enchant:
                     EnchantStats(context, enchant);
                     break;
+                case ScaledEnchantStatsEffect scaledEnchant:
+                    ApplyScaledEnchantStats(context, scaledEnchant);
+                    break;
+                case DynamicStatChangeEffect dynamicStat:
+                    ApplyDynamicStatChange(context, dynamicStat);
+                    break;
                 case SilenceEffect:
                     Silence(work, context);
                     break;
@@ -398,6 +526,9 @@ public sealed partial class GameSimulator
                     var position = ResolveSummonPosition(context, summon.Placement);
                     if (Summon(context.Controller, summon.CardId, position) is EntityId summoned)
                         PushSummonTriggers(work, context.Controller, summoned);
+                    break;
+                case FillBoardSummonEffect fill:
+                    ApplyFillBoardSummon(work, context, fill);
                     break;
                 case SummonCopyEffect copy:
                     SummonCopy(work, context, copy);
@@ -418,8 +549,8 @@ public sealed partial class GameSimulator
                 case TransformMinionByCostEffect transform:
                     TransformMinionByCost(work, context, transform.Increase);
                     break;
-                case DestroyMinionEffect:
-                    DestroyMinion(context.Selected!.Value);
+                case DestroyMinionEffect destroy:
+                    DestroyMinion((destroy.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value);
                     break;
                 case DestroyAllMinionsEffect destroyAll:
                     DestroyAllMinions(context, destroyAll);
@@ -438,6 +569,9 @@ public sealed partial class GameSimulator
                     break;
                 case CounterSpellEffect:
                     CounterSpell(context);
+                    break;
+                case RedirectSpellTargetEffect redirectSpell:
+                    RedirectSpellTarget(work, context, redirectSpell.CardId);
                     break;
                 case PreventDamageEffect:
                     PreventDamage();
@@ -585,7 +719,7 @@ public sealed partial class GameSimulator
                     foreach (var layer in entity.Enchantments)
                         if (layer.GrantedTag == GAME_TAG.DEATHRATTLE && layer.CardId is { } enchantment &&
                             _rules._enchantmentRemovalEffects.TryGetValue((enchantment, EnchantmentRemovalReason.Died), out var granted))
-                            queue = queue.Append(new(new(entity.Id, entity.Controller, DeathPosition: position),
+                            queue = queue.Append(new(new(entity.Id, entity.Controller, Subject: entity.Id, DeathPosition: position),
                                 entity.PlayOrder!.Value, granted));
                     RunQueue(queue.OrderBy(trigger => trigger.PlayOrder));
                 }

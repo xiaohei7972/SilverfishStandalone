@@ -29,6 +29,7 @@ public sealed partial class GameSimulator
         private sealed record RecruitCards(PlayerId Player, int Remaining, CardFilter? Filter) : Work;
         private sealed record CastDrawnSpell(PlayerId Player, EntityId Source) : Work;
         private sealed record FinishDrawnSpell(PlayerId Player, EntityId Source) : Work;
+        private sealed record DealDrawnCostDamage(EffectContext Context, DamageTarget Target, int PrintedCost) : Work;
         private sealed record ResolveDiscardedCard(PlayerId Player, EntityId Card, ImmutableArray<CardEffect> Effects) : Work;
         // Damage events can be dispatched after an entire damage batch has been applied.
         // Freeze matched observers at enqueue time, before an earlier event's
@@ -99,6 +100,8 @@ public sealed partial class GameSimulator
                         (entityId is not EntityId secretId || !_rules.Card(_state.Entities[secretId]).IsSecret)) ||
                     (trigger.EntityKind is EntityKind kind &&
                         (entityId is not EntityId id || _rules.Card(_state.Entities[id]).Definition.Kind != kind)) ||
+                    (trigger.AttackingKind is EntityKind atkKind &&
+                        (occurrence.Subject is not EntityId attackerId || _rules.Card(_state.Entities[attackerId]).Definition.Kind != atkKind)) ||
                     (trigger.CardFilter is { } cards &&
                         (entityId is not EntityId filtered || !MatchesCardFilter(_rules.Card(_state.Entities[filtered]).Definition, cards))) ||
                     (trigger.RequireLivingEntity && !IsLivingCharacter(entityId)))
@@ -144,6 +147,10 @@ public sealed partial class GameSimulator
                     case FinishDrawnSpell spell:
                         if (_state.LocationOf(spell.Source).Zone == GameZone.Play)
                             _state = _state.Move(spell.Source, new(spell.Player, GameZone.Graveyard));
+                        break;
+                    case DealDrawnCostDamage costDamage:
+                        ApplyDamageTarget(work, costDamage.Context, costDamage.Target,
+                            ModifiedEffectAmount(costDamage.Context, costDamage.PrintedCost, damage: true));
                         break;
                     case ResolveDiscardedCard discarded:
                         _events.Add(new(SimulationEventKind.DiscardedEffect, discarded.Player, discarded.Card));

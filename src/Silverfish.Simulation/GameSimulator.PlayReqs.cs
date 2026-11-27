@@ -45,7 +45,7 @@ public sealed partial class GameSimulator
         if (native == TargetRequirement.None && !DeclaresTarget(requirements))
             return native;
 
-        var minion = TargetsOnlyMinions(native) || requirements.Any(req => req.Type == REQ_MINION_TARGET);
+        var minion = TargetsOnlyMinions(native) || requirements.Any(req => req.Type is REQ_MINION_TARGET or REQ_TARGET_WITH_RACE);
         if (native is TargetRequirement.EnemyMinion or TargetRequirement.EnemyCharacter || requirements.Any(req => req.Type == REQ_ENEMY_TARGET))
             return minion ? TargetRequirement.EnemyMinion : TargetRequirement.EnemyCharacter;
         if (native is TargetRequirement.FriendlyMinion or TargetRequirement.FriendlyCharacter || requirements.Any(req => req.Type == REQ_FRIENDLY_TARGET))

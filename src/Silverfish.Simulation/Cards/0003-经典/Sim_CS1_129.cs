@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 心灵之火
 // Inner Fire
 // 使一个随从的攻击力等同于其生命值。
 // Change a minion's Attack to be equal to its Health.
+[CardSim("CS1_129")]
 internal static class Sim_CS1_129
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_CS1_129
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new DynamicStatChangeEffect(StatTarget.Selected, DynamicStatMode.AttackEqualsHealth, "CS1_129e")]
+    };
 }
