@@ -65,6 +65,11 @@ public sealed partial class GameSimulator
         SelfCostReduction.OtherMinionsOnBattlefield => state.Players.Keys
             .SelectMany(player => BoardMinions(state, player))
             .Count(id => id != entity.Id),
+        SelfCostReduction.EquippedWeaponAttack => state.Players[entity.Controller].EquippedWeapon is EntityId weapon
+            ? EffectiveWeaponAttack(state, state.Entities[weapon]) : 0,
+        SelfCostReduction.OtherFriendlyHandCards => state.Players[entity.Controller].In(GameZone.Hand)
+            .Count(id => id != entity.Id),
+        SelfCostReduction.FriendlyHeroMissingHealth => state.Entities[state.Players[entity.Controller].Hero].Character?.Damage ?? 0,
         _ => throw new InvalidOperationException("无法识别卡牌自身的减费条件。")
     };
 

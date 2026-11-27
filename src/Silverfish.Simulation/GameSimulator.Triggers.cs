@@ -25,7 +25,8 @@ public sealed partial class GameSimulator
 
         private abstract record Work;
         private sealed record ApplyEffect(EffectContext Context, CardEffect Effect) : Work;
-        private sealed record DrawCards(PlayerId Player, int Remaining, CardFilter? Filter = null) : Work;
+        private sealed record DrawCards(PlayerId Player, int Remaining, CardFilter? Filter = null,
+            int CostDelta = 0, string? CostEnchantmentId = null, EntityId? CostSource = null) : Work;
         private sealed record RecruitCards(PlayerId Player, int Remaining, CardFilter? Filter) : Work;
         private sealed record CastDrawnSpell(PlayerId Player, EntityId Source) : Work;
         private sealed record FinishDrawnSpell(PlayerId Player, EntityId Source) : Work;

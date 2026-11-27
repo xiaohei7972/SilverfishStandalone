@@ -78,5 +78,30 @@ public sealed partial class GameSimulator
             _events.Add(new(SimulationEventKind.SpellRedirected, context.Controller, context.Source, defender));
             PushSummonTriggers(work, context.Controller, defender);
         }
+
+        private void RemoveAllStealth()
+        {
+            foreach (var player in _state.Players.Values)
+            foreach (var id in _rules.BoardMinions(_state, player.Id))
+            {
+                var entity = _state.Entities[id];
+                if (!IsLivingCharacter(id) || !_rules.IsStealthed(entity))
+                    continue;
+                _state = _state.UpdateEntity(entity with
+                {
+                    Stealthed = false,
+                    Enchantments = [.. entity.Enchantments.Where(layer => layer.GrantedTag != Silverfish.Domain.Client.GAME_TAG.STEALTH)]
+                });
+            }
+        }
+
+        private void DestroySecrets(EffectContext context, ConditionPlayer targetPlayer)
+        {
+            var owner = targetPlayer == ConditionPlayer.Friendly
+                ? context.Controller
+                : _state.OpponentOf(context.Controller);
+            foreach (var secretId in _state.Players[owner].In(GameZone.Secret))
+                _state = _state.Move(secretId, new(owner, GameZone.Graveyard));
+        }
     }
 }

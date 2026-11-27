@@ -494,7 +494,9 @@ public sealed partial class GameSimulator
                     break;
                 case DrawEffect draw:
                     var drawer = draw.Recipient == CardRecipient.Controller ? context.Controller : _state.OpponentOf(context.Controller);
-                    work.Push(new DrawCards(drawer, draw.Count));
+                    work.Push(new DrawCards(drawer, draw.Count, CostDelta: draw.CostDelta,
+                        CostEnchantmentId: draw.EnchantmentCardId,
+                        CostSource: draw.CostDelta != 0 ? context.Source : null));
                     break;
                 case DynamicDrawEffect dynamicDraw:
                     ApplyDynamicDraw(work, context, dynamicDraw);
@@ -563,8 +565,16 @@ public sealed partial class GameSimulator
                 case ModifyWeaponEffect modifyWeapon:
                     ModifyWeapon(context, modifyWeapon);
                     break;
-                case DestroyEnemyWeaponEffect:
-                    MarkEquippedWeaponForDestruction(_state.OpponentOf(context.Controller));
+                case DestroyEnemyWeaponEffect destroyWeapon:
+                    var enemyOwner = _state.OpponentOf(context.Controller);
+                    if (_state.Players[enemyOwner].EquippedWeapon is EntityId enemyWeapon &&
+                        _state.LocationOf(enemyWeapon).Zone == GameZone.Play &&
+                        _state.Entities[enemyWeapon].Weapon is { Durability: > 0 } enemyWeaponStats)
+                    {
+                        MarkEquippedWeaponForDestruction(enemyOwner);
+                        if (destroyWeapon.DrawDurability)
+                            work.Push(new DrawCards(context.Controller, enemyWeaponStats.Durability));
+                    }
                     break;
                 case EnchantStatsEffect enchant:
                     EnchantStats(context, enchant);
@@ -580,6 +590,12 @@ public sealed partial class GameSimulator
                     break;
                 case SilenceEffect:
                     Silence(work, context);
+                    break;
+                case RemoveAllStealthEffect:
+                    RemoveAllStealth();
+                    break;
+                case DestroySecretsEffect destroySecrets:
+                    DestroySecrets(context, destroySecrets.TargetPlayer);
                     break;
                 case SummonEffect summon:
                     var summonOwner = summon.Recipient == CardRecipient.Controller

@@ -30,7 +30,7 @@ public enum EnchantmentDuration { Permanent, CurrentTurn, UntilNextTurn }
 public enum EnchantmentRemovalReason { Expired, Silenced, LeftPlay, Transformed, Died }
 public enum AuraRecipients { OtherFriendlyMinions, AdjacentFriendlyMinions, Self }
 public enum AuraCondition { None = 0, WhileDamaged, WhileWeaponEquipped }
-public enum SelfCostReduction { None = 0, OtherMinionsOnBattlefield }
+public enum SelfCostReduction { None = 0, OtherMinionsOnBattlefield, EquippedWeaponAttack, OtherFriendlyHandCards, FriendlyHeroMissingHealth }
 public enum CostAuraTarget { Hand, Minion, Spell, Weapon, HeroPower, Location }
 public enum CostAuraRecipient { Friendly, Opponent, BothPlayers }
 public enum HandCostTarget { Source, DrawnCard, FriendlyHand }
@@ -127,6 +127,8 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(DynamicStatChangeEffect), "dynamicStatChange")]
 [JsonDerivedType(typeof(DrainDivineShieldsBuffEffect), "drainDivineShieldsBuff")]
 [JsonDerivedType(typeof(SilenceEffect), "silence")]
+[JsonDerivedType(typeof(RemoveAllStealthEffect), "removeAllStealth")]
+[JsonDerivedType(typeof(DestroySecretsEffect), "destroySecrets")]
 [JsonDerivedType(typeof(SummonEffect), "summon")]
 [JsonDerivedType(typeof(FillBoardSummonEffect), "fillBoardSummon")]
 [JsonDerivedType(typeof(SummonCopyEffect), "summonCopy")]
@@ -169,7 +171,8 @@ public sealed record ScaledDamageEffect(
     [property: JsonRequired] DamageTarget Target,
     bool DestroyValueSource = false) : CardEffect;
 public sealed record AdjacentAttackDamageEffect(EffectTarget Target = EffectTarget.Selected) : CardEffect;
-public sealed record DrawEffect(int Count, CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
+public sealed record DrawEffect(int Count, CardRecipient Recipient = CardRecipient.Controller,
+    int CostDelta = 0, string? EnchantmentCardId = null) : CardEffect;
 public sealed record DynamicDrawEffect([property: JsonRequired] DynamicDrawMode Mode) : CardEffect;
 public sealed record DrawAndDamageByCostEffect(DamageTarget Target = DamageTarget.Selected) : CardEffect;
 public sealed record DrawMatchingEffect([property: JsonRequired] CardFilter CardFilter, int Count = 1) : CardEffect;
@@ -233,7 +236,7 @@ public sealed record ModifyWeaponEffect(
     int DurabilityDelta = 0,
     ConditionPlayer TargetWeapon = ConditionPlayer.Friendly,
     string? EnchantmentCardId = null) : CardEffect;
-public sealed record DestroyEnemyWeaponEffect : CardEffect;
+public sealed record DestroyEnemyWeaponEffect(bool DrawDurability = false) : CardEffect;
 public sealed record EnchantmentRemovalRule(EnchantmentRemovalReason Reason, ImmutableArray<CardEffect> Effects);
 public sealed record EnchantStatsEffect(StatTarget Target, StatModifier? Modifier,
     EnchantmentDuration Duration = EnchantmentDuration.Permanent) : CardEffect
@@ -259,6 +262,8 @@ public sealed record DrainDivineShieldsBuffEffect(
     int HealthPerShield,
     string? EnchantmentCardId = null) : CardEffect;
 public sealed record SilenceEffect : CardEffect;
+public sealed record RemoveAllStealthEffect : CardEffect;
+public sealed record DestroySecretsEffect(ConditionPlayer TargetPlayer = ConditionPlayer.Opponent) : CardEffect;
 /// <summary>亡语召唤沿用死亡位置，其他情况放到场上最右侧。</summary>
 public sealed record SummonEffect(string CardId, SummonPlacement Placement = SummonPlacement.Default,
     CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
@@ -365,6 +370,8 @@ public record CardRules
     public bool HealingDealsDamage { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool CannotAttack { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AttackEqualsHealth { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool HeroImmuneWhileAttacking { get; init; }
     public WeaponMinionAttackRule? MinionAttackRule { get; init; }

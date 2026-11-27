@@ -36,6 +36,15 @@ public sealed partial class GameSimulator
             if (burned)
                 return;
 
+            if (draw.CostDelta != 0 && draw.CostSource is EntityId costSource)
+            {
+                var modifier = CreateCostModifier(costSource, draw.CostDelta, draw.CostEnchantmentId, EnchantmentDuration.Permanent);
+                var drawnEntity = _state.Entities[drawn];
+                _state = _state.UpdateEntity(drawnEntity with { CostModifiers = drawnEntity.CostModifiers.Add(modifier) });
+                _events.Add(new(SimulationEventKind.EnchantmentApplied, player.Id, costSource, drawn, draw.CostDelta)
+                    { EnchantmentCardId = modifier.CardId });
+            }
+
             var card = _rules.Card(_state.Entities[drawn]);
             var castsWhenDrawn = card.Keywords.HasFlag(CardKeywords.CastsWhenDrawn);
             // 补抽从牌库顶开始，并排在本次自动施放和抽牌触发器之后。

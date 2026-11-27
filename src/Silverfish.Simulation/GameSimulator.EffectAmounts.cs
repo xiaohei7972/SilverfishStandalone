@@ -1,4 +1,5 @@
 using Silverfish.Domain;
+using Silverfish.Domain.Client;
 
 namespace Silverfish.Simulation;
 
@@ -24,13 +25,17 @@ public sealed partial class GameSimulator
             foreach (var id in _rules.BoardMinions(_state, context.Controller))
             {
                 var minion = _state.Entities[id];
-                if (minion.Silenced || !IsLivingCharacter(id))
+                if (!IsLivingCharacter(id))
                     continue;
 
                 var card = _rules.Card(minion);
                 if (effectiveDamage && sourceKind == EntityKind.Spell)
-                    amount = checked(amount + card.SpellDamage);
-                if (card.SpellAndHeroPowerMultiplier is int factor)
+                {
+                    var bonus = (minion.Silenced ? 0 : card.SpellDamage) +
+                        minion.Enchantments.Count(layer => layer.GrantedTag == GAME_TAG.SPELLPOWER);
+                    amount = checked(amount + bonus);
+                }
+                if (!minion.Silenced && card.SpellAndHeroPowerMultiplier is int factor)
                     multiplier = checked(multiplier * factor);
             }
 

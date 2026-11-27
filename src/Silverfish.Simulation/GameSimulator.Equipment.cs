@@ -34,7 +34,7 @@ public sealed partial class GameSimulator
 
         var player = state.Players[entity.Controller];
         if (entity.Id != player.Hero)
-            return character.Attack;
+            return !entity.Silenced && Card(entity).AttackEqualsHealth ? Math.Max(0, character.Health) : character.Attack;
         if (entity.Controller != state.ActivePlayer)
             return 0;
 

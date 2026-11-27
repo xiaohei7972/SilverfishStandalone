@@ -61,7 +61,7 @@ public sealed partial class GameSimulator
                 card.Triggers.IsDefault || card.Auras.IsDefault || card.WeaponAuras.IsDefault || card.CostAuras.IsDefault || card.Choices.IsDefault ||
                 !Enum.IsDefined(card.SelfCostReduction) || (card.SelfCostReduction != SelfCostReduction.None && definition.Kind == EntityKind.Hero) ||
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && !card.Deathrattle.IsEmpty) ||
-                (definition.Kind != EntityKind.Minion && (!card.Auras.IsEmpty || !card.WeaponAuras.IsEmpty || card.LeavesNoCorpse || card.HealingDealsDamage || card.CannotAttack)) ||
+                (definition.Kind != EntityKind.Minion && (!card.Auras.IsEmpty || !card.WeaponAuras.IsEmpty || card.LeavesNoCorpse || card.HealingDealsDamage || card.CannotAttack || card.AttackEqualsHealth)) ||
                 (definition.Kind != EntityKind.Weapon && (card.HeroImmuneWhileAttacking || card.MinionAttackRule is not null)) ||
                 (card.MinionAttackRule is { } minionAtkRule && (minionAtkRule.AttackLoss <= 0 || !IsOptionalCardIdValid(minionAtkRule.EnchantmentCardId))) ||
                 (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.CostAuras.IsEmpty) ||
@@ -466,7 +466,9 @@ public sealed partial class GameSimulator
                     EffectTarget.TriggerSubject => hasCharacterSubject,
                     _ => false
                 },
-                DrawEffect draw => draw.Count > 0 && Enum.IsDefined(draw.Recipient),
+                DrawEffect draw => draw.Count > 0 && Enum.IsDefined(draw.Recipient) &&
+                    (draw.CostDelta != 0 || draw.EnchantmentCardId is null) &&
+                    IsOptionalCardIdValid(draw.EnchantmentCardId),
                 DynamicDrawEffect draw => Enum.IsDefined(draw.Mode),
                 DrawAndDamageByCostEffect draw => IsValidDamageTarget(draw.Target),
                 DrawMatchingEffect draw => draw.Count > 0 && draw.CardFilter is not null && IsValidCardFilter(draw.CardFilter),
@@ -540,6 +542,8 @@ public sealed partial class GameSimulator
                     drain.AttackPerShield >= 0 && drain.HealthPerShield >= 0 &&
                     IsOptionalCardIdValid(drain.EnchantmentCardId),
                 SilenceEffect => TargetsOnlyMinions(target),
+                RemoveAllStealthEffect => true,
+                DestroySecretsEffect destroySecrets => Enum.IsDefined(destroySecrets.TargetPlayer),
                 DestroyMinionEffect destroy => destroy.Target switch
                 {
                     EffectTarget.Selected => TargetsOnlyMinions(target),

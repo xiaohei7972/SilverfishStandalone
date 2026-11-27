@@ -6,4 +6,7 @@ internal sealed record CostEnchantmentRule(string CardId, int Delta,
 {
     internal ReturnMinionEffect ApplyWhenReturned(EffectTarget target = EffectTarget.Selected) =>
         new(Delta, target) { EnchantmentCardId = CardId, CostDuration = Duration };
+
+    internal DrawEffect ApplyWhenDrawn(int count = 1) =>
+        new(count, CostDelta: Delta, EnchantmentCardId: CardId);
 }

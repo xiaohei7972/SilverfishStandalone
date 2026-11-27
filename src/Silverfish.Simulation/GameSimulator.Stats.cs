@@ -46,7 +46,7 @@ public sealed partial class GameSimulator
         GAME_TAG.STEALTH or GAME_TAG.POISONOUS or GAME_TAG.LIFESTEAL or GAME_TAG.IMMUNE;
 
     private static bool IsSupportedGrantedTag(GAME_TAG tag) =>
-        IsSupportedAuraTag(tag) || tag is GAME_TAG.DIVINE_SHIELD or GAME_TAG.DEATHRATTLE or GAME_TAG.CONTROLLER;
+        IsSupportedAuraTag(tag) || tag is GAME_TAG.DIVINE_SHIELD or GAME_TAG.DEATHRATTLE or GAME_TAG.CONTROLLER or GAME_TAG.SPELLPOWER;
 
     private static bool IsValidEnchantment(StatModifier? modifier, GAME_TAG? tag) =>
         (modifier is not null || tag is not null) &&
@@ -128,7 +128,7 @@ public sealed partial class GameSimulator
             if (entity.Character is null)
                 continue;
             var active = grants.TryGetValue(id, out var received) ? received.ToImmutable() : [];
-            var updated = RecalculateStats(entity, active);
+            var updated = RecalculateStats(entity, active, !entity.Silenced && Card(entity).AttackEqualsHealth);
             if (updated != entity)
                 state = state.UpdateEntity(updated);
         }
@@ -145,10 +145,10 @@ public sealed partial class GameSimulator
         }
     }
 
-    private static GameEntity RecalculateStats(GameEntity entity, ImmutableArray<StatAuraGrant> grants)
+    private static GameEntity RecalculateStats(GameEntity entity, ImmutableArray<StatAuraGrant> grants, bool attackEqualsHealth = false)
     {
         var character = entity.Character!;
-        if (entity.Enchantments.IsEmpty && grants.IsEmpty && entity.AuraGrants.IsEmpty &&
+        if (!attackEqualsHealth && entity.Enchantments.IsEmpty && grants.IsEmpty && entity.AuraGrants.IsEmpty &&
             character.BaseAttack is null && character.BaseMaximumHealth is null)
             return entity;
 
@@ -167,6 +167,8 @@ public sealed partial class GameSimulator
         var damage = maximumHealth < character.MaximumHealth
             ? Math.Max(0, maximumHealth - character.Health)
             : character.Damage;
+        if (attackEqualsHealth)
+            attack = Math.Max(0, maximumHealth - damage);
 
         return entity with
         {
@@ -236,7 +238,7 @@ public sealed partial class GameSimulator
                 _state = _state.UpdateEntity(RecalculateStats(entity with
                 {
                     Character = character, Enchantments = entity.Enchantments.Add(enchantment)
-                }, entity.AuraGrants));
+                }, entity.AuraGrants, !entity.Silenced && _rules.Card(entity).AttackEqualsHealth));
                 _events.Add(new(SimulationEventKind.EnchantmentApplied, context.Controller, context.Source, id));
             }
             if (damageCleared)
@@ -343,7 +345,8 @@ public sealed partial class GameSimulator
                 var updated = entity with { Enchantments = remaining };
                 if (expired.Any(layer => layer.GrantedTag == GAME_TAG.DIVINE_SHIELD))
                     updated = updated with { Character = updated.Character! with { DivineShield = false } };
-                _state = _state.UpdateEntity(RecalculateStats(updated, entity.AuraGrants));
+                _state = _state.UpdateEntity(RecalculateStats(updated, entity.AuraGrants,
+                    !updated.Silenced && _rules.Card(updated).AttackEqualsHealth));
                 foreach (var modifier in expired)
                     _events.Add(new(SimulationEventKind.EnchantmentExpired, entity.Controller, modifier.Source, entity.Id));
                 if (_rules._enchantmentRemovalEffects.Count != 0)
