@@ -1,10 +1,13 @@
 using Silverfish.Domain.Client;
+using Silverfish.Simulation.Cards.Enchantments;
+
 namespace Silverfish.Simulation.Cards;
 
 // 恶魔融合
 // Demonfuse
 // 使一个恶魔获得+3/+3。
 // Give a Demon +3/+3.
+[CardSim("AT_024")]
 internal static class Sim_AT_024
 {
     // <legacy-play-requirements>
@@ -13,4 +16,11 @@ internal static class Sim_AT_024
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            Sim_AT_024e.Rule.ApplyTo(StatTarget.Selected),
+        ],
+    };
 }

@@ -77,6 +77,7 @@ public sealed partial class GameSimulator
                     enchantment.CardId is { } cid &&
                     (_enchantmentAttackEffects.ContainsKey(cid) || _enchantmentRemovalEffects.Keys.Any(k => k.CardId == cid))) ||
                 !IsOptionalCardIdValid(enchantment.CardId) ||
+                !IsValidCapturedMinion(state, enchantment.CapturedMinion) ||
                 (enchantment.ExpiresAfterTurn is int turn && turn < state.Turn))
                 throw new ArgumentException($"实体 {entity.Id} 的属性附魔无效。");
         }
@@ -101,6 +102,9 @@ public sealed partial class GameSimulator
             state.Entities[id].Character is { Health: > 0 } &&
             MatchesMinionType(Card(state.Entities[id]).Definition, MinionType.Mech)),
         AuraCondition.WhileOpponentHasAtLeastSixHandCards => state.Players[state.OpponentOf(source.Controller)].In(GameZone.Hand).Length >= 6,
+        AuraCondition.WhileHavingSpellDamage => state.Players.Keys.SelectMany(player => BoardMinions(state, player))
+            .Any(id => state.Entities[id] is { Character.Health: > 0 } minion && SpellDamageBonus(minion, source.Controller) > 0),
+        AuraCondition.ControllerTurnOnly => state.ActivePlayer == source.Controller,
         _ => false
     };
 
@@ -126,6 +130,12 @@ public sealed partial class GameSimulator
                     if (aura.Recipients == AuraRecipients.Self)
                     {
                         AddGrant(source.Id, source.Id, auraIndex, aura);
+                        continue;
+                    }
+                    if (aura.Recipients == AuraRecipients.FriendlyHero)
+                    {
+                        if (source.Character.Health > 0)
+                            AddGrant(source.Id, player.Hero, auraIndex, aura);
                         continue;
                     }
 
@@ -212,7 +222,7 @@ public sealed partial class GameSimulator
 
     private sealed partial class Resolution
     {
-        private void EnchantStats(EffectContext context, EnchantStatsEffect effect)
+        private void EnchantStats(EffectContext context, EnchantStatsEffect effect, CapturedMinion? captured = null)
         {
             IEnumerable<EntityId> targets = effect.Target switch
             {
@@ -221,6 +231,10 @@ public sealed partial class GameSimulator
                 StatTarget.TriggerSubject => [context.Subject!.Value],
                 StatTarget.FriendlyHero => [_state.Players[context.Controller].Hero],
                 StatTarget.FriendlyMinions => _rules.BoardMinions(_state, context.Controller),
+                StatTarget.EnemyMinions => _rules.BoardMinions(_state, _state.OpponentOf(context.Controller)),
+                StatTarget.FriendlyHandAndDeck => _state.Players[context.Controller].In(GameZone.Hand)
+                    .Concat(_state.Players[context.Controller].In(GameZone.Deck)),
+                StatTarget.FriendlyHand => _state.Players[context.Controller].In(GameZone.Hand),
                 StatTarget.OtherFriendlyMinions => _rules.BoardMinions(_state, context.Controller).Where(id => id != context.Source),
                 StatTarget.AdjacentFriendlyMinions => AdjacentMinions(context.Source),
                 StatTarget.RandomOtherFriendlyMinion => PickRandomOtherFriendlyMinion(context, effect.CardFilter),
@@ -239,8 +253,12 @@ public sealed partial class GameSimulator
             {
                 var zone = _state.LocationOf(id).Zone;
                 var entity = _state.Entities[id];
-                if (zone == GameZone.Hand && _rules.Card(entity).Definition.Kind == EntityKind.Minion &&
-                    effect.Target == StatTarget.Source && effect.Modifier is not null)
+                var card = _rules.Card(entity);
+                if (effect.CardFilter is { } filter && !_rules.MatchesEntityFilter(entity, filter))
+                    continue;
+                if (card.Definition.Kind == EntityKind.Minion && effect.Modifier is not null &&
+                    (zone == GameZone.Hand && effect.Target is StatTarget.Source or StatTarget.FriendlyHand ||
+                     zone is GameZone.Hand or GameZone.Deck && effect.Target == StatTarget.FriendlyHandAndDeck))
                 {
                     var handEnchant = new StatEnchantment(context.Source, effect.Modifier, expires)
                     {
@@ -253,7 +271,7 @@ public sealed partial class GameSimulator
                 if (zone != GameZone.Play)
                     continue;
                 if (entity.Character is not { } character ||
-                    (effect.CardFilter is { } cardFilter && !MatchesCardFilter(_rules.Card(entity), cardFilter)) ||
+                    (effect.ShieldedOnly && !character.DivineShield) ||
                     (effect.Modifier is null && effect.SecondaryGrantedTag is null &&
                         effect.GrantedTag == GAME_TAG.DIVINE_SHIELD && character.DivineShield))
                     continue;
@@ -263,7 +281,7 @@ public sealed partial class GameSimulator
                 {
                     var enchantment = new StatEnchantment(context.Source, effect.Modifier, expires)
                     {
-                        CardId = effect.EnchantmentCardId, GrantedTag = effect.GrantedTag
+                        CardId = effect.EnchantmentCardId, GrantedTag = effect.GrantedTag, CapturedMinion = captured
                     };
                     if (effect.GrantedTag == GAME_TAG.DIVINE_SHIELD)
                         character = character with { DivineShield = true };
@@ -332,6 +350,11 @@ public sealed partial class GameSimulator
                 StatScaleSource.EnemyDeathrattleMinions => _rules.BoardMinions(_state, _state.OpponentOf(context.Controller))
                     .Count(id => IsLivingCharacter(id) &&
                         MatchesCardFilter(_rules.Card(_state.Entities[id]), new() { HasDeathrattle = true })),
+                StatScaleSource.FriendlyMinions or StatScaleSource.EnemyMinions =>
+                    _rules.BoardMinions(_state, effect.Scale == StatScaleSource.FriendlyMinions
+                        ? context.Controller : _state.OpponentOf(context.Controller))
+                    .Count(id => IsLivingCharacter(id) &&
+                        (effect.CardFilter is null || MatchesCardFilter(_rules.Card(_state.Entities[id]), effect.CardFilter))),
                 _ => throw new InvalidOperationException("无法识别属性缩放来源。")
             };
             if (count <= 0)
@@ -347,6 +370,12 @@ public sealed partial class GameSimulator
 
         private void ApplyDynamicStatChange(EffectContext context, DynamicStatChangeEffect effect)
         {
+            if (effect.Target == StatTarget.AllMinions)
+            {
+                foreach (var id in _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player)).ToArray())
+                    ApplyDynamicStatChange(context with { Selected = id }, effect with { Target = StatTarget.Selected });
+                return;
+            }
             EntityId targetId = effect.Target switch
             {
                 StatTarget.Selected => context.Selected!.Value,

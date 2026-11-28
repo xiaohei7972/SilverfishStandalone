@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 天降蛛群
 // Ball of Spiders
 // 召唤三只1/1并具有“亡语：随机获取一张野兽牌”的 结网蛛。
 // Summon three 1/1 Webspinners with "Deathrattle: Get a random Beast."
+[CardSim("AT_062")]
 internal static class Sim_AT_062
 {
     // <legacy-play-requirements>
@@ -13,4 +15,13 @@ internal static class Sim_AT_062
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new SummonEffect("FP1_011"),
+            new SummonEffect("FP1_011"),
+            new SummonEffect("FP1_011"),
+        ],
+    };
 }

@@ -68,8 +68,13 @@ public static class StarterCardCatalog
             throw new InvalidOperationException($"卡牌「{cardId}」的分支条件必须声明在对应选项的 CardPlayChoice.PlayReqs 中。");
         ValidateRequirementList(cardId, "PlayReqs.Play", requirements.Play);
         ValidateRequirementList(cardId, "PlayReqs.Ability", requirements.Ability);
-        foreach (var choice in rules.Choices.IsDefault ? [] : rules.Choices)
+        var choices = rules.Choices.IsDefault ? [] : rules.Choices;
+        if (rules.CombinedChoice is { } combined)
+            choices = choices.Add(combined);
+        foreach (var choice in choices)
         {
+            if (choice.Target != TargetRequirement.None || choice.TargetFilter is not null || choice.Requirements != PlayRequirements.None)
+                throw new InvalidOperationException($"卡牌「{cardId}」的分支条件必须声明在对应选项的 CardPlayChoice.PlayReqs 中。");
             ValidateRequirementList(cardId, $"CardPlayChoice.PlayReqs（{choice.Id}）", choice.PlayReqs);
             if (choice.PlayReqs.Any(requirements.Play.Contains))
                 throw new InvalidOperationException($"卡牌「{cardId}」的抉择「{choice.Id}」重复声明了公共出牌条件。");

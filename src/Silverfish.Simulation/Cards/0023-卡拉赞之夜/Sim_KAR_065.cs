@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 展览馆守卫
 // Menagerie Warden
 // 战吼：选择一个友方野兽，召唤一个它的复制。
 // Battlecry: Choose a friendly Beast. Summon a_copy of it.
+[CardSim("KAR_065")]
 internal static class Sim_KAR_065
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_KAR_065
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new SummonCopyEffect { Placement = SummonPlacement.RightOfSource }],
+    };
 }

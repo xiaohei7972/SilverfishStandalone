@@ -10,10 +10,23 @@ public sealed partial class GameSimulator
     private const int PlayChoiceOfferCount = 3;
     private static readonly uint NeutralClass = CardMetadata.ClassBit(TAG_CLASS.NEUTRAL);
     private readonly ConcurrentDictionary<(uint Classes, bool LegendaryOnly), ImmutableArray<string>> _discoverPools = new();
+    private readonly ConcurrentDictionary<(uint Classes, CardFilter? Filter), ImmutableArray<string>> _discoverCardPools = new();
 
     private bool IsValidPlayChoice(SimulationCard card, PlayChoiceRule rule) => rule switch
     {
         DiscoverMinionChoice { SummonCopies: > 0 and <= BoardLimit } => true,
+        DiscoverCardChoice discover => !discover.Options.IsDefault && IsValidCardFilter(discover.Filter) &&
+            (discover.Condition is null || IsValidCondition(discover.Condition, TargetRequirement.None, false,
+                card.Definition.Kind == EntityKind.Minion)) &&
+            (discover.Modifier is null || IsValidModifier(discover.Modifier) && discover.Filter?.Kind == EntityKind.Minion) &&
+            (!discover.HealHeroByChosenCost || !discover.ReplaceHeroPower) &&
+            IsOptionalCardIdValid(discover.EnchantmentCardId) &&
+            (discover.ReplaceHeroPower ? !discover.Options.IsEmpty && discover.Filter is null &&
+                discover.CostDelta == 0 && discover.Modifier is null : true) &&
+            discover.Options.Distinct(StringComparer.Ordinal).Count() == discover.Options.Length &&
+            discover.Options.All(id => discover.ReplaceHeroPower
+                ? GetCard(id).Definition.Kind == EntityKind.HeroPower : CanCreateCard(id)) &&
+            (discover.Then is null || IsValidPlayChoice(card, discover.Then)),
         AdaptChoice adapt => IsValidAdaptRecipient(card, adapt) && adapt.Times > 0 && !adapt.Options.IsDefaultOrEmpty &&
             adapt.Options.Distinct(StringComparer.Ordinal).Count() == adapt.Options.Length &&
             adapt.Options.All(id => !string.IsNullOrWhiteSpace(id) && _cards.TryGetValue(id, out var option) &&
@@ -40,6 +53,12 @@ public sealed partial class GameSimulator
 
     private bool IsValidChoiceContinuation(GameState state, PendingPlayChoice choice, PlayChoiceRule rule)
     {
+        if (choice.SelectedTarget is EntityId target && !state.Entities.ContainsKey(target) || choice.PlayedCardCost is < 0)
+            return false;
+        if (rule is DiscoverCardChoice discover)
+            return choice.Recipients is null && choice.RemainingSelections is null or 1 or 2 &&
+                (choice.RemainingSelections is null || HasDoubleBattlecrySource(state, choice.Source)) &&
+                (choice.DiscoverRound is null or 0 || choice.DiscoverRound == 1 && discover.Then is not null);
         if (rule is not AdaptChoice adapt)
             return choice.Recipients is null && choice.RemainingSelections is null;
 
@@ -63,23 +82,62 @@ public sealed partial class GameSimulator
 
     private void ValidatePlayChoice(GameState state, PendingPlayChoice choice)
     {
-        if (Card(state.Entities[choice.Source]).ChooseAfterPlay is not { } rule || choice.Options.Length > PlayChoiceOfferCount ||
+        if (ChoiceRule(Card(state.Entities[choice.Source]), choice.PlayBranch) is not { } rule || choice.Options.Length > PlayChoiceOfferCount ||
             !IsValidChoiceContinuation(state, choice, rule))
             throw new ArgumentException("存档的待决选择缺少匹配的单卡规则。", nameof(choice));
 
-        var eligible = PlayChoiceCandidates(state, state.ActivePlayer, rule).ToHashSet(StringComparer.Ordinal);
+        var eligible = PlayChoiceCandidates(state, state.ActivePlayer, choice.Source, DiscoverRound(rule, choice)).ToHashSet(StringComparer.Ordinal);
         var offered = choice.Options.Select(id => state.Entities[id].CardId).ToArray();
         if (offered.Length != Math.Min(PlayChoiceOfferCount, eligible.Count) ||
             offered.Distinct(StringComparer.Ordinal).Count() != offered.Length || offered.Any(id => !eligible.Contains(id)))
             throw new ArgumentException("存档中的候选包含重复卡牌或不符合单卡选择条件。", nameof(choice));
     }
 
-    private ImmutableArray<string> PlayChoiceCandidates(GameState state, PlayerId player, PlayChoiceRule rule) => rule switch
+    private bool HasDoubleBattlecrySource(GameState state, EntityId source) =>
+        PlayReqTags.Has(Card(state.Entities[source]).RequirementTagMask, (int)GAME_TAG.BATTLECRY);
+
+    private static PlayChoiceRule DiscoverRound(PlayChoiceRule rule, PendingPlayChoice choice) =>
+        rule is DiscoverCardChoice { Then: { } then } && choice.DiscoverRound == 1 ? then : rule;
+
+    private static PlayChoiceRule? ChoiceRule(SimulationCard card, string? branch) => branch switch
+    {
+        null => card.ChooseAfterPlay,
+        "both" => card.CombinedChoice?.ChooseAfterPlay,
+        _ => card.Choices.FirstOrDefault(choice => choice.Id == branch)?.ChooseAfterPlay
+    };
+
+    private ImmutableArray<string> PlayChoiceCandidates(GameState state, PlayerId player, EntityId source, PlayChoiceRule rule) => rule switch
     {
         DiscoverMinionChoice discover => DiscoverMinionCandidates(state, player, discover),
+        DiscoverCardChoice { Options.IsEmpty: true } discover => DiscoverCardCandidates(state, player, discover.Filter)
+            .Where(id => id != state.Entities[source].CardId).ToImmutableArray(),
+        DiscoverCardChoice { ReplaceHeroPower: true } discover => discover.Options.Where(id =>
+            !state.Players[player].In(GameZone.HeroPower).Any(power => state.Entities[power].CardId == id)).ToImmutableArray(),
+        DiscoverCardChoice discover => discover.Options,
         AdaptChoice adapt => adapt.Options,
         _ => throw new InvalidOperationException("无法识别待决选择规则。")
     };
+
+    private ImmutableArray<string> DiscoverCardCandidates(GameState state, PlayerId player, CardFilter? filter)
+    {
+        var classes = Card(state.Entities[state.Players[player].Hero]).Definition.ClassMask | NeutralClass;
+        return GeneratedCardCandidates(filter, classes);
+    }
+
+    private ImmutableArray<string> GeneratedCardCandidates(CardFilter? filter, uint classes = 0) =>
+        _discoverCardPools.GetOrAdd((classes, filter), pool =>
+        {
+            var ids = pool.Filter?.Kind == EntityKind.Minion && RandomMinionPool is { } minions
+                ? minions.AsEnumerable() : CompiledCardData.CollectibleCardIds;
+            return [.. ids.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Where(id =>
+            {
+                if (id.StartsWith("CORE_", StringComparison.Ordinal) && CompiledCardData.CollectibleCardIds.Contains(id[5..]))
+                    return false;
+                var card = GetCard(id);
+                return (pool.Classes == 0 || card.Definition.ClassMask == 0 || (card.Definition.ClassMask & pool.Classes) != 0) &&
+                    (pool.Filter is null || MatchesCardFilter(card, pool.Filter));
+            })];
+        });
 
     private ImmutableArray<string> DiscoverMinionCandidates(GameState state, PlayerId player, DiscoverMinionChoice discover)
     {
@@ -96,12 +154,18 @@ public sealed partial class GameSimulator
     private sealed partial class Resolution
     {
         private bool OfferPlayChoice(PlayerId player, EntityId source, EntityId? selected, SimulationCard card,
-            ImmutableArray<Listener> listeners)
+            ImmutableArray<Listener> listeners, string? branch = null, int repeats = 1, int? playedCost = null)
         {
-            if (card.ChooseAfterPlay is not { } rule || !CanOfferChoice(player, source, card))
+            if (ChoiceRule(card, branch) is not { } rule || !CanOfferChoice(player, source, card) ||
+                rule is DiscoverCardChoice { Condition: { } condition } && !MeetsCondition(new(source, player, selected), condition))
                 return false;
 
-            var choice = new PendingPlayChoice(source, [], AfterPlayListeners(card, listeners));
+            var choice = new PendingPlayChoice(source, [], AfterPlayListeners(card, listeners))
+            {
+                PlayBranch = branch, SelectedTarget = selected, PlayedCardCost = playedCost
+            };
+            if (rule is DiscoverCardChoice && repeats > 1)
+                choice = choice with { RemainingSelections = repeats };
             if (rule is AdaptChoice adapt)
             {
                 IEnumerable<EntityId> candidates = adapt.Recipient switch
@@ -125,7 +189,7 @@ public sealed partial class GameSimulator
 
         private bool OfferOptions(PlayerId player, PendingPlayChoice choice, PlayChoiceRule rule)
         {
-            var pool = _rules.PlayChoiceCandidates(_state, player, rule).ToList();
+            var pool = _rules.PlayChoiceCandidates(_state, player, choice.Source, rule).ToList();
             if (pool.Count == 0)
                 return false;
 
@@ -134,7 +198,7 @@ public sealed partial class GameSimulator
             {
                 var index = ChooseIndex(pool.Count);
                 var id = new EntityId(_state.NextEntity);
-                _state = _state.AddChoiceOption(new(id, pool[index], player, player));
+                _state = _state.AddToSetAside(new(id, pool[index], player, player));
                 offered.Add(id);
                 pool.RemoveAt(index);
                 _events.Add(new(SimulationEventKind.PlayChoiceOffered, player, choice.Source, id));
@@ -168,14 +232,51 @@ public sealed partial class GameSimulator
             foreach (var option in choice.Options)
                 _state = _state.Move(option, new(player, GameZone.Removed));
 
-            if (card.ChooseAfterPlay is DiscoverMinionChoice discover)
+            var rootRule = ChoiceRule(card, choice.PlayBranch)!;
+            var rule = DiscoverRound(rootRule, choice);
+            if (rule is DiscoverMinionChoice discover)
             {
                 var effects = Enumerable.Repeat<CardEffect>(new SummonEffect(selectedCard), discover.SummonCopies).ToImmutableArray();
                 ResolveEffects(new(choice.Source, player), effects);
             }
-            else if (card.ChooseAfterPlay is AdaptChoice adapt && ResolveAdaptChoice(player, choice, card, adapt, selectedCard, listeners))
+            else if (rule is DiscoverCardChoice discoverCard)
+            {
+                ResolveDiscoveredCard(player, choice.Source, selectedCard, discoverCard);
+                var more = discoverCard.Then is not null && choice.DiscoverRound is null;
+                var repeat = choice.RemainingSelections is > 1;
+                if ((more || repeat) && CanOfferChoice(player, choice.Source, card) &&
+                    OfferOptions(player, choice with
+                    {
+                        DiscoverRound = more ? 1 : null,
+                        RemainingSelections = more ? choice.RemainingSelections : choice.RemainingSelections - 1
+                    }, more ? discoverCard.Then! : rootRule))
+                    return;
+            }
+            else if (rule is AdaptChoice adapt && ResolveAdaptChoice(player, choice, card, adapt, selectedCard, listeners))
                 return;
-            CompletePlayedCard(player, choice.Source, card, listeners);
+            CompletePlayedCard(player, choice.Source, card, listeners, choice.SelectedTarget, choice.PlayBranch, choice.PlayedCardCost);
+        }
+
+        private void ResolveDiscoveredCard(PlayerId player, EntityId source, string cardId, DiscoverCardChoice rule)
+        {
+            if (rule.ReplaceHeroPower)
+            {
+                ReplaceHeroPower(player, source, cardId);
+                return;
+            }
+
+            var id = new EntityId(_state.NextEntity);
+            if (TryCreateCard(cardId, player, source, CardPlacement.Hand))
+            {
+                var added = _state.Entities[id];
+                if (rule.CostDelta != 0)
+                    added = added with { CostModifiers = [CreateCostModifier(source, rule.CostDelta, rule.EnchantmentCardId, EnchantmentDuration.Permanent)] };
+                if (rule.Modifier is { } stats)
+                    added = added with { Enchantments = [new(source, stats) { CardId = rule.EnchantmentCardId }] };
+                _state = _state.UpdateEntity(added);
+            }
+            if (rule.HealHeroByChosenCost && _rules.GetCard(cardId).Definition.PrintedCost is > 0 and var heal)
+                ResolveEffects(new(source, player), [new HealFriendlyHeroEffect(heal)]);
         }
 
         private bool ResolveAdaptChoice(PlayerId player, PendingPlayChoice choice, SimulationCard card,

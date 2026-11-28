@@ -57,12 +57,17 @@ public sealed partial class GameSimulator
                 (card.Keywords.HasFlag(CardKeywords.Overheal) && definition.Kind != EntityKind.Minion) ||
                 (card.Keywords.HasFlag(CardKeywords.CastsWhenDrawn) && definition.Kind != EntityKind.Spell) ||
                 card.SpellDamage < 0 || card.SpellAndHeroPowerMultiplier is < 2 ||
+                card.HeroPowerUsesAllowed is < 2 || card.SpellDamageBonusMultiplier is < 2 || card.FriendlyHeroPowerDamage is < 1 ||
+                card.BothPlayersSpellDamage is < 1 || card.FriendlyHeroDamageMultiplier is < 2 || card.FriendlyHeroDamageCap is < 1 ||
+                (card.SummonedMinionTypeDiscount is MinionType discount && !Enum.IsDefined(discount)) ||
                 (definition.Kind != EntityKind.Minion && (card.SpellDamage != 0 || card.SpellAndHeroPowerMultiplier is not null)) ||
+                (card.UnlimitedHeroAttacks && definition.Kind != EntityKind.Weapon) ||
+                card.StartOfGame.IsDefault ||
                 card.Overload < 0 || (card.Overload > 0 && definition.Kind is EntityKind.Hero or EntityKind.HeroPower) ||
                 card.Triggers.IsDefault || card.InHandTriggers.IsDefault || card.Auras.IsDefault || card.WeaponAuras.IsDefault || card.CostAuras.IsDefault || card.Choices.IsDefault ||
                 !Enum.IsDefined(card.SelfCostReduction) || (card.SelfCostReduction != SelfCostReduction.None && definition.Kind == EntityKind.Hero) ||
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && !card.Deathrattle.IsEmpty) ||
-                (definition.Kind != EntityKind.Minion && (!card.Auras.IsEmpty || !card.InHandTriggers.IsEmpty || card.LeavesNoCorpse || card.HealingDealsDamage || card.CannotAttack || card.AttackEqualsHealth || card.FriendlyHeroImmune || card.AllowHeroPowerTargetMinions || card.CleaveAdjacentOnAttack || card.MegaWindfury || card.AllMinionsAttackWrongEnemyChance || card.AttackPerOtherFriendlyMinionType is not null)) ||
+                (definition.Kind != EntityKind.Minion && (!card.Auras.IsEmpty || card.LeavesNoCorpse || card.HealingDealsDamage || card.CannotAttack || card.AttackEqualsHealth || card.FriendlyHeroImmune || card.AllowHeroPowerTargetMinions || card.CleaveAdjacentOnAttack || card.MegaWindfury || card.AllMinionsAttackWrongEnemyChance || card.AttackPerOtherFriendlyMinionType is not null)) ||
                 (definition.Kind is not (EntityKind.Minion or EntityKind.Weapon) && (!card.WeaponAuras.IsEmpty || card.AttackWrongEnemyChance)) ||
                 (card.AttackPerOtherFriendlyMinionType is MinionType apRace && !Enum.IsDefined(apRace)) ||
                 (definition.Kind != EntityKind.Weapon && (card.HeroImmuneWhileAttacking || card.MinionAttackRule is not null)) ||
@@ -71,7 +76,8 @@ public sealed partial class GameSimulator
                 (!IsCharacter(definition.Kind) && definition.Kind != EntityKind.Weapon && !card.IsSecret &&
                     card.Triggers.Any(trigger => trigger.Timing is not (TriggerTiming.Overkill or TriggerTiming.HonorableKill))) ||
                 (!card.Choices.IsEmpty && (card.Choices.Length < 2 || card.IsSecret || card.Target != TargetRequirement.None ||
-                    !card.OnPlay.IsDefaultOrEmpty || definition.Kind is not (EntityKind.Minion or EntityKind.Spell))) ||
+                    !card.OnPlay.IsDefaultOrEmpty || definition.Kind is not (EntityKind.Minion or EntityKind.Spell or EntityKind.HeroPower))) ||
+                (card.CombinedChoice is not null && card.Choices.IsEmpty) ||
                 (card.IsSecret && (definition.Kind != EntityKind.Spell || card.Target != TargetRequirement.None ||
                     !card.OnPlay.IsDefaultOrEmpty || card.Triggers.Length != 1)))
                 throw new ArgumentException($"模拟卡牌「{definition.CardId}」的定义无效。", nameof(cards));
@@ -89,6 +95,7 @@ public sealed partial class GameSimulator
                 throw new ArgumentException($"卡牌「{definition.CardId}」的待决选项定义无效。", nameof(cards));
             ValidateEffects(card, card.Deathrattle);
             ValidateEffects(card, card.WhenDrawn, isDrawnCard: true);
+            ValidateEffects(card, card.StartOfGame);
             if (card.WhenDiscarded is { } whenDiscarded)
                 ValidateEffects(card, whenDiscarded, isDiscardedCard: true);
             if (card.Activation is { } activation)
@@ -98,11 +105,13 @@ public sealed partial class GameSimulator
                 ValidateEffects(card, activation.Effects, EffectCharacterTarget(activation.Target, BranchRequirements(card, activation: true)));
             }
             var choiceIds = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var choice in card.Choices)
+            foreach (var choice in card.CombinedChoice is { } combined ? card.Choices.Add(combined) : card.Choices)
             {
                 if (choice is null || string.IsNullOrWhiteSpace(choice.Id) || !choiceIds.Add(choice.Id) ||
                     !IsValidTarget(choice.Target, choice.TargetFilter) || (choice.Requirements & ~SupportedPlayRequirements) != 0 ||
-                    choice.Effects.IsDefaultOrEmpty)
+                    (choice.Effects.IsDefaultOrEmpty && choice.ChooseAfterPlay is null) ||
+                    (choice.ChooseAfterPlay is { } branchRule && (card.ChooseAfterPlay is not null || definition.Kind == EntityKind.HeroPower ||
+                        branchRule is not DiscoverCardChoice || !IsValidPlayChoice(card, branchRule))))
                     throw new ArgumentException($"卡牌「{definition.CardId}」的抉择选项无效。", nameof(cards));
                 ValidateEffects(card, choice.Effects, EffectCharacterTarget(choice.Target, BranchRequirements(card, choice)),
                     hasInPlaySource: definition.Kind == EntityKind.Minion,
@@ -114,7 +123,7 @@ public sealed partial class GameSimulator
                     (aura.Modifier is null && aura.GrantedTag is null) ||
                     (aura.Modifier is not null && (aura.Modifier.Mode != StatModifierMode.Add || !IsValidModifier(aura.Modifier))) ||
                     (aura.GrantedTag is GAME_TAG auraTag && !IsSupportedAuraTag(auraTag)) ||
-                    (aura.Recipients == AuraRecipients.Self && aura.CardFilter is not null) ||
+                    (aura.Recipients is AuraRecipients.Self or AuraRecipients.FriendlyHero && aura.CardFilter is not null) ||
                     !IsOptionalCardIdValid(aura.EnchantmentCardId) || !IsValidCardFilter(aura.CardFilter))
                     throw new ArgumentException($"卡牌「{definition.CardId}」的属性光环无效。", nameof(cards));
             }
@@ -125,8 +134,10 @@ public sealed partial class GameSimulator
                     throw new ArgumentException($"卡牌「{definition.CardId}」的武器攻击光环无效。", nameof(cards));
             }
             foreach (var aura in card.CostAuras)
-                if (aura is null || !Enum.IsDefined(aura.Recipient) || !Enum.IsDefined(aura.Target) || aura.Delta == 0 ||
+                if (aura is null || !Enum.IsDefined(aura.Recipient) || !Enum.IsDefined(aura.Target) ||
+                    (aura.SetCost is int setCost ? setCost < 0 || aura.Delta != 0 || aura.MinimumCost is not null : aura.Delta == 0) ||
                     (aura.FirstMinionEachTurn && aura.Target != CostAuraTarget.Minion) ||
+                    (aura.SecretOnly && aura.Target != CostAuraTarget.Spell) ||
                     (aura.MinimumCost is int minCost && (minCost < 0 || aura.Delta >= 0)) ||
                     !IsValidCardFilter(aura.CardFilter))
                     throw new ArgumentException($"卡牌「{definition.CardId}」的费用光环无效。", nameof(cards));
@@ -148,7 +159,7 @@ public sealed partial class GameSimulator
                 (trigger.Timing == TriggerTiming.Overheal &&
                     (definition.Kind != EntityKind.Minion || !card.Keywords.HasFlag(CardKeywords.Overheal) ||
                         trigger.Focus != TriggerFocus.EventTarget || trigger.EntityMatch != TriggerEntityMatch.Self)) ||
-                    (trigger.Focus == TriggerFocus.AttackDefender && trigger.Timing != TriggerTiming.AttackProposed) ||
+                    (trigger.Focus == TriggerFocus.AttackDefender && trigger.Timing is not (TriggerTiming.AttackProposed or TriggerTiming.AfterAttack)) ||
                     (trigger.Timing is TriggerTiming.SpellCounterWindow or TriggerTiming.SpellTargetWindow or TriggerTiming.AttackProposed or TriggerTiming.FatalDamageWindow && !card.IsSecret) ||
                     (trigger.Timing is TriggerTiming.TurnStarted or TriggerTiming.TurnEnded &&
                         (trigger.EntityMatch != TriggerEntityMatch.Any || trigger.EntityKind is not null ||
@@ -175,14 +186,24 @@ public sealed partial class GameSimulator
     }
 
     public GameState CreateGame(IEnumerable<PlayerState> players, IEnumerable<GameEntity> entities,
-        PlayerId activePlayer, int turn = 1, IEnumerable<MinionDeath>? minionDeaths = null, ulong randomState = 0, PendingEntityChoice? pendingChoice = null) =>
-        ValidateState(GameState.Create(turn == 1 ? players.Select(p => p with
+        PlayerId activePlayer, int turn = 1, IEnumerable<MinionDeath>? minionDeaths = null, ulong randomState = 0,
+        PendingEntityChoice? pendingChoice = null, bool resolveStartOfGame = false)
+    {
+        if (resolveStartOfGame && (turn != 1 || pendingChoice is not null))
+            throw new ArgumentException("对战开始效果需要换牌完成后的首回合初始局面。", nameof(resolveStartOfGame));
+        var state = ValidateState(GameState.Create(turn == 1 ? players.Select(p => p with
         {
             PlayedCardThisTurn = p.PlayedCardThisTurn ?? (p.CardsPlayedThisTurn > 0),
             PlayedMinionThisTurn = p.PlayedMinionThisTurn ?? false,
             PlayedElementalThisTurn = p.PlayedElementalThisTurn ?? false,
             PlayedElementalLastTurn = p.PlayedElementalLastTurn ?? false, HeroHealthChangedThisTurn = p.HeroHealthChangedThisTurn ?? false
         }) : players, entities, activePlayer, turn, minionDeaths, randomState, pendingChoice: pendingChoice));
+        if (!resolveStartOfGame)
+            return state;
+        if (state.Outcome != MatchOutcome.InProgress || state.MinionDeaths.Count != 0)
+            throw new ArgumentException("对战开始效果需要尚未结算的初始局面。", nameof(resolveStartOfGame));
+        return new Resolution(this, state).ResolveStartOfGame();
+    }
 
     public IReadOnlyDictionary<string, SimulationCard> Cards => _cards;
 
@@ -230,6 +251,22 @@ public sealed partial class GameSimulator
                 throw new ArgumentException($"玩家 {player.Id.Value} 的临时费用光环无效。");
             if (player.EndOfTurnHandAdditions.Any(cardId => !CanCreateCard(cardId)))
                 throw new ArgumentException($"玩家 {player.Id.Value} 的回合结束待生成卡牌无效。");
+            if (player.EndOfTurnSummons is { } summons && (summons.IsDefault ||
+                summons.Any(id => GetCard(id).Definition.Kind != EntityKind.Minion)) ||
+                player.MinionsSummonedByType is { } types && types.Any(entry => !Enum.IsDefined(entry.Key) || entry.Value < 0) ||
+                player.SpellsCastThisGame < 0 || !IsOptionalCardIdValid(player.HealingDealsDamageThisTurn))
+                throw new ArgumentException($"玩家 {player.Id.Value} 的扩展规则状态无效。");
+            if (player.SpellCastRewardsThisTurn is { } rewards && (rewards.IsDefault ||
+                rewards.Any(reward => reward is null || !state.Entities.ContainsKey(reward.Source) || !Enum.IsDefined(reward.CardClass) ||
+                    string.IsNullOrWhiteSpace(reward.EnchantmentCardId))) ||
+                player.DiscardedCardsThisGame is { } discards && (discards.IsDefault || discards.Any(id => !CanCreateCard(id))))
+                throw new ArgumentException($"玩家 {player.Id.Value} 的法术或弃牌状态无效。");
+            if (player.PermanentCardGrowth is { } growth && (growth.IsDefault || growth.Any(layer =>
+                layer is null || string.IsNullOrWhiteSpace(layer.CardId) || GetCard(layer.CardId).Definition.Kind != EntityKind.Minion ||
+                layer.Enchantment is not { } enchantment || !state.Entities.ContainsKey(enchantment.Source) ||
+                enchantment.ExpiresAfterTurn is not null || enchantment.Modifier?.Mode == StatModifierMode.Set ||
+                !IsValidEnchantment(enchantment.Modifier, enchantment.GrantedTag))))
+                throw new ArgumentException($"玩家 {player.Id.Value} 的永久卡牌强化无效。");
         }
 
         foreach (var entity in state.Entities.Values)
@@ -244,23 +281,33 @@ public sealed partial class GameSimulator
                 (location.Zone == GameZone.Play && kind == EntityKind.Hero && !isHeroSlot) ||
                 (location.Zone == GameZone.Play && kind != EntityKind.Location && !isPendingSpell && (kind == EntityKind.Weapon ? !isEquippedSlot :
                     !IsCharacter(kind) || entity.Character is not { Health: > 0 })) ||
-                (location.Zone == GameZone.HeroPower ? kind != EntityKind.HeroPower : (kind == EntityKind.HeroPower && location.Zone != GameZone.Removed)) ||
+                (location.Zone == GameZone.HeroPower ? kind != EntityKind.HeroPower : kind == EntityKind.HeroPower &&
+                    location.Zone != GameZone.Removed && !(location.Zone == GameZone.SetAside && state.PendingPlayChoice?.Options.Contains(entity.Id) == true)) ||
                 (location.Zone == GameZone.Secret && !Card(entity).IsSecret) ||
                 (entity.Character is not null && !IsCharacter(kind)) ||
                 (entity.Weapon is not null && (kind != EntityKind.Weapon || location.Zone is not (GameZone.Play or GameZone.Graveyard))) ||
                 !IsValidLocationState(kind, location.Zone, entity.Location) ||
-                (location.Zone != GameZone.Hand && !entity.CostModifiers.IsEmpty) ||
+                (location.Zone is not (GameZone.Hand or GameZone.Deck) && !entity.CostModifiers.IsEmpty) ||
                 ((location.Zone != GameZone.Play || entity.Character is null) &&
                     (!entity.AuraGrants.IsEmpty ||
-                        (!entity.Enchantments.IsEmpty && !(location.Zone == GameZone.Hand && kind == EntityKind.Minion)))))
+                        (!entity.Enchantments.IsEmpty && !(location.Zone is GameZone.Hand or GameZone.Deck && kind == EntityKind.Minion)))))
                 throw new ArgumentException($"实体 {entity.Id} 的状态与卡牌定义或所在区域不符。");
-            if (entity.CostModifiers.Any(cost => cost is null || !state.Entities.ContainsKey(cost.Source) || cost.Delta == 0 ||
+            if (entity.CostModifiers.Any(cost => cost is null || !state.Entities.ContainsKey(cost.Source) || !Enum.IsDefined(cost.Mode) ||
+                (cost.Mode == CostModifierMode.Set ? cost.Delta < 0 : cost.Delta == 0) ||
                 !IsOptionalCardIdValid(cost.CardId) || cost.ExpiresAfterTurn < state.Turn))
                 throw new ArgumentException($"实体 {entity.Id} 的费用修正无效。");
             if (entity.CostTypeModifiers is { } costTypes && (location.Zone != GameZone.Hand || costTypes.IsDefaultOrEmpty ||
                 costTypes.Any(cost => cost is null || !state.Entities.ContainsKey(cost.Source) || !SupportsCostType(cost.Type) ||
                     !IsOptionalCardIdValid(cost.CardId) || cost.ExpiresAfterTurn < state.Turn)))
                 throw new ArgumentException($"实体 {entity.Id} 的支付方式修正无效。");
+            if (entity.CopiedDeathrattles is { } copied && (kind != EntityKind.Minion || location.Zone != GameZone.Play ||
+                copied.IsDefault || copied.Any(reference => reference is null || string.IsNullOrWhiteSpace(reference.AttachmentCardId) ||
+                    !IsValidCapturedMinion(state, reference.CapturedMinion) ||
+                    (reference.IsEnchantment ? !_enchantmentRemovalEffects.ContainsKey((reference.CardId, EnchantmentRemovalReason.Died)) :
+                        GetCard(reference.CardId).Deathrattle.IsEmpty))) ||
+                entity.HandTransformRuleCardId is { } transformRule && (location.Zone != GameZone.Hand ||
+                    GetCard(transformRule).InHandTriggers.IsEmpty))
+                throw new ArgumentException($"实体 {entity.Id} 保存的牌面效果引用无效。");
             ValidateStatLayers(state, entity);
         }
         if (state.PendingPlayChoice is { } choice)
@@ -419,7 +466,7 @@ public sealed partial class GameSimulator
             return pending;
         if (PlayReqCatalog.Cards.TryGetValue(cardId, out var info) && !info.EffectImplemented)
             return _pending.GetOrAdd(cardId, id => CompiledCardData.Bind(id, new CardRules { PlayReqs = info.Requirements }) with { EffectPending = true });
-        if (CompiledCardData.CollectibleMinionCosts.ContainsKey(cardId))
+        if (CompiledCardData.CollectibleMinionCosts.ContainsKey(cardId) || CompiledCardData.CollectibleCardIds.Contains(cardId))
             return _pending.GetOrAdd(cardId, id => CompiledCardData.Bind(id,
                 info is not null ? new CardRules { PlayReqs = info.Requirements } : new CardRules()) with { EffectPending = true });
         throw new ArgumentException($"此规则目录缺少卡牌「{cardId}」的模拟实现。");
@@ -488,6 +535,70 @@ public sealed partial class GameSimulator
                     IsValidCardFilter(damage.TargetCardFilter) &&
                     (damage.Enchantment is null || (damage.Target == DamageTarget.Selected && damage.Enchantment.Target == StatTarget.Selected)) &&
                     IsValidDamageTarget(damage.Target),
+                JoustEffect joust => !joust.OnWin.IsDefault && !joust.Otherwise.IsDefault &&
+                    (joust.DrawRevealedMinion || !joust.OnWin.IsEmpty) &&
+                    ValidateJoustEffects(card, joust, target, timing, hasInPlaySource, canUseCombo),
+                ReturnSourceCardEffect => card.Definition.Kind is EntityKind.Minion or EntityKind.Weapon,
+                SummonMatchingCostEffect matching =>
+                    (matching.UseSource || timing is TriggerTiming.MinionDied or TriggerTiming.BeforeSpellResolved or TriggerTiming.AfterSpellResolved) &&
+                    (!matching.UsePlayedCost || !matching.UseSource && timing is TriggerTiming.BeforeSpellResolved or TriggerTiming.AfterSpellResolved) &&
+                    matching.DurabilityLossOnSummon >= 0 && (matching.DurabilityLossOnSummon == 0 || card.Definition.Kind == EntityKind.Weapon),
+                ShufflePlayedCardEffect shuffle => card.Definition.Kind == EntityKind.Spell && Enum.IsDefined(shuffle.Recipient),
+                TransformFriendlyMinionsByCostEffect evolve => evolve.Increase > 0,
+                RecastDeathrattleEffect => TargetsOnlyMinions(target),
+                DestroyMatchingMinionsEffect destroy => destroy.MaximumAttack >= 0,
+                ResurrectMatchingMinionsEffect resurrect => resurrect.Count is > 0 and <= BoardLimit &&
+                    resurrect.CardFilter is not null && IsValidCardFilter(resurrect.CardFilter) &&
+                    resurrect.CardFilter.Kind is null or EntityKind.Minion,
+                EmpowerCardEffect empower => GetCard(empower.CardId).Definition.Kind == EntityKind.Minion &&
+                    !string.IsNullOrWhiteSpace(empower.EnchantmentCardId) &&
+                    (empower.FromSelectedStats ? TargetsOnlyMinions(target) :
+                        empower.Modifier?.Mode != StatModifierMode.Set && IsValidEnchantment(empower.Modifier, empower.GrantedTag)),
+                DamageSplitByAttackEffect => hasInPlaySource,
+                EnchantMinionsByTypeEffect enchant => !enchant.Types.IsDefaultOrEmpty &&
+                    enchant.Types.Distinct().Count() == enchant.Types.Length &&
+                    enchant.Types.All(type => type is not (MinionType.None or MinionType.All) && Enum.IsDefined(type)) &&
+                    enchant.Enchantment is { Target: StatTarget.Selected },
+                DestroyAndCaptureMinionEffect capture => hasInPlaySource && TargetsOnlyMinions(target) &&
+                    capture.Enchantment is { Target: StatTarget.Source, GrantedTag: GAME_TAG.DEATHRATTLE },
+                ResummonCapturedMinionEffect => true,
+                AddUniqueClassMinionsToDeckEffect add => add.Count > 0 &&
+                    add.CardFilter is { Kind: EntityKind.Minion } && IsValidCardFilter(add.CardFilter),
+                SummonAtTurnEndEffect delayed => GetCard(delayed.CardId).Definition.Kind == EntityKind.Minion &&
+                    !string.IsNullOrWhiteSpace(delayed.EnchantmentCardId),
+                DestroyRandomFriendlyMinionEffect => true,
+                CopyOpponentHeroPowerEffect => true,
+                EnchantByEventAmountEffect byAmount => hasInPlaySource && byAmount.Target == StatTarget.Source &&
+                    byAmount.AttackPerUnit > 0 && IsOptionalCardIdValid(byAmount.EnchantmentCardId),
+                ReplaceHandAndDeckEffect replace => replace.CardFilter is not null && IsValidCardFilter(replace.CardFilter),
+                SpendRemainingManaEffect mana => Enum.IsDefined(mana.Reward) && IsOptionalCardIdValid(mana.EnchantmentCardId) &&
+                    (mana.Reward is not (ManaSpendReward.DamageSelected or ManaSpendReward.HealSelected) || target != TargetRequirement.None) &&
+                    (mana.Reward != ManaSpendReward.BuffSource || hasInPlaySource) &&
+                    (mana.Reward != ManaSpendReward.SummonTokens || GetCard(mana.TokenCardId!).Definition.Kind == EntityKind.Minion),
+                CastRandomSpellEffect cast => cast.MinimumPrintedCost >= 0,
+                CopyOrSwapMinionStatsEffect stats => hasInPlaySource && TargetsOnlyMinions(target) && IsOptionalCardIdValid(stats.EnchantmentCardId),
+                HealingDealsDamageThisTurnEffect healing => !string.IsNullOrWhiteSpace(healing.EnchantmentCardId),
+                MergeMatchingMinionsEffect merge => hasInPlaySource && merge.Count is > 1 and <= BoardLimit &&
+                    GetCard(merge.ResultCardId).Definition.Kind == EntityKind.Minion,
+                EquipRandomWeaponEffect => true,
+                DestroyMinionsAndDrawEffect => true,
+                DestroySecretsAndBuffEffect destroy => hasInPlaySource && !string.IsNullOrWhiteSpace(destroy.EnchantmentCardId),
+                HealPerEnemyMinionEffect heal => heal.Amount > 0,
+                RefreshAttackEffect => hasInPlaySource && timing == TriggerTiming.AfterAttack,
+                RewardSpellCastsThisTurnEffect reward => Enum.IsDefined(reward.CardClass) && !string.IsNullOrWhiteSpace(reward.EnchantmentCardId),
+                UpgradeHeroPowerEffect upgrade => !upgrade.Upgrades.IsDefaultOrEmpty &&
+                    upgrade.Upgrades.Select(item => item.From).Distinct(StringComparer.Ordinal).Count() == upgrade.Upgrades.Length &&
+                    upgrade.Upgrades.All(item => GetCard(item.From).Definition.Kind == EntityKind.HeroPower &&
+                        GetCard(item.To).Definition.Kind == EntityKind.HeroPower),
+                ReturnDiscardedCardsEffect returned => !string.IsNullOrWhiteSpace(returned.EnchantmentCardId),
+                CopyDeathrattleEffect copy => hasInPlaySource && TargetsOnlyMinions(target) && !string.IsNullOrWhiteSpace(copy.EnchantmentCardId),
+                CopySpellOntoSelfEffect => hasInPlaySource && timing == TriggerTiming.AfterSpellResolved,
+                TransformHandCardEffect transform => timing == TriggerTiming.TurnStarted && transform.CardFilter is not null &&
+                    IsValidCardFilter(transform.CardFilter) && !string.IsNullOrWhiteSpace(transform.EnchantmentCardId),
+                ReplaceClassCardsEffect replace => Enum.IsDefined(replace.OriginalClass) && replace.CostDelta != 0 &&
+                    !string.IsNullOrWhiteSpace(replace.EnchantmentCardId) && !replace.Options.IsDefaultOrEmpty &&
+                    replace.Options.All(item => item.CardClass != replace.OriginalClass && Enum.IsDefined(item.CardClass) &&
+                        GetCard(item.HeroPowerCardId).Definition.Kind == EntityKind.HeroPower),
                 DealAttackAsDamageToAllMinionsEffect => true,
                 EventAmountDamageEffect eventDamage => timing == TriggerTiming.Damage && IsValidDamageTarget(eventDamage.Target),
                 SplashDamageEffect splash => splash.CenterAmount > 0 && splash.AdjacentAmount > 0 && TargetsOnlyMinions(target),
@@ -501,7 +612,7 @@ public sealed partial class GameSimulator
                     EffectTarget.TriggerSubject => hasCharacterSubject,
                     _ => false
                 },
-                DrawEffect draw => draw.Count > 0 && Enum.IsDefined(draw.Recipient) &&
+                DrawEffect draw => draw.Count > 0 && Enum.IsDefined(draw.Recipient) && draw.ExtraCopies >= 0 &&
                     (draw.CostDelta != 0 || draw.EnchantmentCardId is null) &&
                     IsOptionalCardIdValid(draw.EnchantmentCardId),
                 DynamicDrawEffect draw => Enum.IsDefined(draw.Mode),
@@ -542,6 +653,10 @@ public sealed partial class GameSimulator
                 CopyFriendlyBoardToHandEffect => true,
                 CopyTargetCardEffect copyTarget => copyTarget.Count > 0 &&
                     Enum.IsDefined(copyTarget.Placement) && Enum.IsDefined(copyTarget.Recipient) &&
+                    (copyTarget.SetCost is null or >= 0) &&
+                    (copyTarget.Modifier is null || IsValidModifier(copyTarget.Modifier)) &&
+                    IsOptionalCardIdValid(copyTarget.EnchantmentCardId) &&
+                    (copyTarget.Placement == CardPlacement.Hand || copyTarget.SetCost is null && copyTarget.Modifier is null) &&
                     (copyTarget.Target switch
                     {
                         EffectTarget.Selected => TargetsOnlyMinions(target),
@@ -550,7 +665,8 @@ public sealed partial class GameSimulator
                     }),
                 CreateCardAtTurnEndEffect delayedCreate => CanCreateCard(delayedCreate.CardId),
                 CopyDeckCardsEffect copy => copy.Count > 0 && Enum.IsDefined(copy.SourceDeck) && IsValidCardFilter(copy.CardFilter),
-                SummonDeckCopyEffect copy => copy.Count > 0 && Enum.IsDefined(copy.SourceDeck) &&
+                SummonDeckCopyEffect copy => copy.Count > 0 && Enum.IsDefined(copy.SourceDeck) && Enum.IsDefined(copy.Placement) &&
+                    (copy.StatsOverride is null || IsValidModifier(copy.StatsOverride)) && IsOptionalCardIdValid(copy.EnchantmentCardId) &&
                     IsValidCardFilter(copy.CardFilter) && copy.CardFilter?.Kind is null or EntityKind.Minion &&
                     (copy.FallbackCardId is null || GetCard(copy.FallbackCardId).Definition.Kind == EntityKind.Minion),
                 DiscardEffect discard => discard.Count > 0 && Enum.IsDefined(discard.Selection) && Enum.IsDefined(discard.Recipient),
@@ -606,6 +722,7 @@ public sealed partial class GameSimulator
                     (randomEnchant.Target != StatTarget.TriggerSubject || hasCharacterSubject) &&
                     (randomEnchant.Target is not (StatTarget.Source or StatTarget.OtherFriendlyMinions or StatTarget.AdjacentFriendlyMinions) || hasInPlaySource),
                 ScaledEnchantStatsEffect scaled => Enum.IsDefined(scaled.Target) && Enum.IsDefined(scaled.Scale) &&
+                    IsValidCardFilter(scaled.CardFilter) &&
                     (scaled.AttackPerUnit > 0 || scaled.HealthPerUnit > 0) && scaled.AttackPerUnit >= 0 && scaled.HealthPerUnit >= 0 &&
                     IsOptionalCardIdValid(scaled.EnchantmentCardId) &&
                     (scaled.Scale != StatScaleSource.CardsPlayedBeforeThis || canUseCombo) &&
@@ -617,6 +734,7 @@ public sealed partial class GameSimulator
                         StatTarget.Selected => target != TargetRequirement.None,
                         StatTarget.Source => hasInPlaySource,
                         StatTarget.TriggerSubject => hasCharacterSubject,
+                        StatTarget.AllMinions => true,
                         _ => false
                     }),
                 DrainDivineShieldsBuffEffect drain => hasInPlaySource &&
@@ -658,6 +776,7 @@ public sealed partial class GameSimulator
                     {
                         EffectTarget.Selected => TargetsOnlyMinions(target),
                         EffectTarget.TriggerSubject => hasCharacterSubject,
+                        EffectTarget.Source => hasInPlaySource && card.Definition.Kind == EntityKind.Minion,
                         _ => false
                     })),
                 TransformMinionEffect transform => (transform.Self ? hasInPlaySource && card.Definition.Kind == EntityKind.Minion : TargetsOnlyMinions(target)) &&
@@ -665,7 +784,7 @@ public sealed partial class GameSimulator
                 RandomTransformOtherMinionEffect randomTransform => hasInPlaySource && !randomTransform.CardIds.IsDefaultOrEmpty &&
                     randomTransform.CardIds.All(id => GetCard(id).Definition.Kind == EntityKind.Minion),
                 TransformMinionByCostEffect transform => TargetsOnlyMinions(target) && transform.Increase >= 0,
-                ResurrectFriendlyMinionEffect => true,
+                ResurrectFriendlyMinionEffect resurrect => Enum.IsDefined(resurrect.Placement),
                 ResurrectDiedThisTurnEffect => true,
                 ResummonMinionEffect resummon => (resummon.RemainingHealth is null or > 0) && (resummon.Target switch
                 {
@@ -684,7 +803,7 @@ public sealed partial class GameSimulator
                     FreezeTarget.Selected => target != TargetRequirement.None,
                     FreezeTarget.SelectedAndAdjacentMinions => TargetsOnlyMinions(target),
                     FreezeTarget.TriggerSubject => hasCharacterSubject,
-                    FreezeTarget.EnemyMinions => true,
+                    FreezeTarget.EnemyMinions or FreezeTarget.RandomUnfrozenEnemy => true,
                     _ => false
                 },
                 UnlockOverloadEffect => true,
@@ -697,13 +816,14 @@ public sealed partial class GameSimulator
                 RedirectAttackToRandomOtherCharacterEffect => card.IsSecret && timing == TriggerTiming.AttackProposed,
                 RandomDamageEffect random => random.Amount > 0 && random.Count > 0 && Enum.IsDefined(random.Pool) && Enum.IsDefined(random.Mode),
                 RandomDamageRangeEffect randomRange => randomRange.MinAmount > 0 && randomRange.MaxAmount >= randomRange.MinAmount &&
+                    (!randomRange.HitEachCandidate || randomRange.Pool is not null && !randomRange.RepeatUntilDeath && randomRange.SummonPerDamageCardId is null) &&
                     (randomRange.Pool is not RandomCharacterPool pool || Enum.IsDefined(pool)) &&
                     (randomRange.Target is null || IsValidDamageTarget(randomRange.Target.Value)) &&
                     (randomRange.Pool is not null || randomRange.Target is not null) &&
                     (randomRange.SummonPerDamageCardId is null || GetCard(randomRange.SummonPerDamageCardId).Definition.Kind == EntityKind.Minion),
                 DestroyRandomEnemyMinionEffect destroyRandom => destroyRandom.MaximumAttack is null or >= 0,
                 DestroyAllButOneMinionEffect => true,
-                SummonRandomMinionEffect summon => !summon.CardIds.IsDefaultOrEmpty &&
+                SummonRandomMinionEffect summon => !summon.CardIds.IsDefaultOrEmpty && Enum.IsDefined(summon.Placement) &&
                     summon.CardIds.All(id => GetCard(id).Definition.Kind == EntityKind.Minion),
                 SummonMatchingMinionEffect summon => summon.Count > 0 && summon.CardFilter is not null &&
                     Enum.IsDefined(summon.Recipient) &&
@@ -719,12 +839,14 @@ public sealed partial class GameSimulator
                 SwapSelfWithRandomHandMinionEffect => hasInPlaySource && card.Definition.Kind == EntityKind.Minion,
                 FillBoardSummonEffect fill => (!fill.AlternateSides || hasInPlaySource) &&
                     GetCard(fill.CardId).Definition.Kind == EntityKind.Minion,
-                SummonCopyEffect copy => copy.Target switch
+                SummonCopyEffect copy => IsOptionalCardIdValid(copy.EnchantmentCardId) && Enum.IsDefined(copy.Placement) &&
+                    (copy.StatsOverride is null || IsValidModifier(copy.StatsOverride)) &&
+                    (copy.AllOtherFriendlyMinions && hasInPlaySource || (copy.Target switch
                 {
                     EffectTarget.Selected => TargetsOnlyMinions(target),
                     EffectTarget.TriggerSubject => hasCharacterSubject,
                     _ => false
-                },
+                })),
                 CopyMinionToSelfEffect => hasInPlaySource && card.Definition.Kind == EntityKind.Minion && TargetsOnlyMinions(target),
                 TakeControlEffect takeControl => takeControl.Target switch
                 {
@@ -738,6 +860,10 @@ public sealed partial class GameSimulator
             };
             if (!valid)
                 throw new ArgumentException($"卡牌「{card.Definition.CardId}」的效果定义无效。");
+            if (effect is EnchantMinionsByTypeEffect byType)
+                ValidateEffects(card, [byType.Enchantment], TargetRequirement.Minion);
+            if (effect is DestroyAndCaptureMinionEffect captureEffect)
+                pending.Push(captureEffect.Enchantment);
             if (effect is DamageEffect { Enchantment: { } simultaneous })
                 pending.Push(simultaneous);
             if (effect is EnchantStatsEffect { OnRemoved.IsDefaultOrEmpty: false } enchantment)
@@ -749,20 +875,29 @@ public sealed partial class GameSimulator
         bool IsValidDamageTarget(DamageTarget damageTarget) => damageTarget switch
         {
             DamageTarget.Selected => target != TargetRequirement.None,
-            DamageTarget.Source or DamageTarget.OtherCharacters => hasInPlaySource,
+            DamageTarget.Source or DamageTarget.OtherCharacters or DamageTarget.OtherMinions => hasInPlaySource,
             DamageTarget.TriggerSubject => hasCharacterSubject,
             DamageTarget.EnemyHero or DamageTarget.FriendlyHero or DamageTarget.AllMinions or
-                DamageTarget.EnemyMinions or DamageTarget.AllEnemies or DamageTarget.AllCharacters => true,
+                DamageTarget.EnemyMinions or DamageTarget.AllEnemies or DamageTarget.AllCharacters or
+                DamageTarget.FriendlyMinions or DamageTarget.BothHeroes => true,
             _ => false
         };
 
         bool HasHandCostTarget(HandCostTarget recipient, CardFilter? filter) => IsValidCardFilter(filter) && (recipient switch
         {
-            HandCostTarget.Source => isDrawnCard,
+            HandCostTarget.Source => isDrawnCard || timing == TriggerTiming.TurnStarted,
             HandCostTarget.DrawnCard => timing == TriggerTiming.CardDrawn,
             HandCostTarget.FriendlyHand => true,
             _ => false
         });
+    }
+
+    private bool ValidateJoustEffects(SimulationCard card, JoustEffect joust, TargetRequirement target,
+        TriggerTiming? timing, bool hasInPlaySource, bool canUseCombo)
+    {
+        ValidateEffects(card, joust.OnWin, target, timing, hasInPlaySource, canUseCombo: canUseCombo);
+        ValidateEffects(card, joust.Otherwise, target, timing, hasInPlaySource, canUseCombo: canUseCombo);
+        return true;
     }
 
     private static bool HasCharacterSubject(TriggerTiming? timing) =>
@@ -770,7 +905,7 @@ public sealed partial class GameSimulator
             TriggerTiming.AfterMinionPlayed or TriggerTiming.Damage or TriggerTiming.Overkill or
             TriggerTiming.HonorableKill or TriggerTiming.Healed or TriggerTiming.Overheal or TriggerTiming.HeroAttacking or
             TriggerTiming.AttackProposed or TriggerTiming.FatalDamageWindow or TriggerTiming.SpellTargetWindow or
-            TriggerTiming.TargetedBySpell;
+            TriggerTiming.TargetedBySpell or TriggerTiming.AfterAttack;
 
     private static bool IsOptionalCardIdValid(string? cardId) => cardId is null || !string.IsNullOrWhiteSpace(cardId);
 

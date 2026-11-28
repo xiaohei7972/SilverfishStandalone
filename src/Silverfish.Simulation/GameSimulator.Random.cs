@@ -177,6 +177,7 @@ public sealed partial class GameSimulator
             {
                 RandomCharacterPool.EnemyMinions => _rules.BoardMinions(_state, enemy),
                 RandomCharacterPool.EnemyCharacters => _state.Players[enemy].In(GameZone.Play),
+                RandomCharacterPool.AllCharacters => _state.Players.Values.SelectMany(player => player.In(GameZone.Play)),
                 RandomCharacterPool.OtherCharacters => _state.Players.Values.SelectMany(player => player.In(GameZone.Play))
                     .Where(id => id != context.Source),
                 RandomCharacterPool.AllMinions => _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player)),
@@ -196,8 +197,24 @@ public sealed partial class GameSimulator
                 DestroyMinion(candidates[ChooseIndex(candidates.Length)]);
         }
 
-        private void DestroyAllButOneMinion()
+        private void DestroyAllButOneMinion(bool preserveHighestAttackPerPlayer)
         {
+            if (preserveHighestAttackPerPlayer)
+            {
+                foreach (var player in _state.Players.Keys.OrderBy(player => player.Value))
+                {
+                    var minions = _rules.BoardMinions(_state, player).Where(id => IsLivingCharacter(id)).ToArray();
+                    if (minions.Length <= 1)
+                        continue;
+                    var highest = minions.Max(id => _rules.EffectiveAttack(_state, _state.Entities[id]));
+                    var tied = minions.Where(id => _rules.EffectiveAttack(_state, _state.Entities[id]) == highest).ToArray();
+                    var kept = tied[ChooseIndex(tied.Length)];
+                    foreach (var id in minions)
+                        if (id != kept)
+                            DestroyMinion(id);
+                }
+                return;
+            }
             var candidates = _state.Players.Keys.SelectMany(player => _rules.BoardMinions(_state, player))
                 .Where(id => IsLivingCharacter(id)).OrderBy(id => _state.Entities[id].PlayOrder).ToArray();
             if (candidates.Length <= 1)
@@ -209,17 +226,23 @@ public sealed partial class GameSimulator
                     DestroyMinion(id);
         }
 
-        private void SummonRandomMinion(Stack<Work> work, PlayerId player, SummonRandomMinionEffect effect)
+        private void SummonRandomMinion(Stack<Work> work, EffectContext context, SummonRandomMinionEffect effect)
         {
+            var player = context.Controller;
             if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
                 return;
 
-            var cardId = effect.CardIds[ChooseIndex(effect.CardIds.Length)];
-            if (Summon(player, cardId, position: null) is EntityId summoned)
+            var candidates = effect.ExcludeOnBoard ? effect.CardIds.Where(cardId =>
+                !_rules.BoardMinions(_state, player).Any(id => _state.Entities[id].CardId == cardId)).ToImmutableArray() : effect.CardIds;
+            if (candidates.IsEmpty)
+                return;
+            var cardId = candidates[ChooseIndex(candidates.Length)];
+            if (Summon(player, cardId, ResolveSummonPosition(context, effect.Placement)) is EntityId summoned)
                 PushSummonTriggers(work, player, summoned);
         }
 
-        private void SummonMatchingMinion(Stack<Work> work, EffectContext context, SummonMatchingMinionEffect effect)
+        private void SummonMatchingMinion(Stack<Work> work, EffectContext context, SummonMatchingMinionEffect effect,
+            CardEffect? afterSummon = null)
         {
             var player = effect.Recipient == CardRecipient.Controller
                 ? context.Controller
@@ -235,7 +258,11 @@ public sealed partial class GameSimulator
                 work.Push(new ApplyEffect(context, effect with { Count = effect.Count - 1 }));
             var cardId = candidates[ChooseIndex(candidates.Length)];
             if (Summon(player, cardId, position: null) is EntityId summoned)
+            {
+                if (afterSummon is not null)
+                    work.Push(new ApplyEffect(context, afterSummon));
                 PushSummonTriggers(work, player, summoned);
+            }
         }
 
         private int ChooseIndex(int count)

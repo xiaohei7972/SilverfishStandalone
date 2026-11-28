@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 圣光勇士
 // Light's Champion
 // 战吼： 沉默一个恶魔。
 // Battlecry: Silence a Demon.
+[CardSim("AT_106")]
 internal static class Sim_AT_106
 {
     // <legacy-play-requirements>
@@ -13,4 +15,11 @@ internal static class Sim_AT_106
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new SilenceEffect(),
+        ],
+    };
 }

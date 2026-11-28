@@ -12,8 +12,10 @@ public sealed partial class GameSimulator
             SpendResolutionStep();
             var player = _state.Players[draw.Player];
             var deck = player.In(GameZone.Deck);
-            var selected = draw.Filter is { } filter ? ChooseDeckCard(deck, filter)
-                : deck.IsEmpty ? null : deck[0];
+            if (draw.SpecificCard is EntityId specific && !deck.Contains(specific))
+                return;
+            var selected = draw.SpecificCard ?? (draw.Filter is { } filter ? ChooseDeckCard(deck, filter)
+                : deck.IsEmpty ? null : deck[0]);
             if (selected is null && draw.Filter is not null)
                 return;
 
@@ -27,6 +29,16 @@ public sealed partial class GameSimulator
                 _state = _state.UpdateResources(player with { Fatigue = fatigue });
                 _events.Add(new(SimulationEventKind.Fatigue, player.Id, Target: player.Hero, Amount: fatigue));
                 PushOccurrence(work, Damage(null, player.Hero, fatigue));
+                return;
+            }
+
+            var card = _rules.Card(_state.Entities[drawn]);
+            if (draw.SummonMinions && card.Definition.Kind == EntityKind.Minion &&
+                _rules.BoardSlotCount(_state, player.Id) < BoardLimit)
+            {
+                _events.Add(new(SimulationEventKind.CardDrawn, player.Id, drawn));
+                SummonExistingMinion(player.Id, drawn);
+                PushSummonTriggers(work, player.Id, drawn);
                 return;
             }
 
@@ -44,8 +56,19 @@ public sealed partial class GameSimulator
                 _events.Add(new(SimulationEventKind.EnchantmentApplied, player.Id, costSource, drawn, draw.CostDelta)
                     { EnchantmentCardId = modifier.CardId });
             }
+            if (draw.CostSource is EntityId origin && _rules.Card(_state.Entities[origin]).Definition.Kind == EntityKind.HeroPower)
+            {
+                var enchantment = _rules.BoardMinions(_state, player.Id)
+                    .Where(id => IsLivingCharacter(id) && !_state.Entities[id].Silenced)
+                    .Select(id => _rules.Card(_state.Entities[id]).SetHeroPowerDrawCostsToZeroEnchantment)
+                    .FirstOrDefault(id => id is not null);
+                if (enchantment is not null)
+                    SetGeneratedCardCost(player.Id, origin, drawn, 0, enchantment);
+            }
 
-            var card = _rules.Card(_state.Entities[drawn]);
+            for (var count = 0; count < draw.ExtraCopies; count++)
+                if (!TryCreateCard(card.Definition.CardId, player.Id, draw.CostSource ?? drawn, CardPlacement.Hand))
+                    break;
             var castsWhenDrawn = card.Keywords.HasFlag(CardKeywords.CastsWhenDrawn);
             // 补抽从牌库顶开始，并排在本次自动施放和抽牌触发器之后。
             if (castsWhenDrawn)

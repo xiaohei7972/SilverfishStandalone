@@ -303,6 +303,7 @@ internal record SimulationStateInput
     public required GameEntity[] Entities { get; init; }
     public required PlayerId ActivePlayer { get; init; }
     public int Turn { get; init; } = 1;
+    public bool ResolveStartOfGame { get; init; }
     public MinionDeath[] MinionDeaths { get; init; } = [];
     public ulong RandomState { get; init; }
     public int? NextEntity { get; init; }
@@ -339,6 +340,8 @@ internal record SimulationStateInput
             throw new InvalidDataException("卡牌、卡牌规则、玩家、实体和随从死亡记录必须使用数组。");
 
         var continuation = ReadContinuation();
+        if (continuation is not null && ResolveStartOfGame)
+            throw new InvalidDataException("载入存档时不能再次结算对战开始效果。");
         var cards = BindCards(cardData).ToArray();
         if (cardData is not null && RandomMinionPool is { Length: > 0 } pool)
         {
@@ -348,7 +351,7 @@ internal record SimulationStateInput
         }
         var simulator = new GameSimulator(cards, randomMinionPool: RandomMinionPool);
         var state = continuation is null
-            ? simulator.CreateGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState, PendingChoice)
+            ? simulator.CreateGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState, PendingChoice, ResolveStartOfGame)
             : simulator.RestoreGame(Players, Entities, ActivePlayer, Turn, MinionDeaths, RandomState, continuation, PendingChoice);
         return (simulator, state);
     }

@@ -33,7 +33,12 @@ public sealed partial class GameSimulator
             }
             else
             {
-                id = (effect.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value;
+                id = effect.Target switch
+                {
+                    EffectTarget.Source => context.Source,
+                    EffectTarget.Selected => context.Selected!.Value,
+                    _ => context.Subject!.Value
+                };
             }
             if (!IsLivingCharacter(id) || _rules.Card(_state.Entities[id]).Definition.Kind != EntityKind.Minion)
                 return;
@@ -72,7 +77,7 @@ public sealed partial class GameSimulator
             _state = _state.UpdateEntity(entity with
             {
                 CardId = cardId, Character = _rules.GetCard(cardId).CreateCharacter(), Silenced = false, Stealthed = null,
-                Enchantments = [], AuraGrants = []
+                Enchantments = [], AuraGrants = [], CopiedDeathrattles = null
             });
             // Transform can remove the source card's aura before a later
             // effect in the same resolution applies damage.
@@ -462,8 +467,9 @@ public sealed partial class GameSimulator
             }
         }
 
-        private void ResurrectFriendlyMinion(Stack<Work> work, PlayerId player)
+        private void ResurrectFriendlyMinion(Stack<Work> work, EffectContext context, ResurrectFriendlyMinionEffect effect)
         {
+            var player = context.Controller;
             if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
                 return;
 
@@ -472,7 +478,7 @@ public sealed partial class GameSimulator
                 return;
 
             var death = candidates[ChooseIndex(candidates.Length)];
-            if (Summon(player, death.CardId, position: null) is EntityId summoned)
+            if (Summon(player, death.CardId, ResolveSummonPosition(context, effect.Placement)) is EntityId summoned)
             {
                 _events.Add(new(SimulationEventKind.Resurrected, player, death.Entity, summoned));
                 PushSummonTriggers(work, player, summoned);
@@ -499,6 +505,14 @@ public sealed partial class GameSimulator
             if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
                 return;
 
+            if (effect.AllOtherFriendlyMinions)
+            {
+                var targets = _rules.BoardMinions(_state, player).Where(id => id != context.Source && IsLivingCharacter(id)).ToArray();
+                for (var index = targets.Length - 1; index >= 0; index--)
+                    work.Push(new ApplyEffect(context with { Selected = targets[index] }, effect with { AllOtherFriendlyMinions = false }));
+                return;
+            }
+
             var targetId = (effect.Target == EffectTarget.Selected ? context.Selected : context.Subject)!.Value;
             if (!IsLivingCharacter(targetId))
                 return;
@@ -512,13 +526,22 @@ public sealed partial class GameSimulator
             {
                 Stealthed = original.Stealthed,
                 Silenced = original.Silenced,
+                CopiedDeathrattles = original.CopiedDeathrattles,
                 Enchantments = [.. original.Enchantments.Where(layer => layer.GrantedTag != GAME_TAG.CONTROLLER)],
                 AuraGrants = original.AuraGrants,
                 Character = character with { AttacksThisTurn = 0, Exhausted = true }
             };
+            if (effect.StatsOverride is { } stats)
+                copy = copy with
+                {
+                    Character = copy.Character! with { Damage = 0 },
+                    Enchantments = copy.Enchantments.Add(new(context.Source, stats) { CardId = effect.EnchantmentCardId })
+                };
             copy = RecalculateStats(copy, []);
-            _state = _state.AddToPlay(copy, _state.Players[player].In(GameZone.Play).Length);
-            FinishSummon(player, id);
+            var position = ResolveSummonPosition(context, effect.Placement);
+            var indexOfCopy = position is int slot ? _rules.BoardIndex(_state, player, slot) : _state.Players[player].In(GameZone.Play).Length;
+            _state = _state.AddToPlay(copy, indexOfCopy);
+            FinishSummon(player, id, alreadyHasGrowth: true);
             PushSummonTriggers(work, player, id);
         }
 

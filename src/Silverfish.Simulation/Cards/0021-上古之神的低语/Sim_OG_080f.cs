@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 火焰花毒素
 // Firebloom Toxin
 // 造成$2点伤害。
 // Deal $2 damage.
+[CardSim("OG_080f")]
 internal static class Sim_OG_080f
 {
     // <legacy-play-requirements>
@@ -13,4 +15,11 @@ internal static class Sim_OG_080f
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new DamageEffect(DamageTarget.Selected, 2),
+        ],
+    };
 }

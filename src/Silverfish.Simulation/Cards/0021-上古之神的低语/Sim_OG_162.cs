@@ -1,10 +1,13 @@
 using Silverfish.Domain.Client;
+using Silverfish.Simulation.Cards.Enchantments;
+
 namespace Silverfish.Simulation.Cards;
 
 // 克苏恩的信徒
 // Disciple of C'Thun
 // 战吼： 造成2点伤害。使你的克苏恩获得+2/+2（无论它在哪里）。
 // Battlecry: Deal 2 damage. Give your C'Thun +2/+2 (wherever it is).
+[CardSim("OG_162")]
 internal static class Sim_OG_162
 {
     // <legacy-play-requirements>
@@ -13,4 +16,12 @@ internal static class Sim_OG_162
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new DamageEffect(DamageTarget.Selected, 2),
+            new EmpowerCardEffect("OG_280", Sim_OG_281e.Rule.Modifier, Sim_OG_281e.Rule.CardId),
+        ],
+    };
 }

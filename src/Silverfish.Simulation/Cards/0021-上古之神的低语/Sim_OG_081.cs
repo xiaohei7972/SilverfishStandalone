@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 冰爆
 // Shatter
 // 消灭一个被冻结的随从。
 // Destroy a Frozen minion.
+[CardSim("OG_081")]
 internal static class Sim_OG_081
 {
     // <legacy-play-requirements>
@@ -13,4 +15,11 @@ internal static class Sim_OG_081
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new DestroyMinionEffect(),
+        ],
+    };
 }

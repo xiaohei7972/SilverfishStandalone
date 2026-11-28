@@ -9,9 +9,28 @@ public static partial class CompiledCardData
 {
     private const int RowWidth = 12;
     private static readonly Lazy<ImmutableDictionary<string, int>> MinionCosts = new(ReadCollectibleMinionCosts);
+    private static readonly Lazy<ImmutableHashSet<string>> CollectibleIds = new(ReadCollectibleIds);
 
     public static int Build => SourceBuild;
     internal static ImmutableDictionary<string, int> CollectibleMinionCosts => MinionCosts.Value;
+    internal static ImmutableHashSet<string> CollectibleCardIds => CollectibleIds.Value;
+
+    private static ImmutableHashSet<string> ReadCollectibleIds()
+    {
+        var rows = Rows;
+        var masks = RequirementMasks;
+        var ids = CardIds.AsSpan();
+        var cards = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
+        for (var index = 0; index < masks.Length; index++)
+        {
+            if (!PlayReqTags.Has(masks[index], (int)GAME_TAG.COLLECTIBLE))
+                continue;
+            var row = index * RowWidth;
+            var end = row + RowWidth < rows.Length ? rows[row + RowWidth] : ids.Length;
+            cards.Add(ids[rows[row]..end].ToString());
+        }
+        return cards.ToImmutable();
+    }
 
     private static ImmutableDictionary<string, int> ReadCollectibleMinionCosts()
     {

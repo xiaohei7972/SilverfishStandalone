@@ -1183,8 +1183,8 @@ LOEA09_6	outside	cards/0020-探险者协会/Sim_LOEA09_6.cs	LOEA09_6	GetPlayReqs
 LOEA09_6H	outside	cards/0020-探险者协会/Sim_LOEA09_6H.cs	LOEA09_6H	GetPlayReqs	REQ_NONSELF_TARGET;REQ_TARGET_IF_AVAILABLE	
 LOEA16_10	outside	cards/0020-探险者协会/Sim_LOEA16_10.cs	LOEA16_10	GetPlayReqs	REQ_TARGET_TO_PLAY;REQ_MINION_TARGET	
 LOEA16_20	outside	cards/0020-探险者协会/Sim_LOEA16_20.cs	LOEA16_20	GetPlayReqs	REQ_TARGET_TO_PLAY;REQ_FRIENDLY_TARGET;REQ_MINION_TARGET	
-LOEA16_3	outside	cards/0020-探险者协会/Sim_LOEA16_3.cs	LOEA16_3	GetPlayReqs	REQ_TARGET_TO_PLAY;REQ_MINION_TARGET	
-LOEA16_5	outside	cards/0020-探险者协会/Sim_LOEA16_5.cs	LOEA16_5	GetPlayReqs	REQ_NUM_MINION_SLOTS(1)	
+LOEA16_3	starter	cards/0020-探险者协会/Sim_LOEA16_3.cs	LOEA16_3	GetPlayReqs	REQ_TARGET_TO_PLAY;REQ_MINION_TARGET	src/Silverfish.Simulation/Cards/0020-探险者协会/Sim_LOEA16_3.cs
+LOEA16_5	starter	cards/0020-探险者协会/Sim_LOEA16_5.cs	LOEA16_5	GetPlayReqs	REQ_NUM_MINION_SLOTS(1)	src/Silverfish.Simulation/Cards/0020-探险者协会/Sim_LOEA16_5.cs
 LOE_002	constructed	cards/0020-探险者协会/Sim_LOE_002.cs	LOE_002	GetPlayReqs	REQ_TARGET_TO_PLAY	src/Silverfish.Simulation/Cards/0020-探险者协会/Sim_LOE_002.cs
 LOE_002t	LOE_002	cards/0020-探险者协会/Sim_LOE_002t.cs	LOE_002t	GetPlayReqs	REQ_TARGET_TO_PLAY	src/Silverfish.Simulation/Cards/0020-探险者协会/Sim_LOE_002t.cs
 LOE_008	outside	cards/0020-探险者协会/Sim_LOE_008.cs	LOE_008	GetPlayReqs	REQ_MINION_TARGET	

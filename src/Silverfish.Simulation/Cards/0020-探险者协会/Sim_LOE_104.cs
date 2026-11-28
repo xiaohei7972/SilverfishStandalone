@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 埋葬
 // Entomb
 // 选择一个敌方随从。将该随从洗入你的牌库。
 // Choose an enemy minion. Shuffle it into your deck.
+[CardSim("LOE_104")]
 internal static class Sim_LOE_104
 {
     // <legacy-play-requirements>
@@ -13,4 +15,11 @@ internal static class Sim_LOE_104
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new ShuffleMinionIntoDeckEffect(),
+        ],
+    };
 }

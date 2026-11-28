@@ -55,16 +55,26 @@ public sealed partial class GameSimulator
         return checked(character.Attack + weaponAttack);
     }
 
+    private int HeroPowerUseLimit(GameState state, PlayerId player) => BoardMinions(state, player)
+        .Select(id => state.Entities[id]).Where(entity => !entity.Silenced && entity.Character is { Health: > 0 })
+        .Select(entity => Card(entity).HeroPowerUsesAllowed ?? 1).DefaultIfEmpty(1).Max();
+
     private sealed partial class Resolution
     {
-        private void UseHeroPower(PlayerId playerId, EntityId source, EntityId? target, bool resolvesEffects)
+        private void UseHeroPower(PlayerId playerId, EntityId source, EntityId? target, string? choice, bool resolvesEffects)
         {
             var power = _rules.Card(_state.Entities[source]);
             PayCardCost(playerId, source, power);
+            ConsumePlayedCardCostAuras(playerId, power);
+            var player = _state.Players[playerId];
+            _state = _state.UpdateResources(player with
+            {
+                HeroPowerUsesThisTurn = checked(player.HeroPowerUsesThisTurn + 1),
+                HeroPowerUsesThisGame = checked(Math.Max(player.HeroPowerUsesThisGame, player.HeroPowerUsesThisTurn) + 1)
+            });
             _events.Add(new(SimulationEventKind.HeroPowerUsed, playerId, source, target));
             if (resolvesEffects)
-                ResolveEffects(new(source, playerId, target), power.OnPlay);
-            _state = _state.UpdateResources(_state.Players[playerId] with { HeroPowerUsesThisTurn = 1 });
+                ResolveEffects(new(source, playerId, target), choice is null ? power.OnPlay : PlayChoiceAtResolution(power, choice).Effects);
             ResolveDeaths();
             RunTriggers(new(TriggerTiming.AfterHeroPowerUsed, playerId, source), CaptureListeners());
         }
@@ -78,6 +88,17 @@ public sealed partial class GameSimulator
             SetEquippedWeapon(player, id);
         }
 
+        private void EquipForEffect(EffectContext context, EquipWeaponEffect effect)
+        {
+            var equipped = _state.Players[context.Controller].EquippedWeapon;
+            if (_rules.Card(_state.Entities[context.Source]).Definition.Kind == EntityKind.HeroPower &&
+                equipped is EntityId weapon && !_state.Entities[weapon].Silenced &&
+                _rules.Card(_state.Entities[weapon]).ReplaceHeroPowerEquipEffect is { } replacement)
+                ModifyWeapon(context, replacement);
+            else
+                CreateAndEquipWeapon(context.Controller, effect.CardId);
+        }
+
         private void MarkEquippedWeaponForDestruction(PlayerId player)
         {
             if (_state.Players[player].EquippedWeapon is EntityId oldWeapon)
@@ -89,6 +110,7 @@ public sealed partial class GameSimulator
             _state = _state.EquipWeapon(player, id);
             _state = _rules.RefreshAuras(_state);
             _events.Add(new(SimulationEventKind.WeaponEquipped, player, id, _state.Players[player].Hero));
+            RunTriggers(new(TriggerTiming.WeaponEquipped, player, id), CaptureListeners());
         }
 
         private void SpendWeaponDurability(EntityId? weapon, EntityId defender)
@@ -163,7 +185,8 @@ public sealed partial class GameSimulator
             var owner = effect.TargetWeapon == ConditionPlayer.Friendly
                 ? context.Controller
                 : _state.OpponentOf(context.Controller);
-            if (_state.Players[owner].EquippedWeapon is not EntityId id || _state.LocationOf(id).Zone != GameZone.Play)
+            var weapon = effect.UseSource ? context.Source : _state.Players[owner].EquippedWeapon;
+            if (weapon is not EntityId id || _state.LocationOf(id).Zone != GameZone.Play)
                 return;
 
             var entity = _state.Entities[id];

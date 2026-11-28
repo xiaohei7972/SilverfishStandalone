@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 炎枪术
 // Flame Lance
 // 对一个随从造成$25点伤害。
 // Deal $25 damage to a minion.
+[CardSim("AT_001")]
 internal static class Sim_AT_001
 {
     // <legacy-play-requirements>
@@ -13,4 +15,11 @@ internal static class Sim_AT_001
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new DamageEffect(DamageTarget.Selected, 25),
+        ],
+    };
 }

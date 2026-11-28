@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 暗影打击
 // Shadow Strike
 // 对一个 未受伤的角色造成$5点伤害。
 // Deal $5 damage to an undamaged character.
+[CardSim("OG_176")]
 internal static class Sim_OG_176
 {
     // <legacy-play-requirements>
@@ -13,4 +15,11 @@ internal static class Sim_OG_176
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new DamageEffect(DamageTarget.Selected, 5),
+        ],
+    };
 }

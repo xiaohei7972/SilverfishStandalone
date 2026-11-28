@@ -35,6 +35,10 @@ public sealed record LocationState(int Health, int TurnsUntilReady = 0)
 public sealed record GameEntity(EntityId Id, string CardId, PlayerId Owner, PlayerId Controller)
 {
     public string? CopiedSpellCardId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<DeathrattleReference>? CopiedDeathrattles { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? HandTransformRuleCardId { get; init; }
     public bool? Stealthed { get; init; }
     public CharacterState? Character { get; init; }
     public WeaponStats? Weapon { get; init; }
@@ -48,9 +52,17 @@ public sealed record GameEntity(EntityId Id, string CardId, PlayerId Owner, Play
     public ImmutableArray<CostTypeModifier>? CostTypeModifiers { get; init; }
 }
 
+public sealed record DeathrattleReference(string CardId, bool IsEnchantment, string AttachmentCardId)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CapturedMinion? CapturedMinion { get; init; }
+}
+
 /// <summary>手牌费用数值的修正。未设置到期回合时持续到卡牌离开手牌区。</summary>
 public sealed record ManaCostModifier(EntityId Source, int Delta)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public CostModifierMode Mode { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CardId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

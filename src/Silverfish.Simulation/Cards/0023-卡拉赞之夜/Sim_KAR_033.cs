@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 书卷之龙
 // Book Wyrm
 // 战吼：如果你的手牌中有龙牌，则消灭一个攻击力小于或等于3的敌方随从。
 // Battlecry: If you're holding a Dragon, destroy an enemy minion with 3 or less Attack.
+[CardSim("KAR_033")]
 internal static class Sim_KAR_033
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_KAR_033
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new DestroyMinionEffect()],
+    };
 }

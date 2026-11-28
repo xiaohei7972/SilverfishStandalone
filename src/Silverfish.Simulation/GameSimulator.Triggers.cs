@@ -11,13 +11,14 @@ public sealed partial class GameSimulator
 
         private readonly record struct EffectContext(EntityId Source, PlayerId Controller,
             EntityId? Selected = null, EntityId? Subject = null, int? DeathPosition = null,
-            int CardsPlayedBefore = 0, int? EventAmount = null);
+            int CardsPlayedBefore = 0, int? EventAmount = null, string? PlayedBranch = null, CapturedMinion? CapturedMinion = null);
 
         private readonly record struct DamageSource(EntityId Id, PlayerId Controller);
 
         private readonly record struct Occurrence(TriggerTiming Timing, PlayerId Player, EntityId? Subject = null,
             DamageSource? Source = null, int? Amount = null, EntityId? Defender = null, bool Poisoned = false,
-            TriggerTiming? LethalBonus = null, DamageSource? AttackingWeapon = null);
+            TriggerTiming? LethalBonus = null, DamageSource? AttackingWeapon = null, bool KilledMinion = false,
+            string? PlayedBranch = null);
 
         private readonly record struct ListenerId(EntityId Entity, int Index);
 
@@ -26,9 +27,11 @@ public sealed partial class GameSimulator
         private abstract record Work;
         private sealed record ApplyEffect(EffectContext Context, CardEffect Effect) : Work;
         private sealed record DrawCards(PlayerId Player, int Remaining, CardFilter? Filter = null,
-            int CostDelta = 0, string? CostEnchantmentId = null, EntityId? CostSource = null) : Work;
+            int CostDelta = 0, string? CostEnchantmentId = null, EntityId? CostSource = null, EntityId? SpecificCard = null,
+            bool SummonMinions = false, int ExtraCopies = 0) : Work;
         private sealed record RecruitCards(PlayerId Player, int Remaining, CardFilter? Filter) : Work;
         private sealed record CastDrawnSpell(PlayerId Player, EntityId Source) : Work;
+        private sealed record CastFromPool(PlayerId Player, EntityId Source, ImmutableArray<string> CardIds, int Remaining) : Work;
         private sealed record FinishDrawnSpell(PlayerId Player, EntityId Source) : Work;
         private sealed record DealDrawnCostDamage(EffectContext Context, DamageTarget Target, int PrintedCost) : Work;
         private sealed record ResolveDiscardedCard(PlayerId Player, EntityId Card, ImmutableArray<CardEffect> Effects) : Work;
@@ -63,7 +66,7 @@ public sealed partial class GameSimulator
             foreach (var id in player.In(GameZone.Hand))
             {
                 var entity = _state.Entities[id];
-                var inHand = _rules.Card(entity).InHandTriggers;
+                var inHand = (entity.HandTransformRuleCardId is { } ruleId ? _rules.GetCard(ruleId) : _rules.Card(entity)).InHandTriggers;
                 for (var index = 0; index < inHand.Length; index++)
                     listeners.Add(new(new(entity.Id, index), entity.CardId, entity.Controller, long.MaxValue - 1, GameZone.Hand, inHand[index]));
             }
@@ -81,7 +84,7 @@ public sealed partial class GameSimulator
                     (occurrence.Timing == TriggerTiming.Overheal && listener.Id.Entity != occurrence.Subject) ||
                     (occurrence.Timing is TriggerTiming.Overkill or TriggerTiming.HonorableKill &&
                         listener.Id.Entity != occurrence.Source?.Id) ||
-                    (listener.Zone == GameZone.Secret && listener.Controller == _state.ActivePlayer) ||
+                    (listener.Zone == GameZone.Secret && listener.Controller == _state.ActivePlayer && !trigger.AllowOnControllerTurn) ||
                     (occurrence.Timing is TriggerTiming.WhenMinionSummoned or TriggerTiming.AfterMinionSummoned or
                         TriggerTiming.AfterMinionPlayed or TriggerTiming.WhenCardPlayed or TriggerTiming.AfterCardPlayed &&
                         listener.Id.Entity == occurrence.Subject))
@@ -98,13 +101,21 @@ public sealed partial class GameSimulator
                 }
                 else if (trigger.Focus == TriggerFocus.AttackDefender)
                 {
-                    entityId = occurrence.Defender!.Value;
+                    if (occurrence.Defender is not EntityId defender)
+                        continue;
+                    entityId = defender;
                     player = _state.Entities[entityId.Value].Controller;
                 }
 
                 if ((trigger.Relation == TriggerRelation.Friendly && listener.Controller != player) ||
                     (trigger.Relation == TriggerRelation.Opponent && listener.Controller == player) ||
                     (trigger.ControllerTurnOnly && listener.Controller != _state.ActivePlayer) ||
+                    (trigger.RequireSourceAttacker && listener.Id.Entity != occurrence.Subject) ||
+                    (trigger.KilledMinion && !occurrence.KilledMinion) ||
+                    (trigger.SpellTargetOnOtherFriendlyMinion &&
+                        (occurrence.Defender is not EntityId affected || affected == listener.Id.Entity ||
+                            _state.Entities[affected].Controller != listener.Controller ||
+                            _rules.Card(_state.Entities[affected]).Definition.Kind != EntityKind.Minion)) ||
                     (trigger.EntityMatch == TriggerEntityMatch.Self && listener.Id.Entity != entityId) ||
                     (trigger.EntityMatch == TriggerEntityMatch.Other && listener.Id.Entity == entityId) ||
                     (trigger.SecretOnly &&
@@ -124,8 +135,11 @@ public sealed partial class GameSimulator
                     (trigger.RequireLivingEntity && !IsLivingCharacter(entityId)))
                     continue;
 
-                yield return new(new(listener.Id.Entity, listener.Controller, Subject: occurrence.Subject, EventAmount: occurrence.Amount),
-                    listener.PlayOrder, trigger.Effects, listener, trigger.RequireLivingEntity ? entityId : null, occurrence.Amount);
+                var amount = trigger.OverloadOnly && entityId is EntityId overloaded
+                    ? _rules.Card(_state.Entities[overloaded]).Overload : occurrence.Amount;
+                yield return new(new(listener.Id.Entity, listener.Controller, Subject: occurrence.Subject, EventAmount: amount,
+                        PlayedBranch: occurrence.PlayedBranch),
+                    listener.PlayOrder, trigger.Effects, listener, trigger.RequireLivingEntity ? entityId : null, amount);
             }
         }
 
@@ -160,6 +174,9 @@ public sealed partial class GameSimulator
                         break;
                     case CastDrawnSpell spell:
                         CastWhenDrawn(work, spell);
+                        break;
+                    case CastFromPool cast:
+                        CastFromPoolOnce(work, cast);
                         break;
                     case FinishDrawnSpell spell:
                         if (_state.LocationOf(spell.Source).Zone == GameZone.Play)

@@ -15,6 +15,11 @@ public sealed partial class GameSimulator
                 return;
 
             var discarded = count >= hand.Length ? hand : SelectDiscards(player, hand, count, selection);
+            var resources = _state.Players[player];
+            _state = _state.UpdateResources(resources with
+            {
+                DiscardedCardsThisGame = [.. resources.DiscardedCardsThisGame ?? [], .. discarded.Select(id => _state.Entities[id].CardId)]
+            });
             // 先把整批牌移入墓地，再从原手牌左侧开始处理各自的弃牌结算。
             foreach (var id in discarded)
             {

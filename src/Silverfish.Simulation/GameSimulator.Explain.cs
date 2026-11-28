@@ -37,9 +37,35 @@ public sealed partial class GameSimulator
         else if (card.Choices.IsEmpty)
             yield return EvaluateBranch(state, entity, card);
         else
-            foreach (var choice in card.Choices)
+            foreach (var choice in PlayChoices(state, entity, card))
                 yield return EvaluateBranch(state, entity, card, choice);
     }
+
+    private ImmutableArray<CardPlayChoice> PlayChoices(GameState state, GameEntity source, SimulationCard card)
+    {
+        if (card.Choices.IsEmpty || card.DoNotCombineChoices || !BoardMinions(state, source.Controller).Any(id =>
+            id != source.Id && state.Entities[id].Character is { Health: > 0 } && !state.Entities[id].Silenced &&
+            Card(state.Entities[id]).CombineFriendlyChoices))
+            return card.Choices;
+        return [CombinedPlayChoice(card)];
+    }
+
+    private static CardPlayChoice CombinedPlayChoice(SimulationCard card)
+    {
+        if (card.CombinedChoice is { } combined)
+            return combined;
+        var targeting = card.Choices.FirstOrDefault(option => option.Target != TargetRequirement.None || DeclaresTarget(option.PlayReqs));
+        return new("both", [.. card.Choices.SelectMany(option => option.Effects)])
+        {
+            Target = targeting?.Target ?? TargetRequirement.None,
+            TargetFilter = targeting?.TargetFilter,
+            PlayReqs = [.. card.Choices.SelectMany(option => option.PlayReqs)
+                .Where(req => req.Type != REQ_NUM_MINION_SLOTS || card.Choices.All(option => option.PlayReqs.Contains(req))).Distinct()]
+        };
+    }
+
+    private static CardPlayChoice PlayChoiceAtResolution(SimulationCard card, string choice) =>
+        choice == "both" ? CombinedPlayChoice(card) : card.Choices.Single(candidate => candidate.Id == choice);
 
     private PlayFailure? SourceFailure(GameState state, GameEntity source, SimulationCard card, GameZone zone,
         ImmutableArray<CostAura> costAuras)
@@ -59,7 +85,7 @@ public sealed partial class GameSimulator
             return location.TurnsUntilReady > 0 ? new("地标仍在冷却", REQ_NOT_EXHAUSTED_LOCATION, 0, location.TurnsUntilReady, source.Id) : null;
         if (zone is not (GameZone.Hand or GameZone.HeroPower))
             return new("来源不在可使用的区域", Source: source.Id);
-        if (zone == GameZone.HeroPower && player.HeroPowerUsesThisTurn > 0)
+        if (zone == GameZone.HeroPower && player.HeroPowerUsesThisTurn >= HeroPowerUseLimit(state, player.Id))
             return new("英雄技能本回合已使用", REQ_NOT_EXHAUSTED_HERO_POWER, Source: source.Id);
         var type = EffectiveCostType(source, card);
         if (!SupportsCostType(type))
@@ -131,7 +157,7 @@ public sealed partial class GameSimulator
             return new("动作类型、控制者或来源区域不匹配", Source: id);
         if (SourceFailure(state, entity, card, zone, ActiveCostAuras(state, entity.Controller)) is { } failure)
             return failure;
-        var choice = card.Choices.FirstOrDefault(c => c.Id == action.Choice);
+        var choice = PlayChoices(state, entity, card).FirstOrDefault(c => c.Id == action.Choice);
         if ((!card.Choices.IsEmpty || action.Choice is not null) && choice is null)
             return new("需要有效的抉择分支", Source: id);
         var branch = EvaluateBranch(state, entity, card, choice,

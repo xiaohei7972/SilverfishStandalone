@@ -18,6 +18,8 @@ public enum NumberComparison { Equal, AtLeast, AtMost }
 [JsonDerivedType(typeof(WeaponEquippedCondition), "weaponEquipped")]
 [JsonDerivedType(typeof(CharacterMatchCondition), "characterMatch")]
 [JsonDerivedType(typeof(MinionDiedThisGameCondition), "minionDiedThisGame")]
+[JsonDerivedType(typeof(PermanentCardAttackCondition), "permanentCardAttack")]
+[JsonDerivedType(typeof(NoDuplicatesInDeckCondition), "noDuplicatesInDeck")]
 public abstract record EffectCondition;
 
 public sealed record CharacterCondition(
@@ -38,6 +40,7 @@ public sealed record ZoneCountCondition(
     EntityKind? EntityKind = null) : EffectCondition
 {
     public CardFilter? CardFilter { get; init; }
+    public bool ExcludeSource { get; init; }
 }
 
 public sealed record ComboCondition : EffectCondition;
@@ -50,3 +53,5 @@ public sealed record CharacterMatchCondition(
     CardFilter? CardFilter = null) : EffectCondition;
 
 public sealed record MinionDiedThisGameCondition([property: JsonRequired] string CardId) : EffectCondition;
+public sealed record PermanentCardAttackCondition(string CardId, int MinimumAttack) : EffectCondition;
+public sealed record NoDuplicatesInDeckCondition : EffectCondition;

@@ -1,10 +1,13 @@
 using Silverfish.Domain.Client;
+using Silverfish.Simulation.Cards.Enchantments;
+
 namespace Silverfish.Simulation.Cards;
 
 // 发条骑士
 // Clockwork Knight
 // 战吼：使一个友方机械获得+1/+1。
 // Battlecry: Give a friendly Mech +1/+1.
+[CardSim("AT_096")]
 internal static class Sim_AT_096
 {
     // <legacy-play-requirements>
@@ -13,4 +16,11 @@ internal static class Sim_AT_096
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            Sim_AT_096e.Rule.ApplyTo(StatTarget.Selected),
+        ],
+    };
 }

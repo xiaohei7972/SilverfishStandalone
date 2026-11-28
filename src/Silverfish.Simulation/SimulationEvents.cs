@@ -13,7 +13,8 @@ public enum SimulationEventKind
     Frozen, Thawed, OverloadScheduled, OverloadUnlocked, SecretArmed, SecretRevealed, SpellCountered, SpellRedirected, AttackRedirected,
     AttackCancelled, TemporaryManaGained, ManaCrystalsGained, ManaCrystalsDestroyed, ManaRefreshed, CardGenerated,
     LocationActivated, LocationHealthLost, LocationDestroyed, CardDiscarded, DiscardedEffect, Recruited, SpellCastWhenDrawn,
-    CardAddedToDeck, DeckShuffled, AlternateCostPaid, CostTypeChanged, PlayChoiceOffered, PlayChoiceSelected, ChoiceSubmitted, Overhealed
+    CardAddedToDeck, DeckShuffled, AlternateCostPaid, CostTypeChanged, PlayChoiceOffered, PlayChoiceSelected, ChoiceSubmitted, Overhealed,
+    CardRevealed, SpellCastAutomatically, AutomaticSpellEffectPending
 }
 
 public sealed record SimulationEvent(SimulationEventKind Kind, PlayerId? Player = null,

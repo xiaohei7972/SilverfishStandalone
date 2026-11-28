@@ -10,7 +10,7 @@ public static class PlayReqTags
         (int)GAME_TAG.STEALTH, (int)GAME_TAG.TITAN, (int)GAME_TAG.RARITY, (int)GAME_TAG.DEATHRATTLE,
         (int)GAME_TAG.ELUSIVE, (int)GAME_TAG.IMMUNE, (int)GAME_TAG.CANT_BE_TARGETED_BY_OPPONENTS,
         (int)GAME_TAG.CANT_BE_TARGETED_BY_SPELLS, (int)GAME_TAG.CANT_BE_TARGETED_BY_HERO_POWERS,
-        (int)GAME_TAG.POISONOUS, (int)GAME_TAG.CANT_ATTACK];
+        (int)GAME_TAG.POISONOUS, (int)GAME_TAG.CANT_ATTACK, (int)GAME_TAG.BATTLECRY, (int)GAME_TAG.COLLECTIBLE];
 
     internal static bool Has(int mask, int tag)
     {
@@ -23,6 +23,9 @@ public static class PlayReqTags
         int mask = 0;
         for (int i = 0; i < TagIds.Length; i++)
         {
+            if (TagIds[i] == (int)GAME_TAG.COLLECTIBLE &&
+                metadata.ClientCardSet is TAG_CARD_SET.CORE_HIDDEN or TAG_CARD_SET.VANILLA)
+                continue;
             var value = metadata.GetTag(TagIds[i]);
             if (TagIds[i] == (int)GAME_TAG.RARITY ? value == 5 : value > 0)
                 mask |= 1 << i;

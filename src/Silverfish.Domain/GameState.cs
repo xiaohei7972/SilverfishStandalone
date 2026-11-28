@@ -29,6 +29,22 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
     public int MaximumManaCrystals { get; init; } = 10;
     public EntityId? EquippedWeapon { get; init; }
     public int HeroPowerUsesThisTurn { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int HeroPowerUsesThisGame { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<CardGrowth>? PermanentCardGrowth { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<string>? EndOfTurnSummons { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableDictionary<MinionType, int>? MinionsSummonedByType { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int SpellsCastThisGame { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? HealingDealsDamageThisTurn { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<SpellCastReward>? SpellCastRewardsThisTurn { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ImmutableArray<string>? DiscardedCardsThisGame { get; init; }
     public int OverloadOwed { get; init; }
     public int OverloadLocked { get; init; }
     public bool? PlayedCardThisTurn { get; init; }
@@ -58,6 +74,9 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
 }
 
 public enum MatchOutcome { InProgress, Draw, Won }
+
+public sealed record CardGrowth(string CardId, StatEnchantment Enchantment);
+public sealed record SpellCastReward(EntityId Source, Client.TAG_CLASS CardClass, string EnchantmentCardId);
 
 /// <summary>动作结算完成后用于继续对局的计数器和结果。</summary>
 public sealed record GameContinuation(int NextEntity, long NextPlayOrder, MatchOutcome Outcome, PlayerId? Winner)
@@ -263,9 +282,12 @@ public sealed class GameState
             Controller = destination.Player,
             PlayOrder = entersActiveZone ? NextPlayOrder : entity.PlayOrder,
             AuraGrants = destination.Zone == GameZone.Play ? entity.AuraGrants : [],
-            Enchantments = destination.Zone == GameZone.Play ? entity.Enchantments : [],
+            Enchantments = destination.Zone == GameZone.Play || (origin.Zone == GameZone.Deck && destination.Zone == GameZone.Hand)
+                ? entity.Enchantments : [],
             Stealthed = destination.Zone == GameZone.Play ? entity.Stealthed : null,
-            CostModifiers = destination.Zone == GameZone.Hand ? entity.CostModifiers : [],
+            CopiedDeathrattles = destination.Zone == GameZone.Play ? entity.CopiedDeathrattles : null,
+            HandTransformRuleCardId = destination.Zone == GameZone.Hand ? entity.HandTransformRuleCardId : null,
+            CostModifiers = destination.Zone is GameZone.Hand or GameZone.Deck && origin.Zone != GameZone.Play ? entity.CostModifiers : [],
             CostTypeModifiers = destination.Zone == GameZone.Hand ? entity.CostTypeModifiers : null
         };
         return new GameState(players.SetItem(to.Id, to), Entities.SetItem(id, entity), _locations.SetItem(id, destination),
@@ -294,7 +316,7 @@ public sealed class GameState
 
     internal GameState AddToHand(GameEntity entity) => AddEntity(entity, GameZone.Hand);
     internal GameState AddToHeroPower(GameEntity entity) => AddEntity(entity, GameZone.HeroPower);
-    internal GameState AddChoiceOption(GameEntity entity) => AddEntity(entity, GameZone.SetAside);
+    internal GameState AddToSetAside(GameEntity entity) => AddEntity(entity, GameZone.SetAside);
 
     internal GameState AddToDeck(GameEntity entity, int index) => AddEntity(entity, GameZone.Deck, index);
 
@@ -424,7 +446,7 @@ public sealed class GameState
         if (player.Zones is null || player.TemporaryCostAuras.IsDefault || player.EndOfTurnHandAdditions.IsDefault ||
             player.Id.Value < 1 || player.Mana < 0 || player.ManaCrystals < 0 ||
             player.MaximumManaCrystals < 1 || player.ManaCrystals > player.MaximumManaCrystals ||
-            player.Fatigue < 0 || player.HeroPowerUsesThisTurn is < 0 or > 1 || player.ManaSpent is < 0 ||
+            player.Fatigue < 0 || player.HeroPowerUsesThisTurn < 0 || player.HeroPowerUsesThisGame < 0 || player.ManaSpent is < 0 ||
             player.TemporaryMana < 0 || player.OverloadLocked < 0 || player.OverloadOwed < 0 ||
             player.CardsPlayedThisTurn < 0 || player.Corpses is < 0 || player.CorpsesSpentThisGame < 0)
             throw new ArgumentException("玩家 ID 或资源数值无效。");

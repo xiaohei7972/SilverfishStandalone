@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Silverfish.Domain.Client;
 
 namespace Silverfish.Domain;
@@ -10,7 +11,11 @@ public sealed record StatEnchantment(EntityId Source, StatModifier? Modifier, in
 {
     public string? CardId { get; init; }
     public GAME_TAG? GrantedTag { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CapturedMinion? CapturedMinion { get; init; }
 }
+
+public sealed record CapturedMinion(string CardId, PlayerId Controller);
 
 public sealed record StatAuraGrant(EntityId Source, int Index, StatModifier? Modifier)
 {

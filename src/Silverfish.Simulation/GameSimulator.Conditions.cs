@@ -19,6 +19,8 @@ public sealed partial class GameSimulator
         CharacterMatchCondition match => Enum.IsDefined(match.Relation) && IsValidCardFilter(match.CardFilter) &&
             IsValidConditionCharacter(match.Target, target, hasCharacterSubject, hasInPlaySource),
         MinionDiedThisGameCondition died => !string.IsNullOrWhiteSpace(died.CardId),
+        PermanentCardAttackCondition growth => !string.IsNullOrWhiteSpace(growth.CardId) && growth.MinimumAttack >= 0,
+        NoDuplicatesInDeckCondition => true,
         _ => false
     };
 
@@ -72,6 +74,9 @@ public sealed partial class GameSimulator
                 _state.Entities[equipped].Weapon is { Durability: > 0 },
             CharacterMatchCondition match => MeetsCharacterMatchCondition(context, match),
             MinionDiedThisGameCondition died => _state.MinionDeaths.Any(entry => entry.CardId == died.CardId),
+            PermanentCardAttackCondition growth => PermanentCardAttack(context.Controller, growth.CardId) >= growth.MinimumAttack,
+            NoDuplicatesInDeckCondition => !_state.Players[context.Controller].In(GameZone.Deck)
+                .GroupBy(id => _state.Entities[id].CardId, StringComparer.Ordinal).Any(group => group.Skip(1).Any()),
             _ => throw new InvalidOperationException("无法识别效果条件。")
         };
 
@@ -130,14 +135,15 @@ public sealed partial class GameSimulator
         {
             var player = condition.Player == ConditionPlayer.Friendly ? context.Controller : _state.OpponentOf(context.Controller);
             var entities = _state.Players[player].In(condition.Zone);
-            if (condition.EntityKind is null && condition.CardFilter is null)
+            if (!condition.ExcludeSource && condition.EntityKind is null && condition.CardFilter is null)
                 return entities.Length;
 
             return entities.Count(id =>
             {
-                var definition = _rules.Card(_state.Entities[id]).Definition;
-                return (condition.EntityKind is not EntityKind kind || definition.Kind == kind) &&
-                    (condition.CardFilter is not { } cards || MatchesCardFilter(definition, cards));
+                var card = _rules.Card(_state.Entities[id]);
+                return (!condition.ExcludeSource || id != context.Source) &&
+                    (condition.EntityKind is not EntityKind kind || card.Definition.Kind == kind) &&
+                    (condition.CardFilter is not { } cards || _rules.MatchesEntityFilter(_state.Entities[id], cards));
             });
         }
     }

@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 潮汐之力
 // The Tidal Hand
 // 召唤一个1/1的白银之手鱼人。
 // Summon a 1/1 Silver Hand Murloc.
+[CardSim("OG_006b")]
 internal static class Sim_OG_006b
 {
     // <legacy-play-requirements>
@@ -13,4 +15,11 @@ internal static class Sim_OG_006b
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new SummonEffect("OG_006a"),
+        ],
+    };
 }

@@ -1,10 +1,13 @@
 using Silverfish.Domain.Client;
+using Silverfish.Simulation.Cards.Enchantments;
+
 namespace Silverfish.Simulation.Cards;
 
 // 神圣之力
 // Divine Strength
 // 使一个随从获得+1/+2。
 // Give a minion +1/+2.
+[CardSim("OG_223")]
 internal static class Sim_OG_223
 {
     // <legacy-play-requirements>
@@ -13,4 +16,11 @@ internal static class Sim_OG_223
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            Sim_OG_223e.Rule.ApplyTo(StatTarget.Selected),
+        ],
+    };
 }

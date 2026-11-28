@@ -267,7 +267,8 @@ public sealed partial class GameSimulator
                                 }))),
                         REQ_FROZEN_TARGET => ch?.Frozen == true,
                         REQ_TARGET_WITH_RACE => req.Parameter is int race && MatchesMinionType(card.Definition, CardTraitReader.RaceType((TAG_RACE)race)),
-                        REQ_TARGET_WITH_DEATHRATTLE => (!target.Silenced && !card.Deathrattle.IsEmpty) ||
+                        REQ_TARGET_WITH_DEATHRATTLE => (!target.Silenced && (!card.Deathrattle.IsEmpty ||
+                            target.CopiedDeathrattles is { IsEmpty: false })) ||
                             HasEffectiveTag(target, GAME_TAG.DEATHRATTLE),
                         REQ_LEGENDARY_TARGET => Printed(GAME_TAG.RARITY),
                         REQ_NOT_LEGENDARY_TARGET => !Printed(GAME_TAG.RARITY),

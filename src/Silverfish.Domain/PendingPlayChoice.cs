@@ -10,4 +10,8 @@ public sealed record PendingPlayChoice(EntityId Source, ImmutableArray<EntityId>
 {
     public ImmutableArray<EntityId>? Recipients { get; init; }
     public int? RemainingSelections { get; init; }
+    public string? PlayBranch { get; init; }
+    public EntityId? SelectedTarget { get; init; }
+    public int? PlayedCardCost { get; init; }
+    public int? DiscoverRound { get; init; }
 }

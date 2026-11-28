@@ -74,41 +74,50 @@ public sealed partial class GameSimulator
         SelfCostReduction.OpponentHandCards => state.Players[state.OpponentOf(entity.Controller)].In(GameZone.Hand).Length,
         SelfCostReduction.FourIfControllingDamagedMinion => BoardMinions(state, entity.Controller)
             .Any(id => state.Entities[id].Character is { Damage: > 0 }) ? 4 : 0,
+        SelfCostReduction.HeroPowerUses => Math.Max(state.Players[entity.Controller].HeroPowerUsesThisGame,
+            state.Players[entity.Controller].HeroPowerUsesThisTurn),
+        SelfCostReduction.FriendlyPirates or SelfCostReduction.FriendlyMurlocs => BoardMinions(state, entity.Controller)
+            .Count(id => MatchesMinionType(Card(state.Entities[id]).Definition,
+                reduction == SelfCostReduction.FriendlyPirates ? MinionType.Pirate : MinionType.Murloc)),
+        SelfCostReduction.SpellsCast => state.Players[entity.Controller].SpellsCastThisGame,
         _ => throw new InvalidOperationException("无法识别卡牌自身的减费条件。")
     };
 
     private int EffectiveCost(GameState state, GameEntity entity, SimulationCard card, ImmutableArray<CostAura> auras)
     {
-        long cost = card.Definition.PrintedCost - SelfCostDiscount(state, entity, card.SelfCostReduction);
-        foreach (var modifier in entity.CostModifiers)
-            cost += modifier.Delta;
-
-        if (!auras.IsEmpty)
+        var target = card.Definition.Kind switch
         {
-            var target = card.Definition.Kind switch
+            EntityKind.Minion => CostAuraTarget.Minion,
+            EntityKind.Spell => CostAuraTarget.Spell,
+            EntityKind.Weapon => CostAuraTarget.Weapon,
+            EntityKind.HeroPower => CostAuraTarget.HeroPower,
+            EntityKind.Location => CostAuraTarget.Location,
+            EntityKind.Hero => CostAuraTarget.Hero,
+            _ => throw new InvalidOperationException("该实体类型不支持计算使用费用。")
+        };
+
+        // 设定费用的光环改变本张牌的基础费用。随后计算巨人等卡牌自身的减费。
+        long cost = card.Definition.PrintedCost;
+        foreach (var aura in auras)
+            if (aura.SetCost is int setCost && Applies(aura))
+                cost = setCost;
+        cost -= SelfCostDiscount(state, entity, card.SelfCostReduction);
+        if (card.SummonedMinionTypeDiscount is MinionType type)
+            cost -= state.Players[entity.Controller].MinionsSummonedByType?.GetValueOrDefault(type) ?? 0;
+        foreach (var modifier in entity.CostModifiers)
+            cost = modifier.Mode == CostModifierMode.Set ? modifier.Delta : cost + modifier.Delta;
+
+        foreach (var aura in auras)
+            if (aura.SetCost is null && Applies(aura))
             {
-                EntityKind.Minion => CostAuraTarget.Minion,
-                EntityKind.Spell => CostAuraTarget.Spell,
-                EntityKind.Weapon => CostAuraTarget.Weapon,
-                EntityKind.HeroPower => CostAuraTarget.HeroPower,
-                EntityKind.Location => CostAuraTarget.Location,
-                _ => throw new InvalidOperationException("该实体类型不支持计算使用费用。")
-            };
-            foreach (var aura in auras)
-                if ((aura.Target == target || (aura.Target == CostAuraTarget.Hand && target != CostAuraTarget.HeroPower)) &&
-                    (aura.CardFilter is not { } cards || MatchesCardFilter(card, cards)))
+                if (aura.MinimumCost is int minCost && aura.Delta < 0)
                 {
-                    if (aura.MinimumCost is int minCost && aura.Delta < 0)
-                    {
-                        if (cost > minCost)
-                            cost = Math.Max(minCost, cost + aura.Delta);
-                    }
-                    else
-                    {
-                        cost += aura.Delta;
-                    }
+                    if (cost > minCost)
+                        cost = Math.Max(minCost, cost + aura.Delta);
                 }
-        }
+                else
+                    cost += aura.Delta;
+            }
 
         foreach (var temp in state.Players[entity.Controller].TemporaryCostAuras)
         {
@@ -122,28 +131,33 @@ public sealed partial class GameSimulator
 
         // 把单卡修正和场上光环全部相加后，再限制实际费用的范围。
         return (int)Math.Clamp(cost, 0, int.MaxValue);
+
+        bool Applies(CostAura aura) =>
+            (aura.Target == target || aura.Target == CostAuraTarget.Hand && target != CostAuraTarget.HeroPower) &&
+            (!aura.SecretOnly || card.IsSecret) &&
+            (aura.CardFilter is not { } cards || MatchesCardFilter(card, cards));
     }
 
     private sealed partial class Resolution
     {
-        private void PayCardCost(PlayerId playerId, EntityId source, SimulationCard card)
+        private int PayCardCost(PlayerId playerId, EntityId source, SimulationCard card)
         {
             var cost = _rules.EffectiveCost(_state, source);
             var type = EffectiveCostType(_state.Entities[source], card);
             if (type == TAG_CARD_ALTERNATE_COST.MANA)
             {
                 PayMana(playerId, cost);
-                return;
+                return cost;
             }
             if (cost == 0)
-                return;
+                return 0;
 
             var player = _state.Players[playerId];
             if (type == TAG_CARD_ALTERNATE_COST.CORPSES)
             {
                 _state = _state.UpdateResources(player with { CorpsesSpentThisGame = checked(player.CorpsesSpentThisGame + cost) });
                 _events.Add(new(SimulationEventKind.AlternateCostPaid, playerId, source, Amount: cost) { CostType = type });
-                return;
+                return cost;
             }
 
             // 支付生命或护甲直接扣除资源，伤害结算由独立的伤害流程处理。
@@ -156,6 +170,7 @@ public sealed partial class GameSimulator
             };
             _state = _state.UpdateCharacter(player.Hero, remaining);
             _events.Add(new(SimulationEventKind.AlternateCostPaid, playerId, source, player.Hero, cost) { CostType = type });
+            return cost;
         }
 
         private IEnumerable<GameEntity> HandCostTargets(EffectContext context, HandCostTarget target, CardFilter? filter)
@@ -189,6 +204,8 @@ public sealed partial class GameSimulator
             var modifier = CreateCostModifier(context.Source, effect.Delta, effect.EnchantmentCardId, effect.Duration);
             foreach (var entity in HandCostTargets(context, effect.Target, effect.CardFilter))
             {
+                if (effect.OtherClassOnly && !_rules.IsOtherClassCard(_state, context.Controller, _rules.Card(entity)))
+                    continue;
                 _state = _state.UpdateEntity(entity with { CostModifiers = entity.CostModifiers.Add(modifier) });
                 _events.Add(new(SimulationEventKind.EnchantmentApplied, context.Controller, context.Source, entity.Id, effect.Delta)
                     { EnchantmentCardId = modifier.CardId });

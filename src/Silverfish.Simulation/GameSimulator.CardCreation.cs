@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Silverfish.Domain;
 
 namespace Silverfish.Simulation;
@@ -30,12 +31,10 @@ public sealed partial class GameSimulator
 
         private void CreateRandomMatchingCard(EffectContext context, CreateRandomMatchingCardEffect effect)
         {
-            var candidates = effect.CardFilter.Kind == EntityKind.Spell
-                ? [.. _rules._cards.Values
-                    .Where(card => !card.IsPlayChoiceOption && MatchesCardFilter(card, effect.CardFilter))
-                    .Select(card => card.Definition.CardId)
-                    .OrderBy(id => id, StringComparer.Ordinal)]
-                : _rules.MatchingMinionCandidates(effect.CardFilter);
+            var candidates = effect.CardFilter.Kind == EntityKind.Minion || effect.CardFilter.MinionType is not null
+                ? _rules.MatchingMinionCandidates(effect.CardFilter) : _rules.GeneratedCardCandidates(effect.CardFilter);
+            if (effect.OtherClassOnly)
+                candidates = candidates.Where(id => _rules.IsOtherClassCard(_state, context.Controller, _rules.GetCard(id))).ToImmutableArray();
             if (candidates.IsEmpty)
                 return;
 
@@ -80,11 +79,10 @@ public sealed partial class GameSimulator
             var enemyClass = _rules.Card(_state.Entities[_state.Players[enemy].Hero]).Definition.ClassMask;
             var candidates = enemyClass == 0
                 ? []
-                : _rules._cards.Values
-                    .Where(card => card.Definition.Kind == EntityKind.Spell && !card.IsPlayChoiceOption &&
-                        (card.Definition.ClassMask & enemyClass) != 0)
-                    .Select(card => card.Definition.CardId)
-                    .OrderBy(id => id, StringComparer.Ordinal)
+                : (effect.IncludeAllKinds ? _rules.GeneratedCardCandidates(null, enemyClass).AsEnumerable() : _rules._cards.Values
+                    .Where(card => card.Definition.Kind == EntityKind.Spell && !card.IsPlayChoiceOption)
+                    .Select(card => card.Definition.CardId).Order(StringComparer.Ordinal))
+                    .Where(id => (_rules.GetCard(id).Definition.ClassMask & enemyClass) != 0)
                     .ToArray();
             if (candidates.Length == 0 && effect.FallbackCardId is null)
                 return;
@@ -98,11 +96,11 @@ public sealed partial class GameSimulator
             }
         }
 
-        private void CopyFriendlyBoardToHand(EffectContext context)
+        private void CopyFriendlyBoardToHand(EffectContext context, CopyFriendlyBoardToHandEffect effect)
         {
             var controller = context.Controller;
             var board = _rules.BoardMinions(_state, controller)
-                .Where(id => IsLivingCharacter(id))
+                .Where(id => IsLivingCharacter(id) && (!effect.DamagedOnly || _state.Entities[id].Character is { Damage: > 0 }))
                 .OrderBy(id => _state.Entities[id].PlayOrder)
                 .ToArray();
             foreach (var id in board)
@@ -122,8 +120,16 @@ public sealed partial class GameSimulator
             var recipient = effect.Recipient == CardRecipient.Controller ? context.Controller : _state.OpponentOf(context.Controller);
             for (var i = 0; i < effect.Count; i++)
             {
+                var copyId = new EntityId(_state.NextEntity);
                 if (!TryCreateCard(entity.CardId, recipient, context.Source, effect.Placement))
                     break;
+                if (effect.SetCost is int cost)
+                    SetGeneratedCardCost(recipient, context.Source, copyId, cost, effect.EnchantmentCardId);
+                if (effect.Modifier is { } modifier)
+                    _state = _state.UpdateEntity(_state.Entities[copyId] with
+                    {
+                        Enchantments = [new(context.Source, modifier) { CardId = effect.EnchantmentCardId }]
+                    });
                 SpendResolutionStep();
             }
 
@@ -169,7 +175,11 @@ public sealed partial class GameSimulator
             if (effect.Count > 1 && chosen is not null)
                 work.Push(new ApplyEffect(context, effect with { Count = effect.Count - 1 }));
 
-            if (Summon(player, cardId, position: null) is EntityId summoned)
+            var stats = effect.StatsOverride is { } modifier ? new StatEnchantment(context.Source, modifier)
+            {
+                CardId = effect.EnchantmentCardId
+            } : null;
+            if (Summon(player, cardId, ResolveSummonPosition(context, effect.Placement), statsOverride: stats) is EntityId summoned)
                 PushSummonTriggers(work, player, summoned);
         }
 
@@ -200,6 +210,19 @@ public sealed partial class GameSimulator
             _state = _state.AddToDeck(card, index);
             _events.Add(new(SimulationEventKind.CardAddedToDeck, recipient, source, id));
             return true;
+        }
+
+        private void SetGeneratedCardCost(PlayerId player, EntityId source, EntityId id, int cost, string? enchantmentCardId)
+        {
+            var entity = _state.Entities[id];
+            _state = _state.UpdateEntity(entity with
+            {
+                CostModifiers = [new(source, cost) { Mode = CostModifierMode.Set, CardId = enchantmentCardId }]
+            });
+            _events.Add(new(SimulationEventKind.EnchantmentApplied, player, source, id, cost)
+            {
+                EnchantmentCardId = enchantmentCardId
+            });
         }
 
         private void ShuffleDeck(PlayerId recipient, EntityId source)

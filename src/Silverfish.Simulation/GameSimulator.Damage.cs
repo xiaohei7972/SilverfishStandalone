@@ -18,6 +18,21 @@ public sealed partial class GameSimulator
             var entity = _state.Entities[target];
             if (_rules.IsEntityImmune(_state, entity) || IsImmuneAttackingHero(target))
                 return null;
+            var defendingPlayer = _state.Players[entity.Controller];
+            if (target == defendingPlayer.Hero)
+            {
+                foreach (var ally in _rules.BoardMinions(_state, entity.Controller))
+                    if (IsLivingCharacter(ally) && !_state.Entities[ally].Silenced &&
+                        _rules.Card(_state.Entities[ally]).RedirectFriendlyHeroDamageToSelf)
+                        return Damage(source, ally, amount, attackingWeapon, deferredLifesteal, allowLifesteal);
+                if (defendingPlayer.EquippedWeapon is EntityId weapon && !_state.Entities[weapon].Silenced &&
+                    _rules.Card(_state.Entities[weapon]).FriendlyHeroDamageMultiplier is int multiplier)
+                    amount = checked(amount * multiplier);
+                foreach (var ally in _rules.BoardMinions(_state, entity.Controller))
+                    if (IsLivingCharacter(ally) && !_state.Entities[ally].Silenced &&
+                        _rules.Card(_state.Entities[ally]).FriendlyHeroDamageCap is int cap)
+                        amount = Math.Min(cap, amount);
+            }
             var character = entity.Character!;
             if (character.DivineShield)
             {
@@ -102,6 +117,9 @@ public sealed partial class GameSimulator
             bool HasDamageKeyword(CardKeywords keyword) =>
                 (source is EntityId s && _state.Entities.TryGetValue(s, out var damageSource) &&
                     (_rules.HasKeyword(damageSource, keyword) ||
+                     keyword == CardKeywords.Lifesteal && _rules.Card(damageSource).Definition.Kind == EntityKind.Spell &&
+                        _rules.BoardMinions(_state, damageSource.Controller).Any(id => IsLivingCharacter(id) &&
+                            !_state.Entities[id].Silenced && _rules.Card(_state.Entities[id]).SpellsHaveLifesteal) ||
                      keyword == CardKeywords.Poisonous && _rules.HasEffectiveTag(damageSource, GAME_TAG.POISONOUS))) ||
                 (attackingWeapon is EntityId w && _state.Entities.TryGetValue(w, out var equipped) &&
                     (_rules.HasKeyword(equipped, keyword) ||
