@@ -28,8 +28,7 @@ internal static class Sim_CFM_603
         OnPlay =
         [
             new TakeControlEffect(ReadyToAttack: true),
-            new EnchantStatsEffect(StatTarget.Selected, null, EnchantmentDuration.CurrentTurn)
-                { EnchantmentCardId = Sim_CFM_603e.CardId },
+            Sim_CFM_603e.Rule.ApplyTo(StatTarget.Selected),
         ],
     };
 }

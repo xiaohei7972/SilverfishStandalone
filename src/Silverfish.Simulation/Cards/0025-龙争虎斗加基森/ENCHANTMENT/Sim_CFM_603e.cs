@@ -10,7 +10,7 @@ internal static class Sim_CFM_603e
 {
     internal const string CardId = "CFM_603e";
     internal static StatEnchantmentRule Rule { get; } =
-        new(CardId, null, EnchantmentDuration.CurrentTurn)
+        new(CardId, new(StatModifierMode.Add, Attack: 0), EnchantmentDuration.CurrentTurn)
         {
             OnRemoved =
             [
