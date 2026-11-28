@@ -933,6 +933,11 @@ public sealed partial class GameSimulator
                 case SummonMatchingMinionEffect summon:
                     SummonMatchingMinion(work, context, summon);
                     break;
+                case GainManaPerFriendlyMinionEffect:
+                    var friendlyMinions = _rules.BoardMinions(_state, context.Controller).Length;
+                    if (friendlyMinions > 0)
+                        ChangeMana(context, new(ManaOperation.GainEmpty, friendlyMinions));
+                    break;
                 case ChangeManaEffect mana:
                     ChangeMana(context, mana);
                     break;

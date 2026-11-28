@@ -832,6 +832,7 @@ public sealed partial class GameSimulator
                 ChangeManaEffect mana => mana.Amount > 0 && Enum.IsDefined(mana.Operation) && Enum.IsDefined(mana.Recipient) &&
                     (mana.OverflowCardId is null || (mana.Operation is ManaOperation.GainEmpty or ManaOperation.GainFilled &&
                         CanCreateCard(mana.OverflowCardId))),
+                GainManaPerFriendlyMinionEffect => true,
                 SummonEffect summon => Enum.IsDefined(summon.Placement) && Enum.IsDefined(summon.Recipient) &&
                     (summon.Recipient == CardRecipient.Controller || summon.Placement is SummonPlacement.Default or SummonPlacement.Rightmost) &&
                     (summon.Placement is not (SummonPlacement.LeftOfSource or SummonPlacement.RightOfSource) || hasInPlaySource) &&

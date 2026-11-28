@@ -18,6 +18,7 @@ public sealed partial class GameSimulator
         DiscoverCardChoice discover => !discover.Options.IsDefault && IsValidCardFilter(discover.Filter) &&
             (discover.Condition is null || IsValidCondition(discover.Condition, TargetRequirement.None, false,
                 card.Definition.Kind == EntityKind.Minion)) &&
+            (discover.SourceDeck is not ConditionPlayer sourceDeck || Enum.IsDefined(sourceDeck)) &&
             (discover.Modifier is null || IsValidModifier(discover.Modifier) && discover.Filter?.Kind == EntityKind.Minion) &&
             (!discover.HealHeroByChosenCost || !discover.ReplaceHeroPower) &&
             IsOptionalCardIdValid(discover.EnchantmentCardId) &&
@@ -109,7 +110,7 @@ public sealed partial class GameSimulator
     private ImmutableArray<string> PlayChoiceCandidates(GameState state, PlayerId player, EntityId source, PlayChoiceRule rule) => rule switch
     {
         DiscoverMinionChoice discover => DiscoverMinionCandidates(state, player, discover),
-        DiscoverCardChoice { Options.IsEmpty: true } discover => DiscoverCardCandidates(state, player, discover.Filter)
+        DiscoverCardChoice { Options.IsEmpty: true } discover => DiscoverCardCandidates(state, player, discover)
             .Where(id => id != state.Entities[source].CardId).ToImmutableArray(),
         DiscoverCardChoice { ReplaceHeroPower: true } discover => discover.Options.Where(id =>
             !state.Players[player].In(GameZone.HeroPower).Any(power => state.Entities[power].CardId == id)).ToImmutableArray(),
@@ -118,10 +119,24 @@ public sealed partial class GameSimulator
         _ => throw new InvalidOperationException("无法识别待决选择规则。")
     };
 
-    private ImmutableArray<string> DiscoverCardCandidates(GameState state, PlayerId player, CardFilter? filter)
+    private ImmutableArray<string> DiscoverCardCandidates(GameState state, PlayerId player, DiscoverCardChoice discover)
     {
+        if (discover.SourceDeck is ConditionPlayer sourceDeck)
+        {
+            var deckPlayer = sourceDeck == ConditionPlayer.Friendly ? player : state.OpponentOf(player);
+            return [.. state.Players[deckPlayer].In(GameZone.Deck)
+                .Select(id => state.Entities[id].CardId)
+                .Distinct(StringComparer.Ordinal)
+                .Where(id =>
+                {
+                    var card = GetCard(id);
+                    return discover.Filter is null || MatchesCardFilter(card, discover.Filter);
+                })
+                .Order(StringComparer.Ordinal)];
+        }
+
         var classes = Card(state.Entities[state.Players[player].Hero]).Definition.ClassMask | NeutralClass;
-        return GeneratedCardCandidates(filter, classes);
+        return GeneratedCardCandidates(discover.Filter, classes);
     }
 
     private ImmutableArray<string> GeneratedCardCandidates(CardFilter? filter, uint classes = 0) =>

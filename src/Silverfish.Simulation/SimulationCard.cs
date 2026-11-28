@@ -22,7 +22,7 @@ public enum RandomDamageMode { Sequential, DistinctBatch }
 public enum ManaOperation { GainTemporary, GainEmpty, GainFilled, Refresh, Destroy }
 public enum ManaRecipient { Controller, Opponent, BothPlayers }
 public enum SummonPlacement { Default, Rightmost, LeftOfSource, RightOfSource }
-public enum StatTarget { Selected, Source, TriggerSubject, FriendlyMinions, OtherFriendlyMinions, AdjacentFriendlyMinions, RandomOtherFriendlyMinion, AllMinions, FriendlyHero, EnemyMinions, FriendlyHandAndDeck, FriendlyHand }
+public enum StatTarget { Selected, Source, TriggerSubject, FriendlyMinions, OtherFriendlyMinions, AdjacentFriendlyMinions, RandomOtherFriendlyMinion, RandomFriendlyHandMinion, AllMinions, FriendlyHero, EnemyMinions, FriendlyHandAndDeck, FriendlyHand }
 public enum StatScaleSource { CardsPlayedBeforeThis, FriendlyHandCount, EquippedWeaponAttack, EnemyDeathrattleMinions, FriendlyMinions, EnemyMinions }
 public enum DynamicStatMode { AttackEqualsHealth, SwapAttackAndHealth, DoubleAttack }
 public enum DynamicDrawMode { DamagedFriendlyCharacters, MatchOpponentHandSize }
@@ -207,6 +207,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(SummonRandomMinionEffect), "summonRandomMinion")]
 [JsonDerivedType(typeof(SummonMatchingMinionEffect), "summonMatchingMinion")]
 [JsonDerivedType(typeof(ChangeManaEffect), "changeMana")]
+[JsonDerivedType(typeof(GainManaPerFriendlyMinionEffect), "gainManaPerFriendlyMinion")]
 [JsonDerivedType(typeof(ConditionalEffect), "conditional")]
 [JsonDerivedType(typeof(RandomChanceEffect), "randomChance")]
 [JsonDerivedType(typeof(JoustEffect), "joust")]
@@ -520,6 +521,7 @@ public sealed record SummonMatchingMinionEffect(
     CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
 public sealed record ChangeManaEffect(ManaOperation Operation, int Amount, ManaRecipient Recipient = ManaRecipient.Controller,
     string? OverflowCardId = null) : CardEffect;
+public sealed record GainManaPerFriendlyMinionEffect : CardEffect;
 
 public sealed record ConditionalEffect(EffectCondition Condition, ImmutableArray<CardEffect> Then) : CardEffect
 {
@@ -612,6 +614,7 @@ public sealed record DiscoverMinionChoice(int SummonCopies, bool LegendaryOnly =
 public sealed record DiscoverCardChoice(CardFilter? Filter = null) : PlayChoiceRule
 {
     public ImmutableArray<string> Options { get; init; } = [];
+    public ConditionPlayer? SourceDeck { get; init; }
     public EffectCondition? Condition { get; init; }
     public bool ReplaceHeroPower { get; init; }
     public int CostDelta { get; init; }

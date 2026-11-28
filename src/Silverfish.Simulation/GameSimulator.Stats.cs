@@ -238,6 +238,7 @@ public sealed partial class GameSimulator
                 StatTarget.OtherFriendlyMinions => _rules.BoardMinions(_state, context.Controller).Where(id => id != context.Source),
                 StatTarget.AdjacentFriendlyMinions => AdjacentMinions(context.Source),
                 StatTarget.RandomOtherFriendlyMinion => PickRandomOtherFriendlyMinion(context, effect.CardFilter),
+                StatTarget.RandomFriendlyHandMinion => PickRandomFriendlyHandMinion(context, effect.CardFilter),
                 StatTarget.AllMinions => _state.Players.Values.SelectMany(player => _rules.BoardMinions(_state, player.Id))
                     .OrderBy(id => _state.Entities[id].PlayOrder),
                 _ => throw new InvalidOperationException("无法识别属性附魔的目标。")
@@ -257,7 +258,7 @@ public sealed partial class GameSimulator
                 if (effect.CardFilter is { } filter && !_rules.MatchesEntityFilter(entity, filter))
                     continue;
                 if (card.Definition.Kind == EntityKind.Minion && effect.Modifier is not null &&
-                    (zone == GameZone.Hand && effect.Target is StatTarget.Source or StatTarget.FriendlyHand ||
+                    (zone == GameZone.Hand && effect.Target is StatTarget.Source or StatTarget.FriendlyHand or StatTarget.RandomFriendlyHandMinion ||
                      zone is GameZone.Hand or GameZone.Deck && effect.Target == StatTarget.FriendlyHandAndDeck))
                 {
                     var handEnchant = new StatEnchantment(context.Source, effect.Modifier, expires)
@@ -484,6 +485,14 @@ public sealed partial class GameSimulator
             var hasEffects = work.Count != 0;
             RunWork(work);
             return hasEffects;
+        }
+        private ImmutableArray<EntityId> PickRandomFriendlyHandMinion(EffectContext context, CardFilter? filter)
+        {
+            var candidates = _state.Players[context.Controller].In(GameZone.Hand)
+                .Where(id => _rules.Card(_state.Entities[id]).Definition.Kind == EntityKind.Minion)
+                .Where(id => filter is null || _rules.MatchesEntityFilter(_state.Entities[id], filter))
+                .ToArray();
+            return candidates.Length == 0 ? [] : [candidates[ChooseIndex(candidates.Length)]];
         }
     }
 }
