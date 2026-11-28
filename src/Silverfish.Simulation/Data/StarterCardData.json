@@ -3,48 +3,1926 @@
   "sourceBuild": 256589,
   "cards": [
     {
-      "cardId": "AT_038",
-      "dbfId": 2782,
+      "cardId": "CS1_113",
+      "dbfId": 8,
       "name": {
-        "enUs": "Darnassus Aspirant",
-        "zhCn": "达纳苏斯豹骑士"
+        "enUs": "Mind Control",
+        "zhCn": "精神控制"
       },
       "text": {
-        "enUs": "<b>Battlecry:</b> Gain an empty Mana Crystal.\n<b>Deathrattle:</b> Lose a Mana Crystal.",
-        "zhCn": "<b>战吼：</b>获得一个空的法力水晶。\n<b>亡语：</b>失去一个法力水晶。"
+        "enUs": "Take control of an enemy minion.",
+        "zhCn": "夺取一个敌方随从的控制权。"
       },
       "tags": {
-        "45": 3,
-        "47": 2,
-        "48": 2,
-        "183": 15,
-        "199": 2,
+        "48": 9,
+        "183": 1635,
+        "199": 6,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 5,
+        "268": 2,
+        "321": 1,
+        "1635": 6
+      }
+    },
+    {
+      "cardId": "EX1_350",
+      "dbfId": 9,
+      "name": {
+        "enUs": "Prophet Velen",
+        "zhCn": "先知维伦"
+      },
+      "text": {
+        "enUs": "Double the damage and healing of your spells and Hero Power.",
+        "zhCn": "使你的法术和英雄技能的伤害和治疗效果翻倍。"
+      },
+      "tags": {
+        "45": 7,
+        "47": 7,
+        "48": 7,
+        "114": 1,
+        "183": 3,
+        "199": 6,
+        "200": 2,
+        "201": 3,
         "202": 4,
-        "203": 3,
-        "217": 1,
-        "218": 1,
+        "203": 5,
+        "251": 1,
         "321": 1
       }
     },
     {
-      "cardId": "BOT_054",
-      "dbfId": 47887,
+      "cardId": "EX1_055",
+      "dbfId": 12,
       "name": {
-        "enUs": "Biology Project",
-        "zhCn": "生物计划"
+        "enUs": "Mana Addict",
+        "zhCn": "魔瘾者"
       },
       "text": {
-        "enUs": "Each player gains 2_Mana Crystals.",
-        "zhCn": "每个玩家获得两个法力水晶。"
+        "enUs": "Whenever you cast a spell, gain +2 Attack this turn.",
+        "zhCn": "在本回合中，每当你施放一个法术，便获得+2攻击力。"
+      },
+      "tags": {
+        "32": 1,
+        "45": 3,
+        "47": 1,
+        "48": 2,
+        "183": 3,
+        "199": 12,
+        "201": 2,
+        "202": 4,
+        "203": 3,
+        "251": 6,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_607",
+      "dbfId": 22,
+      "name": {
+        "enUs": "Inner Rage",
+        "zhCn": "怒火中烧"
+      },
+      "text": {
+        "enUs": "Deal $1 damage to a minion and give it +2_Attack.",
+        "zhCn": "对一个随从造成$1点伤害，并使其获得+2攻击力。"
+      },
+      "tags": {
+        "183": 3,
+        "199": 10,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_407",
+      "dbfId": 75,
+      "name": {
+        "enUs": "Brawl",
+        "zhCn": "绝命乱斗"
+      },
+      "text": {
+        "enUs": "Destroy all minions except one. <i>(chosen randomly)</i>",
+        "zhCn": "随机选择一个随从，消灭除了该随从外的所有其他随从。"
+      },
+      "tags": {
+        "48": 5,
+        "183": 3,
+        "199": 10,
+        "201": 3,
+        "202": 5,
+        "203": 4,
+        "251": 1,
+        "321": 1,
+        "2589": 1
+      }
+    },
+    {
+      "cardId": "CS2_022",
+      "dbfId": 77,
+      "name": {
+        "enUs": "Polymorph",
+        "zhCn": "变形术"
+      },
+      "text": {
+        "enUs": "Transform a minion\ninto a 1/1 Sheep.",
+        "zhCn": "使一个随从变形成为1/1的绵羊。"
+      },
+      "tags": {
+        "48": 4,
+        "183": 1635,
+        "199": 4,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "268": 2,
+        "321": 1,
+        "1452": 796,
+        "1635": 1
+      }
+    },
+    {
+      "cardId": "EX1_164",
+      "dbfId": 95,
+      "name": {
+        "enUs": "Nourish",
+        "zhCn": "滋养"
+      },
+      "text": {
+        "enUs": "<b>Choose One -</b> Gain 2_Mana Crystals; or Draw 3 cards.",
+        "zhCn": "<b>抉择：</b>获得两个法力水晶；或者抽三张牌。"
+      },
+      "tags": {
+        "48": 5,
+        "183": 3,
+        "199": 2,
+        "201": 3,
+        "202": 5,
+        "203": 3,
+        "321": 1,
+        "443": 1,
+        "1635": 4
+      }
+    },
+    {
+      "cardId": "NEW1_034",
+      "dbfId": 100,
+      "name": {
+        "enUs": "Huffer",
+        "zhCn": "霍弗"
+      },
+      "text": {
+        "enUs": "<b>Charge</b>",
+        "zhCn": "<b>冲锋</b>"
+      },
+      "tags": {
+        "45": 2,
+        "47": 4,
+        "48": 3,
+        "183": 1635,
+        "197": 1,
+        "199": 3,
+        "200": 20,
+        "202": 4
+      }
+    },
+    {
+      "cardId": "EX1_130a",
+      "dbfId": 102,
+      "name": {
+        "enUs": "Defender",
+        "zhCn": "防御者"
+      },
+      "tags": {
+        "45": 1,
+        "47": 2,
+        "48": 1,
+        "183": 3,
+        "199": 5,
+        "200": 2,
+        "201": 3,
+        "202": 4,
+        "251": 6
+      }
+    },
+    {
+      "cardId": "EX1_287",
+      "dbfId": 113,
+      "name": {
+        "enUs": "Counterspell",
+        "zhCn": "法术反制"
+      },
+      "text": {
+        "enUs": "<b>Secret:</b> When your opponent casts a spell, <b>Counter</b> it.",
+        "zhCn": "<b>奥秘：</b>当你的对手施放一个法术时，<b>反制</b>该法术。"
+      },
+      "tags": {
+        "48": 3,
+        "183": 3,
+        "199": 4,
+        "201": 3,
+        "202": 5,
+        "203": 3,
+        "219": 1,
+        "251": 1,
+        "321": 1,
+        "1635": 1
+      }
+    },
+    {
+      "cardId": "CS2_231",
+      "dbfId": 179,
+      "name": {
+        "enUs": "Wisp",
+        "zhCn": "小精灵"
+      },
+      "tags": {
+        "45": 1,
+        "47": 1,
+        "183": 3,
+        "199": 12,
+        "200": 11,
+        "201": 3,
+        "202": 4,
+        "203": 1,
+        "251": 7,
+        "321": 1,
+        "3881": 1
+      }
+    },
+    {
+      "cardId": "EX1_554t",
+      "dbfId": 204,
+      "name": {
+        "enUs": "Snake",
+        "zhCn": "蛇"
+      },
+      "tags": {
+        "45": 1,
+        "47": 1,
+        "48": 1,
+        "183": 3,
+        "199": 3,
+        "200": 20,
+        "201": 3,
+        "202": 4,
+        "251": 6,
+        "1440": 1
+      }
+    },
+    {
+      "cardId": "CS2_172",
+      "dbfId": 216,
+      "name": {
+        "enUs": "Bloodfen Raptor",
+        "zhCn": "血沼迅猛龙"
+      },
+      "tags": {
+        "45": 2,
+        "47": 3,
+        "48": 2,
+        "183": 1635,
+        "199": 12,
+        "200": 20,
+        "201": 1,
+        "202": 4,
+        "203": 2,
+        "251": 1,
+        "268": 2,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "NEW1_033",
+      "dbfId": 226,
+      "name": {
+        "enUs": "Leokk",
+        "zhCn": "雷欧克"
+      },
+      "text": {
+        "enUs": "Your other minions have +1 Attack.",
+        "zhCn": "你的其他随从拥有+1攻击力。"
+      },
+      "tags": {
+        "45": 4,
+        "47": 2,
+        "48": 3,
+        "183": 1635,
+        "199": 3,
+        "200": 20,
+        "202": 4,
+        "362": 1
+      }
+    },
+    {
+      "cardId": "EX1_169",
+      "dbfId": 254,
+      "name": {
+        "enUs": "Innervate",
+        "zhCn": "激活"
+      },
+      "text": {
+        "enUs": "Gain 1 Mana Crystal this turn only.",
+        "zhCn": "在本回合中，获得一个\n法力水晶。"
+      },
+      "tags": {
+        "183": 1635,
+        "199": 2,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "321": 1,
+        "1635": 4,
+        "2589": 1
+      }
+    },
+    {
+      "cardId": "CS2_124",
+      "dbfId": 289,
+      "name": {
+        "enUs": "Wolfrider",
+        "zhCn": "狼骑兵"
+      },
+      "text": {
+        "enUs": "<b>Charge</b>",
+        "zhCn": "<b>冲锋</b>"
+      },
+      "tags": {
+        "45": 1,
+        "47": 3,
+        "48": 3,
+        "183": 1635,
+        "197": 1,
+        "199": 12,
+        "201": 1,
+        "202": 4,
+        "203": 2,
+        "251": 6,
+        "268": 2,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_251",
+      "dbfId": 299,
+      "name": {
+        "enUs": "Forked Lightning",
+        "zhCn": "叉状闪电"
+      },
+      "text": {
+        "enUs": "Deal $2 damage to 2_random enemy minions. <b>Overload:</b> (2)",
+        "zhCn": "随机对两个敌方随从造成$2点伤害，<b>过载：</b>（2）"
       },
       "tags": {
         "48": 1,
-        "183": 1127,
-        "199": 2,
+        "183": 3,
+        "199": 8,
+        "201": 3,
         "202": 5,
         "203": 1,
+        "215": 2,
+        "251": 1,
         "321": 1,
         "1635": 4
+      }
+    },
+    {
+      "cardId": "CS2_112",
+      "dbfId": 304,
+      "name": {
+        "enUs": "Arcanite Reaper",
+        "zhCn": "奥金斧"
+      },
+      "tags": {
+        "45": 2,
+        "47": 5,
+        "48": 5,
+        "183": 1635,
+        "199": 10,
+        "201": 3,
+        "202": 7,
+        "203": 2,
+        "251": 6,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "CS2_029",
+      "dbfId": 315,
+      "name": {
+        "enUs": "Fireball",
+        "zhCn": "火球术"
+      },
+      "text": {
+        "enUs": "Deal $6 damage.",
+        "zhCn": "造成$6点伤害。"
+      },
+      "tags": {
+        "48": 4,
+        "183": 1635,
+        "199": 4,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 3,
+        "268": 2,
+        "321": 1,
+        "1635": 2
+      }
+    },
+    {
+      "cardId": "CS2_076",
+      "dbfId": 345,
+      "name": {
+        "enUs": "Assassinate",
+        "zhCn": "刺杀"
+      },
+      "text": {
+        "enUs": "Destroy an enemy minion.",
+        "zhCn": "消灭一个敌方随从。"
+      },
+      "tags": {
+        "48": 4,
+        "183": 1635,
+        "199": 7,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 6,
+        "268": 2,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_567",
+      "dbfId": 352,
+      "name": {
+        "enUs": "Doomhammer",
+        "zhCn": "毁灭之锤"
+      },
+      "text": {
+        "enUs": "<b>Windfury, Overload:</b> (2)",
+        "zhCn": "<b>风怒，过载：</b>（2）"
+      },
+      "tags": {
+        "45": 8,
+        "47": 2,
+        "48": 5,
+        "183": 3,
+        "189": 1,
+        "199": 8,
+        "201": 3,
+        "202": 7,
+        "203": 4,
+        "215": 2,
+        "251": 6,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_144",
+      "dbfId": 365,
+      "name": {
+        "enUs": "Shadowstep",
+        "zhCn": "暗影步"
+      },
+      "text": {
+        "enUs": "Return a friendly minion to your hand. It_costs (2) less.",
+        "zhCn": "将一个友方随从移回你的手牌，它的法力值消耗减少\n（2）点。"
+      },
+      "tags": {
+        "183": 3,
+        "199": 7,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "251": 1,
+        "321": 1,
+        "1635": 6,
+        "2589": 1
+      }
+    },
+    {
+      "cardId": "CS2_091",
+      "dbfId": 383,
+      "name": {
+        "enUs": "Light's Justice",
+        "zhCn": "圣光的正义"
+      },
+      "tags": {
+        "45": 4,
+        "47": 1,
+        "48": 1,
+        "183": 1635,
+        "199": 5,
+        "201": 3,
+        "202": 7,
+        "203": 2,
+        "251": 6,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "CS2_033",
+      "dbfId": 395,
+      "name": {
+        "enUs": "Water Elemental",
+        "zhCn": "水元素"
+      },
+      "text": {
+        "enUs": "<b>Freeze</b> any character damaged by this minion.",
+        "zhCn": "<b>冻结</b>任何受到本随从伤害的角色。"
+      },
+      "tags": {
+        "45": 6,
+        "47": 3,
+        "48": 4,
+        "183": 1635,
+        "199": 4,
+        "200": 18,
+        "201": 3,
+        "202": 4,
+        "203": 2,
+        "208": 1,
+        "251": 1,
+        "268": 2,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "CS2_106",
+      "dbfId": 401,
+      "name": {
+        "enUs": "Fiery War Axe",
+        "zhCn": "炽炎战斧"
+      },
+      "tags": {
+        "45": 2,
+        "47": 3,
+        "48": 2,
+        "183": 1635,
+        "199": 10,
+        "201": 3,
+        "202": 7,
+        "203": 2,
+        "251": 6,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_049",
+      "dbfId": 415,
+      "name": {
+        "enUs": "Youthful Brewmaster",
+        "zhCn": "年轻的酒仙"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> Return a friendly minion from the battlefield to your hand.",
+        "zhCn": "<b>战吼：</b>使一个友方随从从战场上移回你的手牌。"
+      },
+      "tags": {
+        "45": 2,
+        "47": 3,
+        "48": 2,
+        "183": 3,
+        "199": 12,
+        "201": 2,
+        "202": 4,
+        "203": 1,
+        "218": 1,
+        "251": 6,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "NEW1_031",
+      "dbfId": 437,
+      "name": {
+        "enUs": "Animal Companion",
+        "zhCn": "动物伙伴"
+      },
+      "text": {
+        "enUs": "Summon a random Beast Companion.",
+        "zhCn": "随机召唤一个野兽伙伴。"
+      },
+      "tags": {
+        "48": 3,
+        "183": 1635,
+        "199": 3,
+        "202": 5,
+        "203": 2,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_554",
+      "dbfId": 455,
+      "name": {
+        "enUs": "Snake Trap",
+        "zhCn": "毒蛇陷阱"
+      },
+      "text": {
+        "enUs": "<b>Secret:</b> When one of your minions is attacked, summon three 1/1 Snakes.",
+        "zhCn": "<b>奥秘：</b>当你的随从受到攻击时，召唤三条1/1的蛇。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 3,
+        "199": 3,
+        "201": 3,
+        "202": 5,
+        "203": 4,
+        "219": 1,
+        "321": 1,
+        "1452": 204
+      }
+    },
+    {
+      "cardId": "CS2_028",
+      "dbfId": 457,
+      "name": {
+        "enUs": "Blizzard",
+        "zhCn": "暴风雪"
+      },
+      "text": {
+        "enUs": "Deal $2 damage to all enemy minions and <b>Freeze</b> them.",
+        "zhCn": "对所有敌方随从造成$2点伤害，并使其<b>冻结</b>。"
+      },
+      "tags": {
+        "48": 6,
+        "183": 3,
+        "199": 4,
+        "201": 3,
+        "202": 5,
+        "203": 3,
+        "208": 1,
+        "251": 1,
+        "268": 2,
+        "321": 1,
+        "1635": 3
+      }
+    },
+    {
+      "cardId": "EX1_581",
+      "dbfId": 461,
+      "name": {
+        "enUs": "Sap",
+        "zhCn": "闷棍"
+      },
+      "text": {
+        "enUs": "Return an enemy minion to your opponent's hand.",
+        "zhCn": "将一个敌方随从移回你对手的\n手牌。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 7,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "268": 2,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "CS2_082",
+      "dbfId": 485,
+      "name": {
+        "enUs": "Wicked Knife",
+        "zhCn": "邪恶短刀"
+      },
+      "tags": {
+        "45": 2,
+        "47": 1,
+        "48": 1,
+        "183": 1635,
+        "199": 7,
+        "201": 3,
+        "202": 7,
+        "203": 2,
+        "251": 6
+      }
+    },
+    {
+      "cardId": "EX1_238",
+      "dbfId": 505,
+      "name": {
+        "enUs": "Lightning Bolt",
+        "zhCn": "闪电箭"
+      },
+      "text": {
+        "enUs": "Deal $3 damage. <b>Overload:</b> (1)",
+        "zhCn": "造成$3点伤害，<b>过载：</b>（1）"
+      },
+      "tags": {
+        "48": 1,
+        "183": 3,
+        "199": 8,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "215": 1,
+        "251": 1,
+        "321": 1,
+        "1635": 4
+      }
+    },
+    {
+      "cardId": "EX1_301",
+      "dbfId": 517,
+      "name": {
+        "enUs": "Felguard",
+        "zhCn": "恶魔卫士"
+      },
+      "text": {
+        "enUs": "<b>Taunt</b>\n<b>Battlecry:</b> Destroy one of your Mana Crystals.",
+        "zhCn": "<b>嘲讽，战吼：</b>摧毁你的一个法力水晶。"
+      },
+      "tags": {
+        "45": 5,
+        "47": 3,
+        "48": 3,
+        "183": 3,
+        "190": 1,
+        "199": 9,
+        "200": 15,
+        "201": 3,
+        "202": 4,
+        "203": 3,
+        "218": 1,
+        "251": 1,
+        "268": 2,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_611",
+      "dbfId": 519,
+      "name": {
+        "enUs": "Freezing Trap",
+        "zhCn": "冰冻陷阱"
+      },
+      "text": {
+        "enUs": "<b>Secret:</b> When an enemy minion attacks, return it to its owner's hand. It costs (2) more.",
+        "zhCn": "<b>奥秘：</b>当一个敌方随从攻击时，将其移回拥有者的手牌，并且法力值消耗增加（2）点。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 3,
+        "199": 3,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "219": 1,
+        "321": 1,
+        "1635": 3
+      }
+    },
+    {
+      "cardId": "hexfrog",
+      "dbfId": 548,
+      "name": {
+        "enUs": "Frog",
+        "zhCn": "青蛙"
+      },
+      "text": {
+        "enUs": "<b>Taunt</b>",
+        "zhCn": "<b>嘲讽</b>"
+      },
+      "tags": {
+        "45": 1,
+        "183": 1635,
+        "190": 1,
+        "199": 8,
+        "200": 20,
+        "201": 3,
+        "202": 4,
+        "251": 6
+      }
+    },
+    {
+      "cardId": "CS2_023",
+      "dbfId": 555,
+      "name": {
+        "enUs": "Arcane Intellect",
+        "zhCn": "奥术智慧"
+      },
+      "text": {
+        "enUs": "Draw 2 cards.",
+        "zhCn": "抽两张牌。"
+      },
+      "tags": {
+        "48": 3,
+        "183": 1635,
+        "199": 4,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "268": 2,
+        "321": 1,
+        "1635": 1
+      }
+    },
+    {
+      "cardId": "EX1_277",
+      "dbfId": 564,
+      "name": {
+        "enUs": "Arcane Missiles",
+        "zhCn": "奥术飞弹"
+      },
+      "text": {
+        "enUs": "Deal $3 damage randomly split among all enemies.",
+        "zhCn": "造成$3点伤害，随机分配到所有敌人身上。"
+      },
+      "tags": {
+        "48": 1,
+        "183": 1635,
+        "199": 4,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "268": 2,
+        "321": 1,
+        "349": 1,
+        "1635": 1
+      }
+    },
+    {
+      "cardId": "EX1_033",
+      "dbfId": 567,
+      "name": {
+        "enUs": "Windfury Harpy",
+        "zhCn": "风怒鹰身人"
+      },
+      "text": {
+        "enUs": "<b>Windfury</b>",
+        "zhCn": "<b>风怒</b>"
+      },
+      "tags": {
+        "45": 5,
+        "47": 4,
+        "48": 6,
+        "183": 3,
+        "189": 1,
+        "199": 12,
+        "201": 2,
+        "202": 4,
+        "203": 1,
+        "251": 6,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_130",
+      "dbfId": 584,
+      "name": {
+        "enUs": "Noble Sacrifice",
+        "zhCn": "崇高牺牲"
+      },
+      "text": {
+        "enUs": "<b>Secret:</b> When an enemy attacks, summon a 2/1 Defender as the new target.",
+        "zhCn": "<b>奥秘：</b>当一个敌人攻击时，召唤一个2/1的防御者，并使其成为攻击的目标。"
+      },
+      "tags": {
+        "48": 1,
+        "183": 3,
+        "199": 5,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "219": 1,
+        "321": 1,
+        "1452": 102
+      }
+    },
+    {
+      "cardId": "EX1_610",
+      "dbfId": 585,
+      "name": {
+        "enUs": "Explosive Trap",
+        "zhCn": "爆炸陷阱"
+      },
+      "text": {
+        "enUs": "<b>Secret:</b> When your hero is attacked, deal $2 damage to all enemies.",
+        "zhCn": "<b>奥秘：</b>当你的英雄受到攻击，对所有敌人造成$2点伤害。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 3,
+        "199": 3,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "219": 1,
+        "321": 1,
+        "1635": 2
+      }
+    },
+    {
+      "cardId": "CS2_026",
+      "dbfId": 587,
+      "name": {
+        "enUs": "Frost Nova",
+        "zhCn": "冰霜新星"
+      },
+      "text": {
+        "enUs": "<b>Freeze</b> all enemy minions.",
+        "zhCn": "<b>冻结</b>所有敌方随从。"
+      },
+      "tags": {
+        "48": 3,
+        "183": 1635,
+        "199": 4,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "208": 1,
+        "251": 1,
+        "268": 2,
+        "321": 1,
+        "1635": 3
+      }
+    },
+    {
+      "cardId": "EX1_402",
+      "dbfId": 596,
+      "name": {
+        "enUs": "Armorsmith",
+        "zhCn": "铸甲师"
+      },
+      "text": {
+        "enUs": "Whenever a friendly minion_takes damage, gain 1 Armor.",
+        "zhCn": "每当一个友方随从受到伤害，便获得1点护甲值。"
+      },
+      "tags": {
+        "32": 1,
+        "45": 4,
+        "47": 1,
+        "48": 2,
+        "183": 3,
+        "199": 10,
+        "201": 3,
+        "202": 4,
+        "203": 3,
+        "251": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_019",
+      "dbfId": 608,
+      "name": {
+        "enUs": "Shattered Sun Cleric",
+        "zhCn": "破碎残阳祭司"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> Give a friendly minion +1/+1.",
+        "zhCn": "<b>战吼：</b>使一个友方随从获得+1/+1。"
+      },
+      "tags": {
+        "45": 2,
+        "47": 3,
+        "48": 3,
+        "183": 1635,
+        "199": 12,
+        "201": 3,
+        "202": 4,
+        "203": 2,
+        "218": 1,
+        "251": 5,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_289",
+      "dbfId": 621,
+      "name": {
+        "enUs": "Ice Barrier",
+        "zhCn": "寒冰护体"
+      },
+      "text": {
+        "enUs": "<b>Secret:</b> When your\nhero is attacked,\ngain 8 Armor.",
+        "zhCn": "<b>奥秘：</b>当你的英雄受到攻击时，获得8点护甲值。"
+      },
+      "tags": {
+        "48": 3,
+        "183": 3,
+        "199": 4,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "219": 1,
+        "251": 1,
+        "321": 1,
+        "1635": 3
+      }
+    },
+    {
+      "cardId": "EX1_259",
+      "dbfId": 629,
+      "name": {
+        "enUs": "Lightning Storm",
+        "zhCn": "闪电风暴"
+      },
+      "text": {
+        "enUs": "Deal $3 damage to all_enemy minions. <b>Overload:</b> (1)",
+        "zhCn": "对所有敌方随从造成$3点伤害，<b>过载：</b>（1）"
+      },
+      "tags": {
+        "48": 3,
+        "183": 3,
+        "199": 8,
+        "201": 3,
+        "202": 5,
+        "203": 3,
+        "215": 1,
+        "251": 1,
+        "321": 1,
+        "1635": 4
+      }
+    },
+    {
+      "cardId": "CS2_169",
+      "dbfId": 641,
+      "name": {
+        "enUs": "Young Dragonhawk",
+        "zhCn": "幼龙鹰"
+      },
+      "text": {
+        "enUs": "<b>Windfury</b>",
+        "zhCn": "<b>风怒</b>"
+      },
+      "tags": {
+        "45": 1,
+        "47": 1,
+        "48": 1,
+        "183": 3,
+        "189": 1,
+        "199": 12,
+        "200": 20,
+        "201": 1,
+        "202": 4,
+        "203": 1,
+        "251": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "CS2_024",
+      "dbfId": 662,
+      "name": {
+        "enUs": "Frostbolt",
+        "zhCn": "寒冰箭"
+      },
+      "text": {
+        "enUs": "Deal $3 damage to a_character and <b>Freeze</b> it.",
+        "zhCn": "对一个角色造成$3点伤害，并使其<b>冻结</b>。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 4,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "208": 1,
+        "251": 1,
+        "268": 2,
+        "321": 1,
+        "1635": 3
+      }
+    },
+    {
+      "cardId": "HERO_01bp",
+      "dbfId": 725,
+      "name": {
+        "enUs": "Armor Up!",
+        "zhCn": "全副武装！"
+      },
+      "text": {
+        "enUs": "<b>Hero Power</b>\nGain $d2 Armor.",
+        "zhCn": "<b>英雄技能</b>\n获得$d2点护甲值。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 10,
+        "201": 3,
+        "202": 10,
+        "203": 2,
+        "251": 1,
+        "1086": 2745
+      }
+    },
+    {
+      "cardId": "HERO_03bp",
+      "dbfId": 730,
+      "name": {
+        "enUs": "Dagger Mastery",
+        "zhCn": "匕首精通"
+      },
+      "text": {
+        "enUs": "<b>Hero Power</b>\nEquip a 1/2 Dagger.",
+        "zhCn": "<b>英雄技能</b>\n装备一把1/2的\n匕首。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 7,
+        "201": 3,
+        "202": 10,
+        "203": 2,
+        "251": 1,
+        "268": 2,
+        "1086": 2743
+      }
+    },
+    {
+      "cardId": "CS2_222",
+      "dbfId": 753,
+      "name": {
+        "enUs": "Stormwind Champion",
+        "zhCn": "暴风城勇士"
+      },
+      "text": {
+        "enUs": "Your other minions have +1/+1.",
+        "zhCn": "你的其他随从拥有+1/+1。"
+      },
+      "tags": {
+        "45": 7,
+        "47": 7,
+        "48": 7,
+        "183": 1635,
+        "199": 12,
+        "201": 2,
+        "202": 4,
+        "203": 2,
+        "251": 1,
+        "321": 1,
+        "362": 1
+      }
+    },
+    {
+      "cardId": "EX1_619",
+      "dbfId": 756,
+      "name": {
+        "enUs": "Equality",
+        "zhCn": "生而平等"
+      },
+      "text": {
+        "enUs": "Change the Health of ALL minions to 1.",
+        "zhCn": "将所有随从的生命值变为1。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 3,
+        "199": 5,
+        "201": 3,
+        "202": 5,
+        "203": 3,
+        "251": 5,
+        "321": 1,
+        "1635": 5
+      }
+    },
+    {
+      "cardId": "EX1_082",
+      "dbfId": 762,
+      "name": {
+        "enUs": "Mad Bomber",
+        "zhCn": "疯狂投弹者"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> Deal 3 damage randomly split between all other characters.",
+        "zhCn": "<b>战吼：</b>造成3点伤害，随机分配到所有其他角色身上。"
+      },
+      "tags": {
+        "45": 2,
+        "47": 3,
+        "48": 2,
+        "183": 3,
+        "199": 12,
+        "201": 2,
+        "202": 4,
+        "203": 1,
+        "218": 1,
+        "251": 6,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_246",
+      "dbfId": 766,
+      "name": {
+        "enUs": "Hex",
+        "zhCn": "妖术"
+      },
+      "text": {
+        "enUs": "Transform a minion into a 0/1 Frog with <b>Taunt</b>.",
+        "zhCn": "使一个随从变形成为一只0/1并具有<b>嘲讽</b>的青蛙。"
+      },
+      "tags": {
+        "48": 3,
+        "183": 1635,
+        "199": 8,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "321": 1,
+        "1452": 548,
+        "1635": 4
+      }
+    },
+    {
+      "cardId": "EX1_245",
+      "dbfId": 767,
+      "name": {
+        "enUs": "Earth Shock",
+        "zhCn": "大地震击"
+      },
+      "text": {
+        "enUs": "<b>Silence</b> a minion, then deal $1 damage to it.",
+        "zhCn": "<b>沉默</b>一个随从，然后对其造成$1点伤害。"
+      },
+      "tags": {
+        "48": 1,
+        "183": 3,
+        "199": 8,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "251": 1,
+        "321": 1,
+        "339": 1,
+        "1635": 4
+      }
+    },
+    {
+      "cardId": "CS2_108",
+      "dbfId": 785,
+      "name": {
+        "enUs": "Execute",
+        "zhCn": "斩杀"
+      },
+      "text": {
+        "enUs": "Destroy a damaged enemy minion.",
+        "zhCn": "消灭一个受伤的敌方随从。"
+      },
+      "tags": {
+        "48": 1,
+        "183": 1635,
+        "199": 10,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "268": 2,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "CS2_tk1",
+      "dbfId": 796,
+      "name": {
+        "enUs": "Sheep",
+        "zhCn": "绵羊"
+      },
+      "tags": {
+        "45": 1,
+        "47": 1,
+        "48": 1,
+        "183": 1635,
+        "199": 4,
+        "200": 20,
+        "201": 3,
+        "202": 4,
+        "251": 6
+      }
+    },
+    {
+      "cardId": "HERO_08bp",
+      "dbfId": 807,
+      "name": {
+        "enUs": "Fireblast",
+        "zhCn": "火焰冲击"
+      },
+      "text": {
+        "enUs": "<b>Hero Power</b>\nDeal $1 damage.",
+        "zhCn": "<b>英雄技能</b>\n造成$1点伤害。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 4,
+        "201": 3,
+        "202": 10,
+        "203": 2,
+        "251": 1,
+        "268": 2,
+        "1086": 2739
+      }
+    },
+    {
+      "cardId": "EX1_609",
+      "dbfId": 814,
+      "name": {
+        "enUs": "Snipe",
+        "zhCn": "狙击"
+      },
+      "text": {
+        "enUs": "<b>Secret:</b> After your opponent plays a minion, deal $6 damage to it.",
+        "zhCn": "<b>奥秘：</b>在你的对手使用一张随从牌后，对该随从造成$6点伤害。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 3,
+        "199": 3,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "219": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "CS2_097",
+      "dbfId": 847,
+      "name": {
+        "enUs": "Truesilver Champion",
+        "zhCn": "真银圣剑"
+      },
+      "text": {
+        "enUs": "Whenever your hero attacks, restore #3_Health to it.",
+        "zhCn": "每当你的英雄进攻，便为其恢复#3点生命值。"
+      },
+      "tags": {
+        "32": 1,
+        "45": 2,
+        "47": 4,
+        "48": 4,
+        "183": 1635,
+        "199": 5,
+        "201": 3,
+        "202": 7,
+        "203": 2,
+        "251": 6,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_360",
+      "dbfId": 854,
+      "name": {
+        "enUs": "Humility",
+        "zhCn": "谦逊"
+      },
+      "text": {
+        "enUs": "Change a minion's Attack to 1.",
+        "zhCn": "使一个随从的攻击力变为1。"
+      },
+      "tags": {
+        "48": 1,
+        "183": 1635,
+        "199": 5,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_241",
+      "dbfId": 864,
+      "name": {
+        "enUs": "Lava Burst",
+        "zhCn": "熔岩爆裂"
+      },
+      "text": {
+        "enUs": "Deal $5 damage. <b>Overload:</b> (2)",
+        "zhCn": "造成$5点伤害，<b>过载：</b>（2）"
+      },
+      "tags": {
+        "48": 3,
+        "183": 3,
+        "199": 8,
+        "201": 3,
+        "202": 5,
+        "203": 3,
+        "215": 2,
+        "251": 1,
+        "321": 1,
+        "1635": 2
+      }
+    },
+    {
+      "cardId": "EX1_066",
+      "dbfId": 906,
+      "name": {
+        "enUs": "Acidic Swamp Ooze",
+        "zhCn": "酸性沼泽软泥怪"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> Destroy your opponent's weapon.",
+        "zhCn": "<b>战吼：</b>\n摧毁对手的武器。"
+      },
+      "tags": {
+        "45": 2,
+        "47": 3,
+        "48": 2,
+        "183": 1635,
+        "199": 12,
+        "201": 2,
+        "202": 4,
+        "203": 2,
+        "218": 1,
+        "251": 6,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "CS2_114",
+      "dbfId": 940,
+      "name": {
+        "enUs": "Cleave",
+        "zhCn": "顺劈斩"
+      },
+      "text": {
+        "enUs": "[x]Deal $2 damage to\ntwo random enemy\nminions.",
+        "zhCn": "随机对两个敌方随从造成\n$2点伤害。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 10,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "268": 2,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "CS2_092",
+      "dbfId": 943,
+      "name": {
+        "enUs": "Blessing of Kings",
+        "zhCn": "王者祝福"
+      },
+      "text": {
+        "enUs": "Give a minion +4/+4. <i>(+4 Attack/+4 Health)</i>",
+        "zhCn": "使一个随从获得+4/+4。<i>（+4攻击力/+4生命值）</i>"
+      },
+      "tags": {
+        "48": 4,
+        "183": 1635,
+        "199": 5,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "321": 1,
+        "1635": 5
+      }
+    },
+    {
+      "cardId": "NEW1_032",
+      "dbfId": 959,
+      "name": {
+        "enUs": "Misha",
+        "zhCn": "米莎"
+      },
+      "text": {
+        "enUs": "<b>Taunt</b>",
+        "zhCn": "<b>嘲讽</b>"
+      },
+      "tags": {
+        "45": 4,
+        "47": 4,
+        "48": 3,
+        "183": 1635,
+        "190": 1,
+        "199": 3,
+        "200": 20,
+        "202": 4
+      }
+    },
+    {
+      "cardId": "EX1_162",
+      "dbfId": 985,
+      "name": {
+        "enUs": "Dire Wolf Alpha",
+        "zhCn": "恐狼前锋"
+      },
+      "text": {
+        "enUs": "Adjacent minions have +1_Attack.",
+        "zhCn": "相邻的随从拥有+1攻击力。"
+      },
+      "tags": {
+        "45": 2,
+        "47": 2,
+        "48": 2,
+        "183": 3,
+        "199": 12,
+        "200": 20,
+        "201": 3,
+        "202": 4,
+        "203": 1,
+        "321": 1,
+        "350": 1,
+        "362": 1,
+        "1429": 60025,
+        "1440": 1,
+        "1594": 1
+      }
+    },
+    {
+      "cardId": "CS2_032",
+      "dbfId": 1004,
+      "name": {
+        "enUs": "Flamestrike",
+        "zhCn": "烈焰风暴"
+      },
+      "text": {
+        "enUs": "Deal $5 damage to all enemy minions.",
+        "zhCn": "对所有敌方随从造成$5点伤害。"
+      },
+      "tags": {
+        "48": 7,
+        "183": 1635,
+        "199": 4,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "268": 2,
+        "321": 1,
+        "1635": 2
+      }
+    },
+    {
+      "cardId": "CS2_105",
+      "dbfId": 1007,
+      "name": {
+        "enUs": "Heroic Strike",
+        "zhCn": "英勇打击"
+      },
+      "text": {
+        "enUs": "Give your hero +4_Attack this turn.",
+        "zhCn": "在本回合中，使你的英雄获得+4攻击力。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 10,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "268": 2,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "NEW1_019",
+      "dbfId": 1073,
+      "name": {
+        "enUs": "Knife Juggler",
+        "zhCn": "飞刀杂耍者"
+      },
+      "text": {
+        "enUs": "[x]After you summon a\nminion, deal 1 damage\nto a random enemy.",
+        "zhCn": "在你召唤一个随从后，随机对一个敌人造成1点伤害。"
+      },
+      "tags": {
+        "32": 1,
+        "45": 2,
+        "47": 3,
+        "48": 2,
+        "183": 3,
+        "199": 12,
+        "202": 4,
+        "203": 3,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_617",
+      "dbfId": 1093,
+      "name": {
+        "enUs": "Deadly Shot",
+        "zhCn": "致命射击"
+      },
+      "text": {
+        "enUs": "Destroy a random enemy minion.",
+        "zhCn": "随机消灭一个敌方随从。"
+      },
+      "tags": {
+        "48": 3,
+        "183": 3,
+        "199": 3,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "251": 8,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_134",
+      "dbfId": 1117,
+      "name": {
+        "enUs": "SI:7 Agent",
+        "zhCn": "军情七处特工"
+      },
+      "text": {
+        "enUs": "<b>Combo:</b> Deal 3 damage.",
+        "zhCn": "<b>连击：</b>造成3点伤害。"
+      },
+      "tags": {
+        "45": 3,
+        "47": 3,
+        "48": 3,
+        "183": 3,
+        "199": 7,
+        "201": 3,
+        "202": 4,
+        "203": 3,
+        "220": 1,
+        "251": 1,
+        "268": 2,
+        "321": 1,
+        "1678": 1
+      }
+    },
+    {
+      "cardId": "HERO_06bp",
+      "dbfId": 1123,
+      "name": {
+        "enUs": "Shapeshift",
+        "zhCn": "变形"
+      },
+      "text": {
+        "enUs": "<b>Hero Power</b>\n+$a1 Attack this turn.\n+$d1 Armor.",
+        "zhCn": "<b>英雄技能</b>\n本回合+$a1攻击力。+$d1护甲值。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 2,
+        "201": 3,
+        "202": 10,
+        "203": 2,
+        "251": 1,
+        "1086": 2737
+      }
+    },
+    {
+      "cardId": "CS2_013",
+      "dbfId": 1124,
+      "name": {
+        "enUs": "Wild Growth",
+        "zhCn": "野性成长"
+      },
+      "text": {
+        "enUs": "Gain an empty Mana Crystal.",
+        "zhCn": "获得一个空的法力水晶。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 2,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "321": 1,
+        "1635": 4
+      }
+    },
+    {
+      "cardId": "CS2_046",
+      "dbfId": 1171,
+      "name": {
+        "enUs": "Bloodlust",
+        "zhCn": "嗜血"
+      },
+      "text": {
+        "enUs": "Give your minions +3_Attack this turn.",
+        "zhCn": "在本回合中，使你的所有随从获得+3攻击力。"
+      },
+      "tags": {
+        "48": 5,
+        "183": 1635,
+        "199": 8,
+        "201": 3,
+        "202": 5,
+        "203": 2,
+        "251": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "EX1_332",
+      "dbfId": 1189,
+      "name": {
+        "enUs": "Silence",
+        "zhCn": "沉默"
+      },
+      "text": {
+        "enUs": "<b>Silence</b> a minion.",
+        "zhCn": "<b>沉默</b>一个随从。"
+      },
+      "tags": {
+        "183": 3,
+        "199": 6,
+        "201": 3,
+        "202": 5,
+        "203": 1,
+        "251": 1,
+        "268": 2,
+        "321": 1,
+        "339": 1,
+        "1635": 6
+      }
+    },
+    {
+      "cardId": "EX1_622",
+      "dbfId": 1363,
+      "name": {
+        "enUs": "Shadow Word: Death",
+        "zhCn": "暗言术：灭"
+      },
+      "text": {
+        "enUs": "Destroy a minion with 5_or more Attack.",
+        "zhCn": "消灭一个攻击力大于或等于5的随从。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 6,
+        "202": 5,
+        "203": 2,
+        "321": 1,
+        "1635": 6
+      }
+    },
+    {
+      "cardId": "CS2_234",
+      "dbfId": 1367,
+      "name": {
+        "enUs": "Shadow Word: Pain",
+        "zhCn": "暗言术：痛"
+      },
+      "text": {
+        "enUs": "Destroy a minion with 3_or less Attack.",
+        "zhCn": "消灭一个攻击力小于或等于3的随从。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1635,
+        "199": 6,
+        "202": 5,
+        "203": 2,
+        "321": 1,
+        "1635": 6
+      }
+    },
+    {
+      "cardId": "CS2_122",
+      "dbfId": 1401,
+      "name": {
+        "enUs": "Raid Leader",
+        "zhCn": "团队领袖"
+      },
+      "text": {
+        "enUs": "Your other minions have +1 Attack.",
+        "zhCn": "你的其他随从拥有+1攻击力。"
+      },
+      "tags": {
+        "45": 3,
+        "47": 2,
+        "48": 3,
+        "183": 1635,
+        "199": 12,
+        "202": 4,
+        "203": 2,
+        "321": 1,
+        "362": 1
+      }
+    },
+    {
+      "cardId": "EX1_007",
+      "dbfId": 1659,
+      "name": {
+        "enUs": "Acolyte of Pain",
+        "zhCn": "苦痛侍僧"
+      },
+      "text": {
+        "enUs": "Whenever this minion takes damage,& draw a_card.",
+        "zhCn": "每当本随从受到伤害，&抽一张牌。"
+      },
+      "tags": {
+        "32": 1,
+        "45": 4,
+        "47": 1,
+        "48": 3,
+        "183": 3,
+        "199": 12,
+        "202": 4,
+        "203": 1,
+        "321": 1,
+        "4533": 1
+      }
+    },
+    {
+      "cardId": "CS2_013t",
+      "dbfId": 1725,
+      "name": {
+        "enUs": "Excess Mana",
+        "zhCn": "法力过剩"
+      },
+      "text": {
+        "enUs": "Draw a card. <i>(You can only have 10 Mana in your tray.)</i>",
+        "zhCn": "抽一张牌。<i>（你最多可以拥有\n十个法力水晶。）</i>"
+      },
+      "tags": {
+        "183": 1635,
+        "199": 2,
+        "202": 5
+      }
+    },
+    {
+      "cardId": "GAME_005",
+      "dbfId": 1746,
+      "name": {
+        "enUs": "The Coin",
+        "zhCn": "幸运币"
+      },
+      "text": {
+        "enUs": "Gain 1 Mana Crystal this turn only.",
+        "zhCn": "在本回合中，获得一个\n法力水晶。"
+      },
+      "tags": {
+        "183": 1637,
+        "199": 12,
+        "202": 5,
+        "1107": 1,
+        "2088": 1
+      }
+    },
+    {
+      "cardId": "FP1_021",
+      "dbfId": 1805,
+      "name": {
+        "enUs": "Death's Bite",
+        "zhCn": "死亡之咬"
+      },
+      "text": {
+        "enUs": "<b>Deathrattle:</b> Deal 1 damage to all minions.",
+        "zhCn": "<b>亡语：</b>对所有随从造成1点伤害。"
+      },
+      "tags": {
+        "45": 2,
+        "47": 4,
+        "48": 4,
+        "183": 12,
+        "199": 10,
+        "202": 7,
+        "203": 1,
+        "217": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "GVG_090",
+      "dbfId": 2058,
+      "name": {
+        "enUs": "Madder Bomber",
+        "zhCn": "疯狂爆破者"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> Deal 6 damage randomly split between all other characters.",
+        "zhCn": "<b>战吼：</b>造成6点伤害，随机分配到所有其他角色身上。"
+      },
+      "tags": {
+        "45": 4,
+        "47": 5,
+        "48": 5,
+        "183": 13,
+        "199": 12,
+        "202": 4,
+        "203": 3,
+        "218": 1,
+        "321": 1
       }
     },
     {
@@ -90,24 +1968,71 @@
       }
     },
     {
-      "cardId": "BT_130",
-      "dbfId": 56680,
+      "cardId": "AT_001",
+      "dbfId": 2539,
       "name": {
-        "enUs": "Overgrowth",
-        "zhCn": "过度生长"
+        "enUs": "Flame Lance",
+        "zhCn": "炎枪术"
       },
       "text": {
-        "enUs": "Gain two empty Mana_Crystals.",
-        "zhCn": "获得两个空的法力水晶。"
+        "enUs": "Deal $25 damage\nto a minion.",
+        "zhCn": "对一个随从造成$25点伤害。"
       },
       "tags": {
-        "48": 4,
-        "183": 1414,
-        "199": 2,
+        "48": 5,
+        "183": 15,
+        "199": 4,
         "202": 5,
         "203": 1,
         "321": 1,
-        "1635": 4
+        "1635": 2
+      }
+    },
+    {
+      "cardId": "AT_038",
+      "dbfId": 2782,
+      "name": {
+        "enUs": "Darnassus Aspirant",
+        "zhCn": "达纳苏斯豹骑士"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> Gain an empty Mana Crystal.\n<b>Deathrattle:</b> Lose a Mana Crystal.",
+        "zhCn": "<b>战吼：</b>获得一个空的法力水晶。\n<b>亡语：</b>失去一个法力水晶。"
+      },
+      "tags": {
+        "45": 3,
+        "47": 2,
+        "48": 2,
+        "183": 15,
+        "199": 2,
+        "202": 4,
+        "203": 3,
+        "217": 1,
+        "218": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "OG_026",
+      "dbfId": 38265,
+      "name": {
+        "enUs": "Eternal Sentinel",
+        "zhCn": "永恒哨卫"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> Unlock your <b>Overloaded</b> Mana Crystals.",
+        "zhCn": "<b>战吼：</b>将你所有<b>过载</b>的法力水晶解锁。"
+      },
+      "tags": {
+        "45": 2,
+        "47": 3,
+        "48": 2,
+        "183": 21,
+        "199": 8,
+        "202": 4,
+        "203": 4,
+        "218": 1,
+        "321": 1
       }
     },
     {
@@ -159,2286 +2084,6 @@
       }
     },
     {
-      "cardId": "CS1_113",
-      "dbfId": 8,
-      "name": {
-        "enUs": "Mind Control",
-        "zhCn": "精神控制"
-      },
-      "text": {
-        "enUs": "Take control of an enemy minion.",
-        "zhCn": "夺取一个敌方随从的控制权。"
-      },
-      "tags": {
-        "48": 9,
-        "183": 1635,
-        "199": 6,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 5,
-        "268": 2,
-        "321": 1,
-        "1635": 6
-      }
-    },
-    {
-      "cardId": "CS2_013",
-      "dbfId": 1124,
-      "name": {
-        "enUs": "Wild Growth",
-        "zhCn": "野性成长"
-      },
-      "text": {
-        "enUs": "Gain an empty Mana Crystal.",
-        "zhCn": "获得一个空的法力水晶。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 1635,
-        "199": 2,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "321": 1,
-        "1635": 4
-      }
-    },
-    {
-      "cardId": "CS2_013t",
-      "dbfId": 1725,
-      "name": {
-        "enUs": "Excess Mana",
-        "zhCn": "法力过剩"
-      },
-      "text": {
-        "enUs": "Draw a card. <i>(You can only have 10 Mana in your tray.)</i>",
-        "zhCn": "抽一张牌。<i>（你最多可以拥有\n十个法力水晶。）</i>"
-      },
-      "tags": {
-        "183": 1635,
-        "199": 2,
-        "202": 5
-      }
-    },
-    {
-      "cardId": "CS2_022",
-      "dbfId": 77,
-      "name": {
-        "enUs": "Polymorph",
-        "zhCn": "变形术"
-      },
-      "text": {
-        "enUs": "Transform a minion\ninto a 1/1 Sheep.",
-        "zhCn": "使一个随从变形成为1/1的绵羊。"
-      },
-      "tags": {
-        "48": 4,
-        "183": 1635,
-        "199": 4,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "268": 2,
-        "321": 1,
-        "1452": 796,
-        "1635": 1
-      }
-    },
-    {
-      "cardId": "CS2_023",
-      "dbfId": 555,
-      "name": {
-        "enUs": "Arcane Intellect",
-        "zhCn": "奥术智慧"
-      },
-      "text": {
-        "enUs": "Draw 2 cards.",
-        "zhCn": "抽两张牌。"
-      },
-      "tags": {
-        "48": 3,
-        "183": 1635,
-        "199": 4,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "268": 2,
-        "321": 1,
-        "1635": 1
-      }
-    },
-    {
-      "cardId": "CS2_024",
-      "dbfId": 662,
-      "name": {
-        "enUs": "Frostbolt",
-        "zhCn": "寒冰箭"
-      },
-      "text": {
-        "enUs": "Deal $3 damage to a_character and <b>Freeze</b> it.",
-        "zhCn": "对一个角色造成$3点伤害，并使其<b>冻结</b>。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 1635,
-        "199": 4,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "208": 1,
-        "251": 1,
-        "268": 2,
-        "321": 1,
-        "1635": 3
-      }
-    },
-    {
-      "cardId": "CS2_026",
-      "dbfId": 587,
-      "name": {
-        "enUs": "Frost Nova",
-        "zhCn": "冰霜新星"
-      },
-      "text": {
-        "enUs": "<b>Freeze</b> all enemy minions.",
-        "zhCn": "<b>冻结</b>所有敌方随从。"
-      },
-      "tags": {
-        "48": 3,
-        "183": 1635,
-        "199": 4,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "208": 1,
-        "251": 1,
-        "268": 2,
-        "321": 1,
-        "1635": 3
-      }
-    },
-    {
-      "cardId": "CS2_028",
-      "dbfId": 457,
-      "name": {
-        "enUs": "Blizzard",
-        "zhCn": "暴风雪"
-      },
-      "text": {
-        "enUs": "Deal $2 damage to all enemy minions and <b>Freeze</b> them.",
-        "zhCn": "对所有敌方随从造成$2点伤害，并使其<b>冻结</b>。"
-      },
-      "tags": {
-        "48": 6,
-        "183": 3,
-        "199": 4,
-        "201": 3,
-        "202": 5,
-        "203": 3,
-        "208": 1,
-        "251": 1,
-        "268": 2,
-        "321": 1,
-        "1635": 3
-      }
-    },
-    {
-      "cardId": "CS2_029",
-      "dbfId": 315,
-      "name": {
-        "enUs": "Fireball",
-        "zhCn": "火球术"
-      },
-      "text": {
-        "enUs": "Deal $6 damage.",
-        "zhCn": "造成$6点伤害。"
-      },
-      "tags": {
-        "48": 4,
-        "183": 1635,
-        "199": 4,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 3,
-        "268": 2,
-        "321": 1,
-        "1635": 2
-      }
-    },
-    {
-      "cardId": "CS2_032",
-      "dbfId": 1004,
-      "name": {
-        "enUs": "Flamestrike",
-        "zhCn": "烈焰风暴"
-      },
-      "text": {
-        "enUs": "Deal $5 damage to all enemy minions.",
-        "zhCn": "对所有敌方随从造成$5点伤害。"
-      },
-      "tags": {
-        "48": 7,
-        "183": 1635,
-        "199": 4,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "268": 2,
-        "321": 1,
-        "1635": 2
-      }
-    },
-    {
-      "cardId": "CS2_033",
-      "dbfId": 395,
-      "name": {
-        "enUs": "Water Elemental",
-        "zhCn": "水元素"
-      },
-      "text": {
-        "enUs": "<b>Freeze</b> any character damaged by this minion.",
-        "zhCn": "<b>冻结</b>任何受到本随从伤害的角色。"
-      },
-      "tags": {
-        "45": 6,
-        "47": 3,
-        "48": 4,
-        "183": 1635,
-        "199": 4,
-        "200": 18,
-        "201": 3,
-        "202": 4,
-        "203": 2,
-        "208": 1,
-        "251": 1,
-        "268": 2,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_046",
-      "dbfId": 1171,
-      "name": {
-        "enUs": "Bloodlust",
-        "zhCn": "嗜血"
-      },
-      "text": {
-        "enUs": "Give your minions +3_Attack this turn.",
-        "zhCn": "在本回合中，使你的所有随从获得+3攻击力。"
-      },
-      "tags": {
-        "48": 5,
-        "183": 1635,
-        "199": 8,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_076",
-      "dbfId": 345,
-      "name": {
-        "enUs": "Assassinate",
-        "zhCn": "刺杀"
-      },
-      "text": {
-        "enUs": "Destroy an enemy minion.",
-        "zhCn": "消灭一个敌方随从。"
-      },
-      "tags": {
-        "48": 4,
-        "183": 1635,
-        "199": 7,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 6,
-        "268": 2,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_082",
-      "dbfId": 485,
-      "name": {
-        "enUs": "Wicked Knife",
-        "zhCn": "邪恶短刀"
-      },
-      "tags": {
-        "45": 2,
-        "47": 1,
-        "48": 1,
-        "183": 1635,
-        "199": 7,
-        "201": 3,
-        "202": 7,
-        "203": 2,
-        "251": 6
-      }
-    },
-    {
-      "cardId": "CS2_091",
-      "dbfId": 383,
-      "name": {
-        "enUs": "Light's Justice",
-        "zhCn": "圣光的正义"
-      },
-      "tags": {
-        "45": 4,
-        "47": 1,
-        "48": 1,
-        "183": 1635,
-        "199": 5,
-        "201": 3,
-        "202": 7,
-        "203": 2,
-        "251": 6,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_092",
-      "dbfId": 943,
-      "name": {
-        "enUs": "Blessing of Kings",
-        "zhCn": "王者祝福"
-      },
-      "text": {
-        "enUs": "Give a minion +4/+4. <i>(+4 Attack/+4 Health)</i>",
-        "zhCn": "使一个随从获得+4/+4。<i>（+4攻击力/+4生命值）</i>"
-      },
-      "tags": {
-        "48": 4,
-        "183": 1635,
-        "199": 5,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "321": 1,
-        "1635": 5
-      }
-    },
-    {
-      "cardId": "CS2_097",
-      "dbfId": 847,
-      "name": {
-        "enUs": "Truesilver Champion",
-        "zhCn": "真银圣剑"
-      },
-      "text": {
-        "enUs": "Whenever your hero attacks, restore #3_Health to it.",
-        "zhCn": "每当你的英雄进攻，便为其恢复#3点生命值。"
-      },
-      "tags": {
-        "32": 1,
-        "45": 2,
-        "47": 4,
-        "48": 4,
-        "183": 1635,
-        "199": 5,
-        "201": 3,
-        "202": 7,
-        "203": 2,
-        "251": 6,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_105",
-      "dbfId": 1007,
-      "name": {
-        "enUs": "Heroic Strike",
-        "zhCn": "英勇打击"
-      },
-      "text": {
-        "enUs": "Give your hero +4_Attack this turn.",
-        "zhCn": "在本回合中，使你的英雄获得+4攻击力。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 1635,
-        "199": 10,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "268": 2,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_106",
-      "dbfId": 401,
-      "name": {
-        "enUs": "Fiery War Axe",
-        "zhCn": "炽炎战斧"
-      },
-      "tags": {
-        "45": 2,
-        "47": 3,
-        "48": 2,
-        "183": 1635,
-        "199": 10,
-        "201": 3,
-        "202": 7,
-        "203": 2,
-        "251": 6,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_108",
-      "dbfId": 785,
-      "name": {
-        "enUs": "Execute",
-        "zhCn": "斩杀"
-      },
-      "text": {
-        "enUs": "Destroy a damaged enemy minion.",
-        "zhCn": "消灭一个受伤的敌方随从。"
-      },
-      "tags": {
-        "48": 1,
-        "183": 1635,
-        "199": 10,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "268": 2,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_112",
-      "dbfId": 304,
-      "name": {
-        "enUs": "Arcanite Reaper",
-        "zhCn": "奥金斧"
-      },
-      "tags": {
-        "45": 2,
-        "47": 5,
-        "48": 5,
-        "183": 1635,
-        "199": 10,
-        "201": 3,
-        "202": 7,
-        "203": 2,
-        "251": 6,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_114",
-      "dbfId": 940,
-      "name": {
-        "enUs": "Cleave",
-        "zhCn": "顺劈斩"
-      },
-      "text": {
-        "enUs": "[x]Deal $2 damage to\ntwo random enemy\nminions.",
-        "zhCn": "随机对两个敌方随从造成\n$2点伤害。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 1635,
-        "199": 10,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "268": 2,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_122",
-      "dbfId": 1401,
-      "name": {
-        "enUs": "Raid Leader",
-        "zhCn": "团队领袖"
-      },
-      "text": {
-        "enUs": "Your other minions have +1 Attack.",
-        "zhCn": "你的其他随从拥有+1攻击力。"
-      },
-      "tags": {
-        "45": 3,
-        "47": 2,
-        "48": 3,
-        "183": 1635,
-        "199": 12,
-        "202": 4,
-        "203": 2,
-        "321": 1,
-        "362": 1
-      }
-    },
-    {
-      "cardId": "CS2_124",
-      "dbfId": 289,
-      "name": {
-        "enUs": "Wolfrider",
-        "zhCn": "狼骑兵"
-      },
-      "text": {
-        "enUs": "<b>Charge</b>",
-        "zhCn": "<b>冲锋</b>"
-      },
-      "tags": {
-        "45": 1,
-        "47": 3,
-        "48": 3,
-        "183": 1635,
-        "197": 1,
-        "199": 12,
-        "201": 1,
-        "202": 4,
-        "203": 2,
-        "251": 6,
-        "268": 2,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_169",
-      "dbfId": 641,
-      "name": {
-        "enUs": "Young Dragonhawk",
-        "zhCn": "幼龙鹰"
-      },
-      "text": {
-        "enUs": "<b>Windfury</b>",
-        "zhCn": "<b>风怒</b>"
-      },
-      "tags": {
-        "45": 1,
-        "47": 1,
-        "48": 1,
-        "183": 3,
-        "189": 1,
-        "199": 12,
-        "200": 20,
-        "201": 1,
-        "202": 4,
-        "203": 1,
-        "251": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_172",
-      "dbfId": 216,
-      "name": {
-        "enUs": "Bloodfen Raptor",
-        "zhCn": "血沼迅猛龙"
-      },
-      "tags": {
-        "45": 2,
-        "47": 3,
-        "48": 2,
-        "183": 1635,
-        "199": 12,
-        "200": 20,
-        "201": 1,
-        "202": 4,
-        "203": 2,
-        "251": 1,
-        "268": 2,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "CS2_222",
-      "dbfId": 753,
-      "name": {
-        "enUs": "Stormwind Champion",
-        "zhCn": "暴风城勇士"
-      },
-      "text": {
-        "enUs": "Your other minions have +1/+1.",
-        "zhCn": "你的其他随从拥有+1/+1。"
-      },
-      "tags": {
-        "45": 7,
-        "47": 7,
-        "48": 7,
-        "183": 1635,
-        "199": 12,
-        "201": 2,
-        "202": 4,
-        "203": 2,
-        "251": 1,
-        "321": 1,
-        "362": 1
-      }
-    },
-    {
-      "cardId": "CS2_231",
-      "dbfId": 179,
-      "name": {
-        "enUs": "Wisp",
-        "zhCn": "小精灵"
-      },
-      "tags": {
-        "45": 1,
-        "47": 1,
-        "183": 3,
-        "199": 12,
-        "200": 11,
-        "201": 3,
-        "202": 4,
-        "203": 1,
-        "251": 7,
-        "321": 1,
-        "3881": 1
-      }
-    },
-    {
-      "cardId": "CS2_234",
-      "dbfId": 1367,
-      "name": {
-        "enUs": "Shadow Word: Pain",
-        "zhCn": "暗言术：痛"
-      },
-      "text": {
-        "enUs": "Destroy a minion with 3_or less Attack.",
-        "zhCn": "消灭一个攻击力小于或等于3的随从。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 1635,
-        "199": 6,
-        "202": 5,
-        "203": 2,
-        "321": 1,
-        "1635": 6
-      }
-    },
-    {
-      "cardId": "CS2_tk1",
-      "dbfId": 796,
-      "name": {
-        "enUs": "Sheep",
-        "zhCn": "绵羊"
-      },
-      "tags": {
-        "45": 1,
-        "47": 1,
-        "48": 1,
-        "183": 1635,
-        "199": 4,
-        "200": 20,
-        "201": 3,
-        "202": 4,
-        "251": 6
-      }
-    },
-    {
-      "cardId": "DAL_614",
-      "dbfId": 53161,
-      "name": {
-        "enUs": "Kobold Lackey",
-        "zhCn": "狗头人跟班"
-      },
-      "text": {
-        "enUs": "<b>Battlecry:</b> Deal 2 damage.",
-        "zhCn": "<b>战吼：</b>造成2点伤害。"
-      },
-      "tags": {
-        "45": 1,
-        "47": 1,
-        "48": 1,
-        "183": 1130,
-        "199": 12,
-        "202": 4,
-        "218": 1,
-        "994": 1
-      }
-    },
-    {
-      "cardId": "DAL_615",
-      "dbfId": 53162,
-      "name": {
-        "enUs": "Witchy Lackey",
-        "zhCn": "女巫跟班"
-      },
-      "text": {
-        "enUs": "<b>Battlecry:</b> Transform a friendly minion into one that costs (1) more.",
-        "zhCn": "<b>战吼：</b>将一个友方随从变形成为一个法力值消耗增加（1）点的随从。"
-      },
-      "tags": {
-        "45": 1,
-        "47": 1,
-        "48": 1,
-        "183": 1130,
-        "199": 12,
-        "202": 4,
-        "218": 1,
-        "994": 1
-      }
-    },
-    {
-      "cardId": "EX1_007",
-      "dbfId": 1659,
-      "name": {
-        "enUs": "Acolyte of Pain",
-        "zhCn": "苦痛侍僧"
-      },
-      "text": {
-        "enUs": "Whenever this minion takes damage,& draw a_card.",
-        "zhCn": "每当本随从受到伤害，&抽一张牌。"
-      },
-      "tags": {
-        "32": 1,
-        "45": 4,
-        "47": 1,
-        "48": 3,
-        "183": 3,
-        "199": 12,
-        "202": 4,
-        "203": 1,
-        "321": 1,
-        "4533": 1
-      }
-    },
-    {
-      "cardId": "EX1_019",
-      "dbfId": 608,
-      "name": {
-        "enUs": "Shattered Sun Cleric",
-        "zhCn": "破碎残阳祭司"
-      },
-      "text": {
-        "enUs": "<b>Battlecry:</b> Give a friendly minion +1/+1.",
-        "zhCn": "<b>战吼：</b>使一个友方随从获得+1/+1。"
-      },
-      "tags": {
-        "45": 2,
-        "47": 3,
-        "48": 3,
-        "183": 1635,
-        "199": 12,
-        "201": 3,
-        "202": 4,
-        "203": 2,
-        "218": 1,
-        "251": 5,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_033",
-      "dbfId": 567,
-      "name": {
-        "enUs": "Windfury Harpy",
-        "zhCn": "风怒鹰身人"
-      },
-      "text": {
-        "enUs": "<b>Windfury</b>",
-        "zhCn": "<b>风怒</b>"
-      },
-      "tags": {
-        "45": 5,
-        "47": 4,
-        "48": 6,
-        "183": 3,
-        "189": 1,
-        "199": 12,
-        "201": 2,
-        "202": 4,
-        "203": 1,
-        "251": 6,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_049",
-      "dbfId": 415,
-      "name": {
-        "enUs": "Youthful Brewmaster",
-        "zhCn": "年轻的酒仙"
-      },
-      "text": {
-        "enUs": "<b>Battlecry:</b> Return a friendly minion from the battlefield to your hand.",
-        "zhCn": "<b>战吼：</b>使一个友方随从从战场上移回你的手牌。"
-      },
-      "tags": {
-        "45": 2,
-        "47": 3,
-        "48": 2,
-        "183": 3,
-        "199": 12,
-        "201": 2,
-        "202": 4,
-        "203": 1,
-        "218": 1,
-        "251": 6,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_055",
-      "dbfId": 12,
-      "name": {
-        "enUs": "Mana Addict",
-        "zhCn": "魔瘾者"
-      },
-      "text": {
-        "enUs": "Whenever you cast a spell, gain +2 Attack this turn.",
-        "zhCn": "在本回合中，每当你施放一个法术，便获得+2攻击力。"
-      },
-      "tags": {
-        "32": 1,
-        "45": 3,
-        "47": 1,
-        "48": 2,
-        "183": 3,
-        "199": 12,
-        "201": 2,
-        "202": 4,
-        "203": 3,
-        "251": 6,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_066",
-      "dbfId": 906,
-      "name": {
-        "enUs": "Acidic Swamp Ooze",
-        "zhCn": "酸性沼泽软泥怪"
-      },
-      "text": {
-        "enUs": "<b>Battlecry:</b> Destroy your opponent's weapon.",
-        "zhCn": "<b>战吼：</b>\n摧毁对手的武器。"
-      },
-      "tags": {
-        "45": 2,
-        "47": 3,
-        "48": 2,
-        "183": 1635,
-        "199": 12,
-        "201": 2,
-        "202": 4,
-        "203": 2,
-        "218": 1,
-        "251": 6,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_082",
-      "dbfId": 762,
-      "name": {
-        "enUs": "Mad Bomber",
-        "zhCn": "疯狂投弹者"
-      },
-      "text": {
-        "enUs": "<b>Battlecry:</b> Deal 3 damage randomly split between all other characters.",
-        "zhCn": "<b>战吼：</b>造成3点伤害，随机分配到所有其他角色身上。"
-      },
-      "tags": {
-        "45": 2,
-        "47": 3,
-        "48": 2,
-        "183": 3,
-        "199": 12,
-        "201": 2,
-        "202": 4,
-        "203": 1,
-        "218": 1,
-        "251": 6,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_130",
-      "dbfId": 584,
-      "name": {
-        "enUs": "Noble Sacrifice",
-        "zhCn": "崇高牺牲"
-      },
-      "text": {
-        "enUs": "<b>Secret:</b> When an enemy attacks, summon a 2/1 Defender as the new target.",
-        "zhCn": "<b>奥秘：</b>当一个敌人攻击时，召唤一个2/1的防御者，并使其成为攻击的目标。"
-      },
-      "tags": {
-        "48": 1,
-        "183": 3,
-        "199": 5,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "219": 1,
-        "321": 1,
-        "1452": 102
-      }
-    },
-    {
-      "cardId": "EX1_130a",
-      "dbfId": 102,
-      "name": {
-        "enUs": "Defender",
-        "zhCn": "防御者"
-      },
-      "tags": {
-        "45": 1,
-        "47": 2,
-        "48": 1,
-        "183": 3,
-        "199": 5,
-        "200": 2,
-        "201": 3,
-        "202": 4,
-        "251": 6
-      }
-    },
-    {
-      "cardId": "EX1_134",
-      "dbfId": 1117,
-      "name": {
-        "enUs": "SI:7 Agent",
-        "zhCn": "军情七处特工"
-      },
-      "text": {
-        "enUs": "<b>Combo:</b> Deal 3 damage.",
-        "zhCn": "<b>连击：</b>造成3点伤害。"
-      },
-      "tags": {
-        "45": 3,
-        "47": 3,
-        "48": 3,
-        "183": 3,
-        "199": 7,
-        "201": 3,
-        "202": 4,
-        "203": 3,
-        "220": 1,
-        "251": 1,
-        "268": 2,
-        "321": 1,
-        "1678": 1
-      }
-    },
-    {
-      "cardId": "EX1_144",
-      "dbfId": 365,
-      "name": {
-        "enUs": "Shadowstep",
-        "zhCn": "暗影步"
-      },
-      "text": {
-        "enUs": "Return a friendly minion to your hand. It_costs (2) less.",
-        "zhCn": "将一个友方随从移回你的手牌，它的法力值消耗减少\n（2）点。"
-      },
-      "tags": {
-        "183": 3,
-        "199": 7,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "251": 1,
-        "321": 1,
-        "1635": 6,
-        "2589": 1
-      }
-    },
-    {
-      "cardId": "EX1_162",
-      "dbfId": 985,
-      "name": {
-        "enUs": "Dire Wolf Alpha",
-        "zhCn": "恐狼前锋"
-      },
-      "text": {
-        "enUs": "Adjacent minions have +1_Attack.",
-        "zhCn": "相邻的随从拥有+1攻击力。"
-      },
-      "tags": {
-        "45": 2,
-        "47": 2,
-        "48": 2,
-        "183": 3,
-        "199": 12,
-        "200": 20,
-        "201": 3,
-        "202": 4,
-        "203": 1,
-        "321": 1,
-        "350": 1,
-        "362": 1,
-        "1429": 60025,
-        "1440": 1,
-        "1594": 1
-      }
-    },
-    {
-      "cardId": "EX1_164",
-      "dbfId": 95,
-      "name": {
-        "enUs": "Nourish",
-        "zhCn": "滋养"
-      },
-      "text": {
-        "enUs": "<b>Choose One -</b> Gain 2_Mana Crystals; or Draw 3 cards.",
-        "zhCn": "<b>抉择：</b>获得两个法力水晶；或者抽三张牌。"
-      },
-      "tags": {
-        "48": 5,
-        "183": 3,
-        "199": 2,
-        "201": 3,
-        "202": 5,
-        "203": 3,
-        "321": 1,
-        "443": 1,
-        "1635": 4
-      }
-    },
-    {
-      "cardId": "EX1_169",
-      "dbfId": 254,
-      "name": {
-        "enUs": "Innervate",
-        "zhCn": "激活"
-      },
-      "text": {
-        "enUs": "Gain 1 Mana Crystal this turn only.",
-        "zhCn": "在本回合中，获得一个\n法力水晶。"
-      },
-      "tags": {
-        "183": 1635,
-        "199": 2,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "321": 1,
-        "1635": 4,
-        "2589": 1
-      }
-    },
-    {
-      "cardId": "EX1_238",
-      "dbfId": 505,
-      "name": {
-        "enUs": "Lightning Bolt",
-        "zhCn": "闪电箭"
-      },
-      "text": {
-        "enUs": "Deal $3 damage. <b>Overload:</b> (1)",
-        "zhCn": "造成$3点伤害，<b>过载：</b>（1）"
-      },
-      "tags": {
-        "48": 1,
-        "183": 3,
-        "199": 8,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "215": 1,
-        "251": 1,
-        "321": 1,
-        "1635": 4
-      }
-    },
-    {
-      "cardId": "EX1_241",
-      "dbfId": 864,
-      "name": {
-        "enUs": "Lava Burst",
-        "zhCn": "熔岩爆裂"
-      },
-      "text": {
-        "enUs": "Deal $5 damage. <b>Overload:</b> (2)",
-        "zhCn": "造成$5点伤害，<b>过载：</b>（2）"
-      },
-      "tags": {
-        "48": 3,
-        "183": 3,
-        "199": 8,
-        "201": 3,
-        "202": 5,
-        "203": 3,
-        "215": 2,
-        "251": 1,
-        "321": 1,
-        "1635": 2
-      }
-    },
-    {
-      "cardId": "EX1_245",
-      "dbfId": 767,
-      "name": {
-        "enUs": "Earth Shock",
-        "zhCn": "大地震击"
-      },
-      "text": {
-        "enUs": "<b>Silence</b> a minion, then deal $1 damage to it.",
-        "zhCn": "<b>沉默</b>一个随从，然后对其造成$1点伤害。"
-      },
-      "tags": {
-        "48": 1,
-        "183": 3,
-        "199": 8,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "251": 1,
-        "321": 1,
-        "339": 1,
-        "1635": 4
-      }
-    },
-    {
-      "cardId": "EX1_246",
-      "dbfId": 766,
-      "name": {
-        "enUs": "Hex",
-        "zhCn": "妖术"
-      },
-      "text": {
-        "enUs": "Transform a minion into a 0/1 Frog with <b>Taunt</b>.",
-        "zhCn": "使一个随从变形成为一只0/1并具有<b>嘲讽</b>的青蛙。"
-      },
-      "tags": {
-        "48": 3,
-        "183": 1635,
-        "199": 8,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "321": 1,
-        "1452": 548,
-        "1635": 4
-      }
-    },
-    {
-      "cardId": "EX1_251",
-      "dbfId": 299,
-      "name": {
-        "enUs": "Forked Lightning",
-        "zhCn": "叉状闪电"
-      },
-      "text": {
-        "enUs": "Deal $2 damage to 2_random enemy minions. <b>Overload:</b> (2)",
-        "zhCn": "随机对两个敌方随从造成$2点伤害，<b>过载：</b>（2）"
-      },
-      "tags": {
-        "48": 1,
-        "183": 3,
-        "199": 8,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "215": 2,
-        "251": 1,
-        "321": 1,
-        "1635": 4
-      }
-    },
-    {
-      "cardId": "EX1_259",
-      "dbfId": 629,
-      "name": {
-        "enUs": "Lightning Storm",
-        "zhCn": "闪电风暴"
-      },
-      "text": {
-        "enUs": "Deal $3 damage to all_enemy minions. <b>Overload:</b> (1)",
-        "zhCn": "对所有敌方随从造成$3点伤害，<b>过载：</b>（1）"
-      },
-      "tags": {
-        "48": 3,
-        "183": 3,
-        "199": 8,
-        "201": 3,
-        "202": 5,
-        "203": 3,
-        "215": 1,
-        "251": 1,
-        "321": 1,
-        "1635": 4
-      }
-    },
-    {
-      "cardId": "EX1_277",
-      "dbfId": 564,
-      "name": {
-        "enUs": "Arcane Missiles",
-        "zhCn": "奥术飞弹"
-      },
-      "text": {
-        "enUs": "Deal $3 damage randomly split among all enemies.",
-        "zhCn": "造成$3点伤害，随机分配到所有敌人身上。"
-      },
-      "tags": {
-        "48": 1,
-        "183": 1635,
-        "199": 4,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "268": 2,
-        "321": 1,
-        "349": 1,
-        "1635": 1
-      }
-    },
-    {
-      "cardId": "EX1_287",
-      "dbfId": 113,
-      "name": {
-        "enUs": "Counterspell",
-        "zhCn": "法术反制"
-      },
-      "text": {
-        "enUs": "<b>Secret:</b> When your opponent casts a spell, <b>Counter</b> it.",
-        "zhCn": "<b>奥秘：</b>当你的对手施放一个法术时，<b>反制</b>该法术。"
-      },
-      "tags": {
-        "48": 3,
-        "183": 3,
-        "199": 4,
-        "201": 3,
-        "202": 5,
-        "203": 3,
-        "219": 1,
-        "251": 1,
-        "321": 1,
-        "1635": 1
-      }
-    },
-    {
-      "cardId": "EX1_289",
-      "dbfId": 621,
-      "name": {
-        "enUs": "Ice Barrier",
-        "zhCn": "寒冰护体"
-      },
-      "text": {
-        "enUs": "<b>Secret:</b> When your\nhero is attacked,\ngain 8 Armor.",
-        "zhCn": "<b>奥秘：</b>当你的英雄受到攻击时，获得8点护甲值。"
-      },
-      "tags": {
-        "48": 3,
-        "183": 3,
-        "199": 4,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "219": 1,
-        "251": 1,
-        "321": 1,
-        "1635": 3
-      }
-    },
-    {
-      "cardId": "EX1_301",
-      "dbfId": 517,
-      "name": {
-        "enUs": "Felguard",
-        "zhCn": "恶魔卫士"
-      },
-      "text": {
-        "enUs": "<b>Taunt</b>\n<b>Battlecry:</b> Destroy one of your Mana Crystals.",
-        "zhCn": "<b>嘲讽，战吼：</b>摧毁你的一个法力水晶。"
-      },
-      "tags": {
-        "45": 5,
-        "47": 3,
-        "48": 3,
-        "183": 3,
-        "190": 1,
-        "199": 9,
-        "200": 15,
-        "201": 3,
-        "202": 4,
-        "203": 3,
-        "218": 1,
-        "251": 1,
-        "268": 2,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_332",
-      "dbfId": 1189,
-      "name": {
-        "enUs": "Silence",
-        "zhCn": "沉默"
-      },
-      "text": {
-        "enUs": "<b>Silence</b> a minion.",
-        "zhCn": "<b>沉默</b>一个随从。"
-      },
-      "tags": {
-        "183": 3,
-        "199": 6,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "251": 1,
-        "268": 2,
-        "321": 1,
-        "339": 1,
-        "1635": 6
-      }
-    },
-    {
-      "cardId": "EX1_350",
-      "dbfId": 9,
-      "name": {
-        "enUs": "Prophet Velen",
-        "zhCn": "先知维伦"
-      },
-      "text": {
-        "enUs": "Double the damage and healing of your spells and Hero Power.",
-        "zhCn": "使你的法术和英雄技能的伤害和治疗效果翻倍。"
-      },
-      "tags": {
-        "45": 7,
-        "47": 7,
-        "48": 7,
-        "114": 1,
-        "183": 3,
-        "199": 6,
-        "200": 2,
-        "201": 3,
-        "202": 4,
-        "203": 5,
-        "251": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_360",
-      "dbfId": 854,
-      "name": {
-        "enUs": "Humility",
-        "zhCn": "谦逊"
-      },
-      "text": {
-        "enUs": "Change a minion's Attack to 1.",
-        "zhCn": "使一个随从的攻击力变为1。"
-      },
-      "tags": {
-        "48": 1,
-        "183": 1635,
-        "199": 5,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "251": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_402",
-      "dbfId": 596,
-      "name": {
-        "enUs": "Armorsmith",
-        "zhCn": "铸甲师"
-      },
-      "text": {
-        "enUs": "Whenever a friendly minion_takes damage, gain 1 Armor.",
-        "zhCn": "每当一个友方随从受到伤害，便获得1点护甲值。"
-      },
-      "tags": {
-        "32": 1,
-        "45": 4,
-        "47": 1,
-        "48": 2,
-        "183": 3,
-        "199": 10,
-        "201": 3,
-        "202": 4,
-        "203": 3,
-        "251": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_407",
-      "dbfId": 75,
-      "name": {
-        "enUs": "Brawl",
-        "zhCn": "绝命乱斗"
-      },
-      "text": {
-        "enUs": "Destroy all minions except one. <i>(chosen randomly)</i>",
-        "zhCn": "随机选择一个随从，消灭除了该随从外的所有其他随从。"
-      },
-      "tags": {
-        "48": 5,
-        "183": 3,
-        "199": 10,
-        "201": 3,
-        "202": 5,
-        "203": 4,
-        "251": 1,
-        "321": 1,
-        "2589": 1
-      }
-    },
-    {
-      "cardId": "EX1_554",
-      "dbfId": 455,
-      "name": {
-        "enUs": "Snake Trap",
-        "zhCn": "毒蛇陷阱"
-      },
-      "text": {
-        "enUs": "<b>Secret:</b> When one of your minions is attacked, summon three 1/1 Snakes.",
-        "zhCn": "<b>奥秘：</b>当你的随从受到攻击时，召唤三条1/1的蛇。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 3,
-        "199": 3,
-        "201": 3,
-        "202": 5,
-        "203": 4,
-        "219": 1,
-        "321": 1,
-        "1452": 204
-      }
-    },
-    {
-      "cardId": "EX1_554t",
-      "dbfId": 204,
-      "name": {
-        "enUs": "Snake",
-        "zhCn": "蛇"
-      },
-      "tags": {
-        "45": 1,
-        "47": 1,
-        "48": 1,
-        "183": 3,
-        "199": 3,
-        "200": 20,
-        "201": 3,
-        "202": 4,
-        "251": 6,
-        "1440": 1
-      }
-    },
-    {
-      "cardId": "EX1_567",
-      "dbfId": 352,
-      "name": {
-        "enUs": "Doomhammer",
-        "zhCn": "毁灭之锤"
-      },
-      "text": {
-        "enUs": "<b>Windfury, Overload:</b> (2)",
-        "zhCn": "<b>风怒，过载：</b>（2）"
-      },
-      "tags": {
-        "45": 8,
-        "47": 2,
-        "48": 5,
-        "183": 3,
-        "189": 1,
-        "199": 8,
-        "201": 3,
-        "202": 7,
-        "203": 4,
-        "215": 2,
-        "251": 6,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_581",
-      "dbfId": 461,
-      "name": {
-        "enUs": "Sap",
-        "zhCn": "闷棍"
-      },
-      "text": {
-        "enUs": "Return an enemy minion to your opponent's hand.",
-        "zhCn": "将一个敌方随从移回你对手的\n手牌。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 1635,
-        "199": 7,
-        "201": 3,
-        "202": 5,
-        "203": 2,
-        "268": 2,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_607",
-      "dbfId": 22,
-      "name": {
-        "enUs": "Inner Rage",
-        "zhCn": "怒火中烧"
-      },
-      "text": {
-        "enUs": "Deal $1 damage to a minion and give it +2_Attack.",
-        "zhCn": "对一个随从造成$1点伤害，并使其获得+2攻击力。"
-      },
-      "tags": {
-        "183": 3,
-        "199": 10,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_609",
-      "dbfId": 814,
-      "name": {
-        "enUs": "Snipe",
-        "zhCn": "狙击"
-      },
-      "text": {
-        "enUs": "<b>Secret:</b> After your opponent plays a minion, deal $6 damage to it.",
-        "zhCn": "<b>奥秘：</b>在你的对手使用一张随从牌后，对该随从造成$6点伤害。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 3,
-        "199": 3,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "219": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_610",
-      "dbfId": 585,
-      "name": {
-        "enUs": "Explosive Trap",
-        "zhCn": "爆炸陷阱"
-      },
-      "text": {
-        "enUs": "<b>Secret:</b> When your hero is attacked, deal $2 damage to all enemies.",
-        "zhCn": "<b>奥秘：</b>当你的英雄受到攻击，对所有敌人造成$2点伤害。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 3,
-        "199": 3,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "219": 1,
-        "321": 1,
-        "1635": 2
-      }
-    },
-    {
-      "cardId": "EX1_611",
-      "dbfId": 519,
-      "name": {
-        "enUs": "Freezing Trap",
-        "zhCn": "冰冻陷阱"
-      },
-      "text": {
-        "enUs": "<b>Secret:</b> When an enemy minion attacks, return it to its owner's hand. It costs (2) more.",
-        "zhCn": "<b>奥秘：</b>当一个敌方随从攻击时，将其移回拥有者的手牌，并且法力值消耗增加（2）点。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 3,
-        "199": 3,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "219": 1,
-        "321": 1,
-        "1635": 3
-      }
-    },
-    {
-      "cardId": "EX1_617",
-      "dbfId": 1093,
-      "name": {
-        "enUs": "Deadly Shot",
-        "zhCn": "致命射击"
-      },
-      "text": {
-        "enUs": "Destroy a random enemy minion.",
-        "zhCn": "随机消灭一个敌方随从。"
-      },
-      "tags": {
-        "48": 3,
-        "183": 3,
-        "199": 3,
-        "201": 3,
-        "202": 5,
-        "203": 1,
-        "251": 8,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "EX1_619",
-      "dbfId": 756,
-      "name": {
-        "enUs": "Equality",
-        "zhCn": "生而平等"
-      },
-      "text": {
-        "enUs": "Change the Health of ALL minions to 1.",
-        "zhCn": "将所有随从的生命值变为1。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 3,
-        "199": 5,
-        "201": 3,
-        "202": 5,
-        "203": 3,
-        "251": 5,
-        "321": 1,
-        "1635": 5
-      }
-    },
-    {
-      "cardId": "EX1_622",
-      "dbfId": 1363,
-      "name": {
-        "enUs": "Shadow Word: Death",
-        "zhCn": "暗言术：灭"
-      },
-      "text": {
-        "enUs": "Destroy a minion with 5_or more Attack.",
-        "zhCn": "消灭一个攻击力大于或等于5的随从。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 1635,
-        "199": 6,
-        "202": 5,
-        "203": 2,
-        "321": 1,
-        "1635": 6
-      }
-    },
-    {
-      "cardId": "FP1_021",
-      "dbfId": 1805,
-      "name": {
-        "enUs": "Death's Bite",
-        "zhCn": "死亡之咬"
-      },
-      "text": {
-        "enUs": "<b>Deathrattle:</b> Deal 1 damage to all minions.",
-        "zhCn": "<b>亡语：</b>对所有随从造成1点伤害。"
-      },
-      "tags": {
-        "45": 2,
-        "47": 4,
-        "48": 4,
-        "183": 12,
-        "199": 10,
-        "202": 7,
-        "203": 1,
-        "217": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "GAME_005",
-      "dbfId": 1746,
-      "name": {
-        "enUs": "The Coin",
-        "zhCn": "幸运币"
-      },
-      "text": {
-        "enUs": "Gain 1 Mana Crystal this turn only.",
-        "zhCn": "在本回合中，获得一个\n法力水晶。"
-      },
-      "tags": {
-        "183": 1637,
-        "199": 12,
-        "202": 5,
-        "1107": 1,
-        "2088": 1
-      }
-    },
-    {
-      "cardId": "GIL_803",
-      "dbfId": 47825,
-      "name": {
-        "enUs": "Militia Commander",
-        "zhCn": "民兵指挥官"
-      },
-      "text": {
-        "enUs": "<b>Rush</b>\n<b>Battlecry:</b> Gain +3_Attack this turn.",
-        "zhCn": "<b>突袭，战吼：</b>在本回合获得+3攻击力。"
-      },
-      "tags": {
-        "45": 5,
-        "47": 2,
-        "48": 4,
-        "183": 1125,
-        "199": 10,
-        "202": 4,
-        "203": 3,
-        "218": 1,
-        "321": 1,
-        "791": 1
-      }
-    },
-    {
-      "cardId": "GVG_090",
-      "dbfId": 2058,
-      "name": {
-        "enUs": "Madder Bomber",
-        "zhCn": "疯狂爆破者"
-      },
-      "text": {
-        "enUs": "<b>Battlecry:</b> Deal 6 damage randomly split between all other characters.",
-        "zhCn": "<b>战吼：</b>造成6点伤害，随机分配到所有其他角色身上。"
-      },
-      "tags": {
-        "45": 4,
-        "47": 5,
-        "48": 5,
-        "183": 13,
-        "199": 12,
-        "202": 4,
-        "203": 3,
-        "218": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "HERO_01bp",
-      "dbfId": 725,
-      "name": {
-        "enUs": "Armor Up!",
-        "zhCn": "全副武装！"
-      },
-      "text": {
-        "enUs": "<b>Hero Power</b>\nGain $d2 Armor.",
-        "zhCn": "<b>英雄技能</b>\n获得$d2点护甲值。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 1635,
-        "199": 10,
-        "201": 3,
-        "202": 10,
-        "203": 2,
-        "251": 1,
-        "1086": 2745
-      }
-    },
-    {
-      "cardId": "HERO_03bp",
-      "dbfId": 730,
-      "name": {
-        "enUs": "Dagger Mastery",
-        "zhCn": "匕首精通"
-      },
-      "text": {
-        "enUs": "<b>Hero Power</b>\nEquip a 1/2 Dagger.",
-        "zhCn": "<b>英雄技能</b>\n装备一把1/2的\n匕首。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 1635,
-        "199": 7,
-        "201": 3,
-        "202": 10,
-        "203": 2,
-        "251": 1,
-        "268": 2,
-        "1086": 2743
-      }
-    },
-    {
-      "cardId": "HERO_06bp",
-      "dbfId": 1123,
-      "name": {
-        "enUs": "Shapeshift",
-        "zhCn": "变形"
-      },
-      "text": {
-        "enUs": "<b>Hero Power</b>\n+$a1 Attack this turn.\n+$d1 Armor.",
-        "zhCn": "<b>英雄技能</b>\n本回合+$a1攻击力。+$d1护甲值。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 1635,
-        "199": 2,
-        "201": 3,
-        "202": 10,
-        "203": 2,
-        "251": 1,
-        "1086": 2737
-      }
-    },
-    {
-      "cardId": "HERO_08bp",
-      "dbfId": 807,
-      "name": {
-        "enUs": "Fireblast",
-        "zhCn": "火焰冲击"
-      },
-      "text": {
-        "enUs": "<b>Hero Power</b>\nDeal $1 damage.",
-        "zhCn": "<b>英雄技能</b>\n造成$1点伤害。"
-      },
-      "tags": {
-        "48": 2,
-        "183": 1635,
-        "199": 4,
-        "201": 3,
-        "202": 10,
-        "203": 2,
-        "251": 1,
-        "268": 2,
-        "1086": 2739
-      }
-    },
-    {
-      "cardId": "LOOT_351",
-      "dbfId": 45945,
-      "name": {
-        "enUs": "Greedy Sprite",
-        "zhCn": "贪婪的林精"
-      },
-      "text": {
-        "enUs": "<b>Deathrattle:</b> Gain an empty Mana Crystal.",
-        "zhCn": "<b>亡语：</b>获得一个空的法力水晶。"
-      },
-      "tags": {
-        "45": 1,
-        "47": 3,
-        "48": 3,
-        "183": 1004,
-        "199": 2,
-        "202": 4,
-        "203": 3,
-        "217": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "LOOT_392",
-      "dbfId": 46107,
-      "name": {
-        "enUs": "Twig of the World Tree",
-        "zhCn": "世界之树的嫩枝"
-      },
-      "text": {
-        "enUs": "<b>Deathrattle:</b> Refresh your Mana Crystals.",
-        "zhCn": "<b>亡语：</b>复原你的法力水晶。"
-      },
-      "tags": {
-        "45": 5,
-        "47": 1,
-        "48": 4,
-        "114": 1,
-        "183": 1004,
-        "199": 2,
-        "202": 7,
-        "203": 5,
-        "217": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "LOOT_998j",
-      "dbfId": 43180,
-      "name": {
-        "enUs": "Zarog's Crown",
-        "zhCn": "扎罗格的王冠"
-      },
-      "text": {
-        "enUs": "<b>Discover</b> a <b>Legendary</b> minion. Summon two copies of it.",
-        "zhCn": "<b>发现</b>一张<b>传说</b>随从牌。召唤两个它的复制。"
-      },
-      "tags": {
-        "48": 3,
-        "183": 1004,
-        "199": 12,
-        "201": 3,
-        "202": 5,
-        "415": 1,
-        "1342": 1
-      }
-    },
-    {
-      "cardId": "NEW1_019",
-      "dbfId": 1073,
-      "name": {
-        "enUs": "Knife Juggler",
-        "zhCn": "飞刀杂耍者"
-      },
-      "text": {
-        "enUs": "[x]After you summon a\nminion, deal 1 damage\nto a random enemy.",
-        "zhCn": "在你召唤一个随从后，随机对一个敌人造成1点伤害。"
-      },
-      "tags": {
-        "32": 1,
-        "45": 2,
-        "47": 3,
-        "48": 2,
-        "183": 3,
-        "199": 12,
-        "202": 4,
-        "203": 3,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "NEW1_031",
-      "dbfId": 437,
-      "name": {
-        "enUs": "Animal Companion",
-        "zhCn": "动物伙伴"
-      },
-      "text": {
-        "enUs": "Summon a random Beast Companion.",
-        "zhCn": "随机召唤一个野兽伙伴。"
-      },
-      "tags": {
-        "48": 3,
-        "183": 1635,
-        "199": 3,
-        "202": 5,
-        "203": 2,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "NEW1_032",
-      "dbfId": 959,
-      "name": {
-        "enUs": "Misha",
-        "zhCn": "米莎"
-      },
-      "text": {
-        "enUs": "<b>Taunt</b>",
-        "zhCn": "<b>嘲讽</b>"
-      },
-      "tags": {
-        "45": 4,
-        "47": 4,
-        "48": 3,
-        "183": 1635,
-        "190": 1,
-        "199": 3,
-        "200": 20,
-        "202": 4
-      }
-    },
-    {
-      "cardId": "NEW1_033",
-      "dbfId": 226,
-      "name": {
-        "enUs": "Leokk",
-        "zhCn": "雷欧克"
-      },
-      "text": {
-        "enUs": "Your other minions have +1 Attack.",
-        "zhCn": "你的其他随从拥有+1攻击力。"
-      },
-      "tags": {
-        "45": 4,
-        "47": 2,
-        "48": 3,
-        "183": 1635,
-        "199": 3,
-        "200": 20,
-        "202": 4,
-        "362": 1
-      }
-    },
-    {
-      "cardId": "NEW1_034",
-      "dbfId": 100,
-      "name": {
-        "enUs": "Huffer",
-        "zhCn": "霍弗"
-      },
-      "text": {
-        "enUs": "<b>Charge</b>",
-        "zhCn": "<b>冲锋</b>"
-      },
-      "tags": {
-        "45": 2,
-        "47": 4,
-        "48": 3,
-        "183": 1635,
-        "197": 1,
-        "199": 3,
-        "200": 20,
-        "202": 4
-      }
-    },
-    {
-      "cardId": "OG_026",
-      "dbfId": 38265,
-      "name": {
-        "enUs": "Eternal Sentinel",
-        "zhCn": "永恒哨卫"
-      },
-      "text": {
-        "enUs": "<b>Battlecry:</b> Unlock your <b>Overloaded</b> Mana Crystals.",
-        "zhCn": "<b>战吼：</b>将你所有<b>过载</b>的法力水晶解锁。"
-      },
-      "tags": {
-        "45": 2,
-        "47": 3,
-        "48": 2,
-        "183": 21,
-        "199": 8,
-        "202": 4,
-        "203": 4,
-        "218": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "REV_793",
-      "dbfId": 96323,
-      "name": {
-        "enUs": "Sanguine Depths",
-        "zhCn": "赤红深渊"
-      },
-      "text": {
-        "enUs": "[x]{0}\n{1}",
-        "zhCn": "{0}{1}"
-      },
-      "tags": {
-        "45": 3,
-        "48": 1,
-        "183": 1691,
-        "199": 10,
-        "202": 39,
-        "203": 3
-      }
-    },
-    {
-      "cardId": "REV_798",
-      "dbfId": 96317,
-      "name": {
-        "enUs": "Muck Pools",
-        "zhCn": "淤泥之池"
-      },
-      "text": {
-        "enUs": "[x]{0}\n{1}",
-        "zhCn": "{0}{1}"
-      },
-      "tags": {
-        "45": 3,
-        "48": 1,
-        "183": 1691,
-        "199": 8,
-        "202": 39,
-        "203": 3
-      }
-    },
-    {
-      "cardId": "REV_923",
-      "dbfId": 76981,
-      "name": {
-        "enUs": "Muck Pools",
-        "zhCn": "淤泥之池"
-      },
-      "text": {
-        "enUs": "Transform a friendly minion into one that costs (1) more.",
-        "zhCn": "将一个友方随从变形成为法力值消耗增加（1）点的随从。"
-      },
-      "tags": {
-        "45": 3,
-        "48": 1,
-        "183": 1691,
-        "199": 8,
-        "202": 39,
-        "203": 3,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "REV_990",
-      "dbfId": 82313,
-      "name": {
-        "enUs": "Sanguine Depths",
-        "zhCn": "赤红深渊"
-      },
-      "text": {
-        "enUs": "[x]Deal 1 damage to a \nminion and give it \n+2 Attack.",
-        "zhCn": "对一个随从造成1点伤害，并使其获得+2攻击力。"
-      },
-      "tags": {
-        "45": 3,
-        "48": 1,
-        "183": 1691,
-        "199": 10,
-        "202": 39,
-        "203": 3,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "SCH_427",
-      "dbfId": 60016,
-      "name": {
-        "enUs": "Lightning Bloom",
-        "zhCn": "雷霆绽放"
-      },
-      "text": {
-        "enUs": "Refresh 2 Mana Crystals.\n<b>Overload:</b> (2)",
-        "zhCn": "复原两个法力水晶。<b>过载：</b>（2）"
-      },
-      "tags": {
-        "183": 1443,
-        "199": 2,
-        "202": 5,
-        "203": 1,
-        "215": 2,
-        "321": 1,
-        "476": 130,
-        "1635": 4
-      }
-    },
-    {
-      "cardId": "UNG_001",
-      "dbfId": 41076,
-      "name": {
-        "enUs": "Pterrordax Hatchling",
-        "zhCn": "翼手龙宝宝"
-      },
-      "text": {
-        "enUs": "<b><b>Battlecry:</b> Adapt</b>.",
-        "zhCn": "<b>战吼：</b><b>进化</b>。"
-      },
-      "tags": {
-        "45": 2,
-        "47": 2,
-        "48": 3,
-        "183": 27,
-        "199": 12,
-        "200": 20,
-        "202": 4,
-        "203": 1,
-        "218": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "UNG_002",
-      "dbfId": 41120,
-      "name": {
-        "enUs": "Volcanosaur",
-        "zhCn": "火山龙"
-      },
-      "text": {
-        "enUs": "<b>Battlecry:</b> <b>Adapt</b>, then_<b>Adapt</b>.",
-        "zhCn": "<b>战吼：</b>\n连续<b>进化</b>两次。"
-      },
-      "tags": {
-        "45": 6,
-        "47": 5,
-        "48": 6,
-        "183": 27,
-        "199": 12,
-        "200": 20,
-        "202": 4,
-        "203": 3,
-        "218": 1,
-        "321": 1,
-        "2540": 1
-      }
-    },
-    {
-      "cardId": "UNG_089",
-      "dbfId": 41265,
-      "name": {
-        "enUs": "Gentle Megasaur",
-        "zhCn": "温顺的巨壳龙"
-      },
-      "text": {
-        "enUs": "<b>Battlecry:</b> <b>Adapt</b> your_Murlocs.",
-        "zhCn": "<b>战吼：</b><b>进化</b>你所有的鱼人。"
-      },
-      "tags": {
-        "45": 4,
-        "47": 5,
-        "48": 4,
-        "183": 27,
-        "199": 12,
-        "200": 20,
-        "202": 4,
-        "203": 4,
-        "218": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "UNG_205",
-      "dbfId": 41111,
-      "name": {
-        "enUs": "Glacial Shard",
-        "zhCn": "冰川裂片"
-      },
-      "text": {
-        "enUs": "<b>Battlecry:</b> <b>Freeze</b> an_enemy.",
-        "zhCn": "<b>战吼：</b>\n<b>冻结</b>一个敌人。"
-      },
-      "tags": {
-        "45": 1,
-        "47": 2,
-        "48": 1,
-        "183": 27,
-        "199": 12,
-        "200": 18,
-        "202": 4,
-        "203": 1,
-        "218": 1,
-        "321": 1
-      }
-    },
-    {
-      "cardId": "UNG_961",
-      "dbfId": 41944,
-      "name": {
-        "enUs": "Adaptation",
-        "zhCn": "适者生存"
-      },
-      "text": {
-        "enUs": "<b>Adapt</b> a friendly minion.",
-        "zhCn": "<b>进化</b>一个友方随从。"
-      },
-      "tags": {
-        "183": 27,
-        "199": 5,
-        "202": 5,
-        "203": 1,
-        "321": 1
-      }
-    },
-    {
       "cardId": "UNG_999t10",
       "dbfId": 41054,
       "name": {
@@ -2452,45 +2097,6 @@
       "tags": {
         "183": 27,
         "191": 1,
-        "199": 12,
-        "202": 5,
-        "684": 1,
-        "1200": 1
-      }
-    },
-    {
-      "cardId": "UNG_999t13",
-      "dbfId": 41211,
-      "name": {
-        "enUs": "Poison Spit",
-        "zhCn": "毒液喷吐"
-      },
-      "text": {
-        "enUs": "<b>Poisonous</b>",
-        "zhCn": "<b>剧毒</b>"
-      },
-      "tags": {
-        "183": 27,
-        "199": 12,
-        "202": 5,
-        "363": 1,
-        "684": 1,
-        "1200": 1
-      }
-    },
-    {
-      "cardId": "UNG_999t14",
-      "dbfId": 41691,
-      "name": {
-        "enUs": "Volcanic Might",
-        "zhCn": "火山之力"
-      },
-      "text": {
-        "enUs": "+1/+1",
-        "zhCn": "+1/+1"
-      },
-      "tags": {
-        "183": 27,
         "199": 12,
         "202": 5,
         "684": 1,
@@ -2515,23 +2121,6 @@
         "217": 1,
         "684": 1,
         "1200": 1
-      }
-    },
-    {
-      "cardId": "UNG_999t2t1",
-      "dbfId": 41067,
-      "name": {
-        "enUs": "Plant",
-        "zhCn": "植物"
-      },
-      "tags": {
-        "45": 1,
-        "47": 1,
-        "48": 1,
-        "183": 27,
-        "199": 12,
-        "202": 4,
-        "1440": 1
       }
     },
     {
@@ -2653,27 +2242,332 @@
       }
     },
     {
-      "cardId": "WON_014",
-      "dbfId": 102537,
+      "cardId": "UNG_999t2t1",
+      "dbfId": 41067,
       "name": {
-        "enUs": "Invigorate",
-        "zhCn": "鼓舞"
-      },
-      "text": {
-        "enUs": "<b>Choose One -</b> Gain an empty Mana Crystal; or Draw a card.",
-        "zhCn": "<b>抉择：</b>获得一个空的法力水晶；或者抽一张牌。"
+        "enUs": "Plant",
+        "zhCn": "植物"
       },
       "tags": {
-        "48": 2,
-        "183": 1898,
-        "199": 2,
+        "45": 1,
+        "47": 1,
+        "48": 1,
+        "183": 27,
+        "199": 12,
+        "202": 4,
+        "1440": 1
+      }
+    },
+    {
+      "cardId": "UNG_001",
+      "dbfId": 41076,
+      "name": {
+        "enUs": "Pterrordax Hatchling",
+        "zhCn": "翼手龙宝宝"
+      },
+      "text": {
+        "enUs": "<b><b>Battlecry:</b> Adapt</b>.",
+        "zhCn": "<b>战吼：</b><b>进化</b>。"
+      },
+      "tags": {
+        "45": 2,
+        "47": 2,
+        "48": 3,
+        "183": 27,
+        "199": 12,
+        "200": 20,
+        "202": 4,
+        "203": 1,
+        "218": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "UNG_205",
+      "dbfId": 41111,
+      "name": {
+        "enUs": "Glacial Shard",
+        "zhCn": "冰川裂片"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> <b>Freeze</b> an_enemy.",
+        "zhCn": "<b>战吼：</b>\n<b>冻结</b>一个敌人。"
+      },
+      "tags": {
+        "45": 1,
+        "47": 2,
+        "48": 1,
+        "183": 27,
+        "199": 12,
+        "200": 18,
+        "202": 4,
+        "203": 1,
+        "218": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "UNG_002",
+      "dbfId": 41120,
+      "name": {
+        "enUs": "Volcanosaur",
+        "zhCn": "火山龙"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> <b>Adapt</b>, then_<b>Adapt</b>.",
+        "zhCn": "<b>战吼：</b>\n连续<b>进化</b>两次。"
+      },
+      "tags": {
+        "45": 6,
+        "47": 5,
+        "48": 6,
+        "183": 27,
+        "199": 12,
+        "200": 20,
+        "202": 4,
+        "203": 3,
+        "218": 1,
+        "321": 1,
+        "2540": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t13",
+      "dbfId": 41211,
+      "name": {
+        "enUs": "Poison Spit",
+        "zhCn": "毒液喷吐"
+      },
+      "text": {
+        "enUs": "<b>Poisonous</b>",
+        "zhCn": "<b>剧毒</b>"
+      },
+      "tags": {
+        "183": 27,
+        "199": 12,
+        "202": 5,
+        "363": 1,
+        "684": 1,
+        "1200": 1
+      }
+    },
+    {
+      "cardId": "UNG_089",
+      "dbfId": 41265,
+      "name": {
+        "enUs": "Gentle Megasaur",
+        "zhCn": "温顺的巨壳龙"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> <b>Adapt</b> your_Murlocs.",
+        "zhCn": "<b>战吼：</b><b>进化</b>你所有的鱼人。"
+      },
+      "tags": {
+        "45": 4,
+        "47": 5,
+        "48": 4,
+        "183": 27,
+        "199": 12,
+        "200": 20,
+        "202": 4,
+        "203": 4,
+        "218": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "UNG_999t14",
+      "dbfId": 41691,
+      "name": {
+        "enUs": "Volcanic Might",
+        "zhCn": "火山之力"
+      },
+      "text": {
+        "enUs": "+1/+1",
+        "zhCn": "+1/+1"
+      },
+      "tags": {
+        "183": 27,
+        "199": 12,
+        "202": 5,
+        "684": 1,
+        "1200": 1
+      }
+    },
+    {
+      "cardId": "UNG_961",
+      "dbfId": 41944,
+      "name": {
+        "enUs": "Adaptation",
+        "zhCn": "适者生存"
+      },
+      "text": {
+        "enUs": "<b>Adapt</b> a friendly minion.",
+        "zhCn": "<b>进化</b>一个友方随从。"
+      },
+      "tags": {
+        "183": 27,
+        "199": 5,
+        "202": 5,
+        "203": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "LOOT_998j",
+      "dbfId": 43180,
+      "name": {
+        "enUs": "Zarog's Crown",
+        "zhCn": "扎罗格的王冠"
+      },
+      "text": {
+        "enUs": "<b>Discover</b> a <b>Legendary</b> minion. Summon two copies of it.",
+        "zhCn": "<b>发现</b>一张<b>传说</b>随从牌。召唤两个它的复制。"
+      },
+      "tags": {
+        "48": 3,
+        "183": 1004,
+        "199": 12,
         "201": 3,
         "202": 5,
+        "415": 1,
+        "1342": 1
+      }
+    },
+    {
+      "cardId": "LOOT_351",
+      "dbfId": 45945,
+      "name": {
+        "enUs": "Greedy Sprite",
+        "zhCn": "贪婪的林精"
+      },
+      "text": {
+        "enUs": "<b>Deathrattle:</b> Gain an empty Mana Crystal.",
+        "zhCn": "<b>亡语：</b>获得一个空的法力水晶。"
+      },
+      "tags": {
+        "45": 1,
+        "47": 3,
+        "48": 3,
+        "183": 1004,
+        "199": 2,
+        "202": 4,
         "203": 3,
-        "251": 1,
+        "217": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "LOOT_392",
+      "dbfId": 46107,
+      "name": {
+        "enUs": "Twig of the World Tree",
+        "zhCn": "世界之树的嫩枝"
+      },
+      "text": {
+        "enUs": "<b>Deathrattle:</b> Refresh your Mana Crystals.",
+        "zhCn": "<b>亡语：</b>复原你的法力水晶。"
+      },
+      "tags": {
+        "45": 5,
+        "47": 1,
+        "48": 4,
+        "114": 1,
+        "183": 1004,
+        "199": 2,
+        "202": 7,
+        "203": 5,
+        "217": 1,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "GIL_803",
+      "dbfId": 47825,
+      "name": {
+        "enUs": "Militia Commander",
+        "zhCn": "民兵指挥官"
+      },
+      "text": {
+        "enUs": "<b>Rush</b>\n<b>Battlecry:</b> Gain +3_Attack this turn.",
+        "zhCn": "<b>突袭，战吼：</b>在本回合获得+3攻击力。"
+      },
+      "tags": {
+        "45": 5,
+        "47": 2,
+        "48": 4,
+        "183": 1125,
+        "199": 10,
+        "202": 4,
+        "203": 3,
+        "218": 1,
         "321": 1,
-        "443": 1,
+        "791": 1
+      }
+    },
+    {
+      "cardId": "BOT_054",
+      "dbfId": 47887,
+      "name": {
+        "enUs": "Biology Project",
+        "zhCn": "生物计划"
+      },
+      "text": {
+        "enUs": "Each player gains 2_Mana Crystals.",
+        "zhCn": "每个玩家获得两个法力水晶。"
+      },
+      "tags": {
+        "48": 1,
+        "183": 1127,
+        "199": 2,
+        "202": 5,
+        "203": 1,
+        "321": 1,
         "1635": 4
+      }
+    },
+    {
+      "cardId": "DAL_614",
+      "dbfId": 53161,
+      "name": {
+        "enUs": "Kobold Lackey",
+        "zhCn": "狗头人跟班"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> Deal 2 damage.",
+        "zhCn": "<b>战吼：</b>造成2点伤害。"
+      },
+      "tags": {
+        "45": 1,
+        "47": 1,
+        "48": 1,
+        "183": 1130,
+        "199": 12,
+        "202": 4,
+        "218": 1,
+        "994": 1
+      }
+    },
+    {
+      "cardId": "DAL_615",
+      "dbfId": 53162,
+      "name": {
+        "enUs": "Witchy Lackey",
+        "zhCn": "女巫跟班"
+      },
+      "text": {
+        "enUs": "<b>Battlecry:</b> Transform a friendly minion into one that costs (1) more.",
+        "zhCn": "<b>战吼：</b>将一个友方随从变形成为一个法力值消耗增加（1）点的随从。"
+      },
+      "tags": {
+        "45": 1,
+        "47": 1,
+        "48": 1,
+        "183": 1130,
+        "199": 12,
+        "202": 4,
+        "218": 1,
+        "994": 1
       }
     },
     {
@@ -2717,25 +2611,152 @@
       }
     },
     {
-      "cardId": "hexfrog",
-      "dbfId": 548,
+      "cardId": "BT_130",
+      "dbfId": 56680,
       "name": {
-        "enUs": "Frog",
-        "zhCn": "青蛙"
+        "enUs": "Overgrowth",
+        "zhCn": "过度生长"
       },
       "text": {
-        "enUs": "<b>Taunt</b>",
-        "zhCn": "<b>嘲讽</b>"
+        "enUs": "Gain two empty Mana_Crystals.",
+        "zhCn": "获得两个空的法力水晶。"
       },
       "tags": {
-        "45": 1,
-        "183": 1635,
-        "190": 1,
+        "48": 4,
+        "183": 1414,
+        "199": 2,
+        "202": 5,
+        "203": 1,
+        "321": 1,
+        "1635": 4
+      }
+    },
+    {
+      "cardId": "SCH_427",
+      "dbfId": 60016,
+      "name": {
+        "enUs": "Lightning Bloom",
+        "zhCn": "雷霆绽放"
+      },
+      "text": {
+        "enUs": "Refresh 2 Mana Crystals.\n<b>Overload:</b> (2)",
+        "zhCn": "复原两个法力水晶。<b>过载：</b>（2）"
+      },
+      "tags": {
+        "183": 1443,
+        "199": 2,
+        "202": 5,
+        "203": 1,
+        "215": 2,
+        "321": 1,
+        "476": 130,
+        "1635": 4
+      }
+    },
+    {
+      "cardId": "REV_923",
+      "dbfId": 76981,
+      "name": {
+        "enUs": "Muck Pools",
+        "zhCn": "淤泥之池"
+      },
+      "text": {
+        "enUs": "Transform a friendly minion into one that costs (1) more.",
+        "zhCn": "将一个友方随从变形成为法力值消耗增加（1）点的随从。"
+      },
+      "tags": {
+        "45": 3,
+        "48": 1,
+        "183": 1691,
         "199": 8,
-        "200": 20,
+        "202": 39,
+        "203": 3,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "REV_990",
+      "dbfId": 82313,
+      "name": {
+        "enUs": "Sanguine Depths",
+        "zhCn": "赤红深渊"
+      },
+      "text": {
+        "enUs": "[x]Deal 1 damage to a \nminion and give it \n+2 Attack.",
+        "zhCn": "对一个随从造成1点伤害，并使其获得+2攻击力。"
+      },
+      "tags": {
+        "45": 3,
+        "48": 1,
+        "183": 1691,
+        "199": 10,
+        "202": 39,
+        "203": 3,
+        "321": 1
+      }
+    },
+    {
+      "cardId": "REV_798",
+      "dbfId": 96317,
+      "name": {
+        "enUs": "Muck Pools",
+        "zhCn": "淤泥之池"
+      },
+      "text": {
+        "enUs": "[x]{0}\n{1}",
+        "zhCn": "{0}{1}"
+      },
+      "tags": {
+        "45": 3,
+        "48": 1,
+        "183": 1691,
+        "199": 8,
+        "202": 39,
+        "203": 3
+      }
+    },
+    {
+      "cardId": "REV_793",
+      "dbfId": 96323,
+      "name": {
+        "enUs": "Sanguine Depths",
+        "zhCn": "赤红深渊"
+      },
+      "text": {
+        "enUs": "[x]{0}\n{1}",
+        "zhCn": "{0}{1}"
+      },
+      "tags": {
+        "45": 3,
+        "48": 1,
+        "183": 1691,
+        "199": 10,
+        "202": 39,
+        "203": 3
+      }
+    },
+    {
+      "cardId": "WON_014",
+      "dbfId": 102537,
+      "name": {
+        "enUs": "Invigorate",
+        "zhCn": "鼓舞"
+      },
+      "text": {
+        "enUs": "<b>Choose One -</b> Gain an empty Mana Crystal; or Draw a card.",
+        "zhCn": "<b>抉择：</b>获得一个空的法力水晶；或者抽一张牌。"
+      },
+      "tags": {
+        "48": 2,
+        "183": 1898,
+        "199": 2,
         "201": 3,
-        "202": 4,
-        "251": 6
+        "202": 5,
+        "203": 3,
+        "251": 1,
+        "321": 1,
+        "443": 1,
+        "1635": 4
       }
     }
   ]
