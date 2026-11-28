@@ -450,7 +450,8 @@ public sealed class GameState
             player.MaximumManaCrystals < 1 || player.ManaCrystals > player.MaximumManaCrystals ||
             player.Fatigue < 0 || player.HeroPowerUsesThisTurn < 0 || player.HeroPowerUsesThisGame < 0 || player.ManaSpent is < 0 ||
             player.TemporaryMana < 0 || player.OverloadLocked < 0 || player.OverloadOwed < 0 ||
-            player.CardsPlayedThisTurn < 0 || player.Corpses is < 0 || player.CorpsesSpentThisGame < 0)
+            player.CardsPlayedThisTurn < 0 || player.Corpses is < 0 || player.CorpsesSpentThisGame < 0 ||
+            player.JadeGolemsSummoned < 0)
             throw new ArgumentException("玩家 ID 或资源数值无效。");
     }
 
