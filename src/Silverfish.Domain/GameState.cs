@@ -38,6 +38,8 @@ public sealed record PlayerState(PlayerId Id, EntityId Hero, int Mana = 0, int M
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public ImmutableDictionary<MinionType, int>? MinionsSummonedByType { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int JadeGolemsSummoned { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int SpellsCastThisGame { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public string? HealingDealsDamageThisTurn { get; init; }

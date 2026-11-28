@@ -828,6 +828,9 @@ public sealed partial class GameSimulator
                     if (Summon(summonOwner, summon.CardId, position) is EntityId summoned)
                         PushSummonTriggers(work, summonOwner, summoned);
                     break;
+                case SummonJadeGolemEffect jade:
+                    SummonJadeGolem(work, context, jade);
+                    break;
                 case SummonPerEnemyMinionEffect perEnemy:
                     var enemyMinionCount = _rules.BoardMinions(_state, _state.OpponentOf(context.Controller))
                         .Count(id => IsLivingCharacter(id));

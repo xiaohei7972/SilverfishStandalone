@@ -254,7 +254,8 @@ public sealed partial class GameSimulator
             if (player.EndOfTurnSummons is { } summons && (summons.IsDefault ||
                 summons.Any(id => GetCard(id).Definition.Kind != EntityKind.Minion)) ||
                 player.MinionsSummonedByType is { } types && types.Any(entry => !Enum.IsDefined(entry.Key) || entry.Value < 0) ||
-                player.SpellsCastThisGame < 0 || !IsOptionalCardIdValid(player.HealingDealsDamageThisTurn))
+                player.JadeGolemsSummoned < 0 || player.SpellsCastThisGame < 0 ||
+                !IsOptionalCardIdValid(player.HealingDealsDamageThisTurn))
                 throw new ArgumentException($"玩家 {player.Id.Value} 的扩展规则状态无效。");
             if (player.SpellCastRewardsThisTurn is { } rewards && (rewards.IsDefault ||
                 rewards.Any(reward => reward is null || !state.Entities.ContainsKey(reward.Source) || !Enum.IsDefined(reward.CardClass) ||
@@ -835,6 +836,7 @@ public sealed partial class GameSimulator
                     (summon.Recipient == CardRecipient.Controller || summon.Placement is SummonPlacement.Default or SummonPlacement.Rightmost) &&
                     (summon.Placement is not (SummonPlacement.LeftOfSource or SummonPlacement.RightOfSource) || hasInPlaySource) &&
                     GetCard(summon.CardId).Definition.Kind == EntityKind.Minion,
+                SummonJadeGolemEffect => GetCard("CFM_712_t01").Definition.Kind == EntityKind.Minion,
                 SummonPerEnemyMinionEffect perEnemy => GetCard(perEnemy.CardId).Definition.Kind == EntityKind.Minion,
                 SwapSelfWithRandomHandMinionEffect => hasInPlaySource && card.Definition.Kind == EntityKind.Minion,
                 FillBoardSummonEffect fill => (!fill.AlternateSides || hasInPlaySource) &&

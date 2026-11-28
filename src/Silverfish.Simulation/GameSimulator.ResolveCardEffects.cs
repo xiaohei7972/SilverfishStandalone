@@ -8,6 +8,36 @@ public sealed partial class GameSimulator
 {
     private sealed partial class Resolution
     {
+        private void SummonJadeGolem(Stack<Work> work, EffectContext context, SummonJadeGolemEffect effect)
+        {
+            var player = context.Controller;
+            if (_rules.BoardSlotCount(_state, player) >= BoardLimit)
+                return;
+
+            var count = checked(_state.Players[player].JadeGolemsSummoned + 1);
+            if (Summon(player, "CFM_712_t01", ResolveSummonPosition(context, SummonPlacement.Default)) is not EntityId summoned)
+                return;
+
+            _state = _state.UpdateResources(_state.Players[player] with { JadeGolemsSummoned = count });
+            var entity = _state.Entities[summoned];
+            var character = entity.Character! with
+            {
+                Attack = count,
+                MaximumHealth = count,
+                BaseAttack = count,
+                BaseMaximumHealth = count
+            };
+            var enchantments = effect.Taunt
+                ? entity.Enchantments.Add(new StatEnchantment(context.Source, null) { GrantedTag = GAME_TAG.TAUNT })
+                : entity.Enchantments;
+            var updated = RecalculateStats(entity with { Character = character, Enchantments = enchantments },
+                entity.AuraGrants, !entity.Silenced && _rules.Card(entity).AttackEqualsHealth);
+            _state = _state.UpdateEntity(updated);
+            if (effect.Taunt)
+                _events.Add(new(SimulationEventKind.EnchantmentApplied, player, context.Source, summoned));
+            PushSummonTriggers(work, player, summoned);
+        }
+
         private void Joust(Stack<Work> work, EffectContext context, JoustEffect effect)
         {
             var opponent = _state.OpponentOf(context.Controller);

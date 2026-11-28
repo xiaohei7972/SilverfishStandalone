@@ -175,6 +175,7 @@ public sealed record CardTrigger(TriggerTiming Timing, TriggerRelation Relation,
 [JsonDerivedType(typeof(MimironCombineEffect), "mimironCombine")]
 [JsonDerivedType(typeof(ScheduleDormantAwakenEffect), "scheduleDormantAwaken")]
 [JsonDerivedType(typeof(SummonEffect), "summon")]
+[JsonDerivedType(typeof(SummonJadeGolemEffect), "summonJadeGolem")]
 [JsonDerivedType(typeof(SummonPerEnemyMinionEffect), "summonPerEnemyMinion")]
 [JsonDerivedType(typeof(SwapSelfWithRandomHandMinionEffect), "swapSelfWithRandomHandMinion")]
 [JsonDerivedType(typeof(FillBoardSummonEffect), "fillBoardSummon")]
@@ -452,6 +453,7 @@ public sealed record ScheduleDormantAwakenEffect(
 /// <summary>亡语召唤沿用死亡位置，其他情况放到场上最右侧。</summary>
 public sealed record SummonEffect(string CardId, SummonPlacement Placement = SummonPlacement.Default,
     CardRecipient Recipient = CardRecipient.Controller) : CardEffect;
+public sealed record SummonJadeGolemEffect(bool Taunt = false) : CardEffect;
 public sealed record SummonPerEnemyMinionEffect([property: JsonRequired] string CardId) : CardEffect;
 public sealed record SwapSelfWithRandomHandMinionEffect : CardEffect;
 public sealed record FillBoardSummonEffect(string CardId, bool AlternateSides = false, bool PlaceLeftNext = false) : CardEffect;
