@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>独立银鱼 · 本地战术台</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 3 45 24 24 45 3 24Z"/><path d="M34 22C31 13 19 13 16 21c-4 10 12 16 16 6 3-7-8-11-10-5-1 4 5 5 6 2"/></svg>
+      <div><h1>独立银鱼</h1><p>本地战术台</p></div>
+    </div>
+    <span class="tag"><span class="signal"></span> 只读探测 / 离线推演</span>
+  </header>
+  <main>
+    <section class="intake" aria-labelledby="intake-heading">
+      <div><h2 id="intake-heading">载入局面</h2><p>用内置样例开始，或导入自己的快照。</p></div>
+      <div class="intake-controls">
+        <select id="samples" aria-label="内置样例"><option value="">正在读取样例…</option></select>
+        <button id="load-sample" class="primary" disabled>载入样例</button>
+        <button id="open-import" aria-haspopup="dialog">导入快照</button>
+        <button id="reset" class="quiet" disabled>重置</button>
+      </div>
+    </section>
+    <p id="notice" class="notice" role="status" hidden></p>
+    <div class="workspace">
+      <section class="arena" aria-labelledby="arena-heading">
+        <header class="panel-head arena-head">
+          <h2 id="arena-heading">对局战场</h2><span class="tag" id="snapshot-mode">未载入</span>
+        </header>
+        <dl id="match-meta" class="match-meta" hidden></dl>
+        <section id="choice-panel" class="choice-panel" aria-labelledby="choice-heading" hidden>
+          <div class="section-line">
+            <div><h3 id="choice-heading">发现 / 进行选择</h3><p id="choice-meta" class="muted"></p></div>
+            <button id="confirm-choice" class="primary" hidden>确认选择</button>
+          </div>
+          <div id="choice-cards" class="lineup choice-lineup"></div>
+        </section>
+        <div class="battlefield" id="battlefield">
+          <section class="side enemy" aria-label="敌方战场">
+            <div id="enemy-hero" class="hero-row"></div>
+            <div id="enemy-board" class="lineup"><p class="empty">敌方战场</p></div>
+          </section>
+          <div class="midline">
+            <div class="turn-status">
+              <span id="turn-indicator">等待载入局面</span>
+              <span id="action-gate" class="tag action-gate" role="status" hidden></span>
+            </div>
+            <button id="live-end-turn" class="quiet" hidden>结束回合</button>
+          </div>
+          <section class="side friendly" aria-label="我方战场">
+            <div id="our-board" class="lineup"><p class="empty">我方战场</p></div>
+            <div id="our-hero" class="hero-row"></div>
+          </section>
+        </div>
+        <section class="hand" aria-labelledby="hand-heading">
+          <div class="section-line"><h3 id="hand-heading">我方手牌</h3><span id="hand-count" class="muted"></span></div>
+          <div id="our-hand" class="lineup"><p class="empty">载入局面后显示手牌。</p></div>
+        </section>
+      </section>
+      <aside class="sidebar" aria-label="决策与连接">
+        <section class="panel" aria-labelledby="decision-heading">
+          <header class="panel-head"><h2 id="decision-heading">银鱼决策</h2><span class="tag" id="automatic-status">已暂停</span></header>
+          <div class="panel-body">
+            <div id="autopilot-controls" class="autopilot-controls" data-live="false">
+              <button id="autopilot" class="primary" aria-pressed="false" aria-describedby="autopilot-help" disabled>开启银鱼托管</button>
+              <span class="tag" id="autopilot-status" role="status">托管已关闭</span>
+              <p id="autopilot-help" class="muted">开启后会根据快照自动向游戏客户端下发操作，不只是生成建议。</p>
+            </div>
+            <div class="command-receipt">
+              <h3>最近执行回执</h3>
+              <p id="command-ack" class="muted" role="status">尚未收到执行回执。</p>
+            </div>
+            <div class="controls">
+              <button id="decide" class="primary" disabled>单步决策</button><button id="automatic" aria-pressed="false">启动自动（仅分析）</button>
+            </div>
+            <div id="decision" class="recommendation"><p class="empty">载入局面后可生成建议。单步决策和自动分析不会下发操作。</p></div>
+            <div class="section-line"><h3 id="actions-heading">合法动作</h3><span id="action-count" class="muted"></span></div>
+            <ul id="actions" class="actions scrollbox" aria-labelledby="actions-heading"><li class="empty">暂无动作。</li></ul>
+          </div>
+        </section>
+        <section class="panel" aria-labelledby="client-heading">
+          <header class="panel-head"><h2 id="client-heading">客户端探测</h2><span id="connection-status" class="tag">未绑定</span></header>
+          <div class="panel-body">
+            <p class="muted">第1步：查找并绑定炉石实例；第2步：点击「注入实时监听」，游戏内一旦开局或牌面变化会自动推送到本页面。</p>
+            <div class="controls"><button id="refresh-clients">1. 查找实例</button><button id="inject-client" class="primary" disabled>2. 注入实时监听</button><button id="disconnect" disabled>断开</button></div>
+            <div id="client-list" class="clients"></div>
+            <div id="binding"></div>
+          </div>
+        </section>
+      </aside>
+      <section id="entity-inspector" class="panel event-panel" aria-labelledby="entity-heading">
+        <header class="panel-head"><h2 id="entity-heading">全量 EntityMap &amp; Tag 检查器</h2><span id="entity-count" class="muted"></span></header>
+        <div class="panel-body">
+          <p class="muted">显示快照提供的实体。对手未公开区域只显示实体占位；也可以点击战场随从或我方手牌查看 Tag。</p>
+          <div class="entity-layout">
+            <div>
+              <div class="entity-filters">
+                <label for="entity-search">EntityId / CardId<input id="entity-search" type="search" placeholder="例如：#21 或 CS2_029" spellcheck="false" disabled></label>
+                <label for="entity-zone">Zone<select id="entity-zone" disabled><option value="">全部区域</option></select></label>
+              </div>
+              <ul id="entity-list" class="entity-list scrollbox" aria-label="实体列表"><li class="empty">载入客户端快照后显示实体。</li></ul>
+              <button id="entity-more" hidden>显示更多</button>
+            </div>
+            <div id="entity-detail" tabindex="-1"><p class="empty">选择实体查看 Tag。</p></div>
+          </div>
+        </div>
+      </section>
+      <section class="panel event-panel" aria-labelledby="events-heading">
+        <header class="panel-head"><h2 id="events-heading">结算记录</h2><span class="muted">显示最近 160 条</span></header>
+        <ol id="events" class="events scrollbox"><li class="empty">推演动作后，按结算顺序显示事件。</li></ol>
+      </section>
+    </div>
+  </main>
+  <dialog id="import-dialog" aria-labelledby="import-heading">
+    <div class="section-line"><h2 id="import-heading">导入局面 JSON</h2><button id="close-import" class="quiet">关闭</button></div>
+    <p class="muted">支持客户端快照、可观察快照、模拟场景和存档。选取文件或直接粘贴 JSON，最大 2 MiB。</p>
+    <label for="import-file">选取本地 JSON</label><input id="import-file" type="file" accept=".json,application/json">
+    <label for="match-id">对局 ID（选填，留空自动生成）</label><input id="match-id" maxlength="128" placeholder="留空自动使用 imported-match">
+    <label for="import-json">JSON 内容</label><textarea id="import-json" rows="10" spellcheck="false" placeholder="在此粘贴 JSON"></textarea>
+    <p id="import-error" class="error" role="alert" hidden></p>
+    <button id="import-submit" class="primary">导入局面</button>
+  </dialog>
+  <footer>仅在本机运行。客户端探测与局面导入相互独立。</footer>
+</body>
+</html>

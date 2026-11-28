@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "matchId": "offline-example-001",
+  "sequence": 12,
+  "phase": "main",
+  "isOurTurn": true,
+  "availableMana": 2,
+  "ourHero": { "entityId": 1, "health": 24, "armor": 0, "attack": 0 },
+  "enemyHero": { "entityId": 2, "health": 3, "armor": 0, "attack": 0 },
+  "ourBoard": [
+    { "entityId": 101, "cardId": "EXAMPLE_001", "attack": 3, "health": 2, "canAttack": true }
+  ],
+  "enemyBoard": [],
+  "ourHand": [
+    { "entityId": 201, "cardId": "EXAMPLE_002", "cost": 1 }
+  ],
+  "legalActions": [
+    { "id": "attack-hero", "kind": "attack", "sourceEntityId": 101, "targetEntityId": 2, "description": "3 attack into enemy hero" },
+    { "id": "play-card", "kind": "playCard", "sourceEntityId": 201, "manaCost": 1, "description": "Play sample 1-mana card" },
+    { "id": "end-turn", "kind": "endTurn", "description": "End turn" }
+  ]
+}

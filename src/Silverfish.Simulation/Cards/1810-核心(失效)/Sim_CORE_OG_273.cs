@@ -1,0 +1,16 @@
+using Silverfish.Domain.Client;
+namespace Silverfish.Simulation.Cards;
+
+// 惩黑除恶
+// Stand Against Darkness
+// 召唤五个{0}的白银之手新兵。
+// Summon five {0} Silver Hand Recruits.
+internal static class Sim_CORE_OG_273
+{
+    // <legacy-play-requirements>
+    internal static PlayReqSet PlayReqs { get; } = new(
+        [new(ErrorType.REQ_NUM_MINION_SLOTS, 1)],
+        []);
+    // </legacy-play-requirements>
+
+}

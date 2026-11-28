@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "choiceId": 123,
+  "choiceType": "target",
+  "playerId": 1,
+  "sourceEntityId": 99,
+  "countMin": 2,
+  "countMax": 3,
+  "entities": [11, 22, 33],
+  "unchoosableEntities": [],
+  "clicks": [11, 22, 33, 22, 22],
+  "confirm": true
+}

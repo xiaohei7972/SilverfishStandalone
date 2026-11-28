@@ -1,0 +1,132 @@
+# 阶段二：结算正确性与回归
+
+> 基线：阶段一已集成的 `feat/standalone-foundation` / `c2cef52`。本页记录已提交实现的范围，不将计划项冒充已完成项。
+
+## 目标与执行策略
+
+阶段二不再做旧 `Playfield` 的大规模结构搬迁，优先保护已落地的不可变 `GameState` 与 `GameSimulator` 的行为边界。先建立可反复执行的故障回归，再逐项改善伤害、治疗、触发、选择和存档的行为；未来拆分 `ResolutionEngine` / `TriggerDispatcher` 前必须保持这套回归全部通过。
+
+## 第一批：外部 CHOICE 隔离与伤害来源追溯
+
+### 外部 CHOICE 与内部模拟动作严格隔离
+
+- `PendingChoice` 只等待外部客户端的权威 CHOICE 包提交和下一帧状态；此时 `LegalActions` 继续返回空，并且 `CheckAction`、`EnsureLegal` 对普通 `PlayCard`、`UseHeroPower`、地标技能、攻击、结束回合均不放行。特别修复此前普通出牌在 `CheckAction` 中自行判定 PlayReq 后绕过 `LegalActions` 的路径。
+- `Apply` 中匹配 `ChoicePacketId` 的 `ChooseOption` 仍走单独的外部选择意图提交，不在模拟器中模拟真实游戏执行。该动作不是搜索树中的普通合法动作，因此 `CheckAction` 不把它当作普通模拟动作。
+- 没有外部包时，普通动作不得携带 `ChoicePacketId` 或 `OrderedChoiceTargets`；内部 `PendingPlayChoice` 的 `ChooseOption` 同样不得混入客户端选择包字段。
+- `ExplainSource` 与 `SourceFailure` 明确报告外部 CHOICE 阻塞，不再错误地报告一张可使用的牌。
+
+### 伤害来源可追溯
+
+- 在 `SimulationEvent` 增加可选 `AttackingWeapon`，同时用于 `Damage` 与 `ShieldBroken` 事件。英雄攻击时 `Source` 仍是英雄 ID，`AttackingWeapon` 才是实际参与战斗的装备武器。法术、技能和无武器攻击保持空值。
+- 这使得 Poisonous / Lifesteal / Overkill / Honorable Kill 的诊断可区分攻击者和所持武器，且不影响已有 `Source` 语义。
+
+### 必过的回归
+
+- 外部待决时禁止合法普通出牌，并在外部选择提交及 checkpoint 恢复之后继续禁止普通动作；确认输入未变。
+- 普通出牌和内部选项拒绝夹带 `EntityChoices` 的包 ID / 有序目标。
+- 吸血武器：`Damage.Source == Hero`，`Damage.AttackingWeapon == Weapon`，治疗事件仍正确指向武器和英雄。
+- 范围治疗：先结算全部治疗，按进场次序产生 `Overhealed` 与对应触发，同一输入重放事件一致。
+- 有序选择预演：普通局面与恢复后的 checkpoint 输出事件相同、结果相同、原始局面不变。
+
+## 尚待继续的阶段二工作
+
+- 精细化对伤害与治疗的事件批次、死亡波次、触发注册时点和同阶段随机事件做差分测试，特别对照 2026-11-05 经典源码/固定录像。
+- 为 `PendingPlayChoice` 的多轮 Adapt、死亡导致的提前结束与 `PendingChoice` 的外部权威快照切换建立独立更多的 golden replay。
+- 测试覆盖达到稳定基线后，再以逐步抽取的方式分离 `DamageResolver`、`HealResolver`、`TriggerDispatcher` 与 `ChoiceResolver`。避免机械拆分类改变效果栈和 LIFO 时序。
+- 真实游戏的客户端内虚拟输入与 `StandaloneGameMod` 读取适配不在本阶段；不使用 Windows 系统鼠标，不直接调用炉石网络发送 API。
+
+## 运行检查
+
+```powershell
+dotnet build SilverfishStandalone.sln -c Release
+dotnet test SilverfishStandalone.sln -c Release --no-build
+```
+
+以本阶段分支 GitHub Actions 中的完整 offline replay 和发布检查作为最终验收，不以单独编译通过替代测试通过。
+
+## 第二批：多轮选择与终局一致性
+
+- 新增多轮 Adapt 固定回归：按选择回合移除已死亡接收者，活着的接收者继续下一轮；第一轮全灭时直接完成出牌；来源随从死亡时不再产生虚假的新选择。
+- 新增中间 checkpoint 的 JSON 序列化、重新创建模拟器和选项恢复测试；检验选项轮次、已付费用、事件轨迹、旧状态不被修改。
+- 锁定普通伤害触发、荣誉消灭奖励、死亡结算/亡语的可观察顺序，并核对同一输入重放一致。
+- 修复 `GameState.Finish`：终局会清除 `PendingPlayChoice` 与 `PendingChoice`，防止产生无法再经 `RestoreGame` 校验的“已结束但仍待决”状态。离线 TARGET 选择预演若前一目标导致对局结束，就不再结算后续有序目标；保留已产生的提交意图与事件轨迹。
+- 不改变真实客户端 CHOICE 的网络提交规则：这里只验证模拟结果与存档的内部一致性。
+
+测试前请先查看 GitHub Actions 的阶段二分支最新运行结果；旧提交的成功不能替代新增测试的最终验收。
+
+## 第三批：伤害事件观察者的注册时点
+
+### 已复现的旧行为
+
+- 一次 `DamageTarget.EnemyMinions` 范围伤害先记录随从 A 与 B 的伤害，随后 A 的伤害触发召唤出观察者 C。旧代码在执行 B 的 `Dispatch` 时才调用 `CaptureListeners()`，导致刚进场的 C 收到了 **发生在进场前** 的 B 的伤害事件。
+- `RandomDamageMode.DistinctBatch` 同样存在该问题，并非只有普通 AOE。
+- `RandomDamageMode.Sequential` 则相反：第二次命中确实发生在第一次触发效果之后，新观察者应看到第二次伤害。
+
+### 修正范围与设计边界
+
+- `PushOccurrence` 为已发生的伤害注册不可变触发队列：普通伤害、荣誉消灭/超杀，以及武器归因对应的致命奖励，均在事件入栈时匹配当时的观察者及事件目标。
+- `Dispatch` 继续使用原先的 LIFO 顺序执行已注册的队列；`Activate` 仍检查 `IsCurrent`、活体条件和触发条件，因此沉默、离场、装备替换不会令已失效的触发器重新生效。
+- 此变更只固定 **伤害事件** 的匹配时点；召唤、抽牌和外部选择的专用触发路径暂时保持原有行为，避免无对照地改变它们的结算语义。
+
+### 回归与验证
+
+- AOE 批次：事件中的两个目标先受伤，再召唤的 C 不响应此前的任何一个伤害事件。
+- DistinctBatch：完整枚举两种随机击中次序，两种结果中 C 都不能追认已经发生的伤害。
+- Sequential：两次真实依次发生的随机伤害，C 在第一次触发后进场，能够响应第二次。
+- 测试先行的复现提交 `ea5626e` 在 CI #44928600612 中出现预期的两个失败，证明此前是真实行为缺陷而非仅增加了无效测试；修复后以最新一次 CI 为验收依据。
+
+以上均属于离线模拟器，不涉及实机输入、注入执行或直接发包。
+
+
+## 第四批：立即死亡与死亡波次的观察者快照
+
+- 普通死亡波次仍在移出本波次所有实体前统一捕获死亡监听者，并保持进场序与亡语执行顺序。
+- 对“满手牌退回随从而销毁”和“控制权变更时场地溢出而销毁”两条提前调用 `RemoveDeadEntity` 的路径，在**实体移走之前**捕获各自的监听者快照，附到待结算的死亡记录上。
+- 统一死亡阶段依照进场顺序执行已有触发器与亡语，但立即死亡使用发生时的观察者列表，防止同一法术后续效果召唤的观察者收到它入场前已经发生的 `MinionDied`；若原监听者中途离场，`IsCurrent` 仍令其失效。
+- 新回归：满手牌退回先销毁敌方随从，再召唤新的死亡监听者；只有原先在场的监听者获得触发，亡语照常结算，重放事件相同且初始局面不变。
+- 该修复仅涉及模拟器内部死亡事件，不改变实体选择、真实输入、网络提交或老仓库结构。
+
+## 第五批：死亡波次边界与终局 golden replay
+
+- 新增 `GameSimulationTests.DeathWaveReplay.cs` 三组固定回放，均重复相同输入来校验事件轨迹完全一致，并确认初始不可变局面未被污染。
+- **跨波次死亡触发**：首个随从的亡语先召唤死亡观察者，再造成范围伤害杀死另一随从；观察者只响应第二死亡波次，不追认自己入场前的第一波。
+- **同波次即时死亡与常规死亡**：满手牌退回立刻销毁一个敌方随从、随后召唤新观察者、再用范围伤害杀死另一敌方随从。最初在场的观察者收到两次死亡，新召唤者只收到后一次；亡语继续正常触发。这同时保护第四批修复和普通死亡的波次快照。
+- **英雄精确致命奖励可改写终局**：用荣誉消灭随从精确击杀敌方英雄，触发自己的伤害奖励后又杀死己方英雄，结算后应为平局，`MatchEnded` 只在死亡阶段末产生。不能因为一个英雄先降到零血就提前返回胜利。
+- 本批是有意保持引擎实现不变的行为锁定，并非宣称有新 Bug 修复：新增前的模拟器代码已经满足这三条断言。今后对死亡队列/触发派发的重构必须先通过回归。
+- 验证：GitHub Actions [#44931787243](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44931787243)；Release 0 warnings/0 errors，24 个基础测试 + 276 个 Domain 测试，**300/300 全部通过**，无失败或跳过。新测试提交 `12ed34e`。
+
+
+## 第六批：单个效果栈内光环状态即时一致性
+
+### 已用失败用例复现的错误
+
+同一张法术先移走/失效一个 +2 最大生命值光环来源，再对场上随从造成 2 点范围伤害。被保护的基础 1 血随从应在第二个效果前恢复到 1 血并被击杀。旧版直到整张牌结束时才调用 `RefreshAuras`，因此第二个效果错误地按 3 血计算，导致本该死亡的目标存活。
+
+- 红色回归提交 `7998fc2`，GitHub Actions [#44933995361](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44933995361) **4 条新测试全部按预期失败**：沉默、变形、正常退回手牌、控制权转移。
+- 首轮修复提交 `1d22bc9` 在这些状态变化后立即刷新光环，GitHub Actions [#44934146241](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44934146241) 全部通过。
+- 随后补充两条提前销毁来源的用例：满手牌退回时立即销毁目标，以及出牌前尚有一个场地空位、先召唤填满场地后再夺取敌方随从导致立即销毁。测试提交 `6545110` 的 [#44934211390](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44934211390) 报告两个用例失败，暴露即时死亡路径没有刷新光环。
+- `615cb44` 将这两种即时移除统一交给 `RemoveImmediately`：先捕获死亡时观察者快照，再移走实体并刷新光环。这样保留第四批防止晚到观察者追认死亡事件的修复。
+- `f168382` 修正满场测试的非法前提：不能直接在七个场位全满时主动打出控制权法术；应该从六个场位开始，法术先召唤第七个随从，再触发合法执行过程中的控制权溢出。
+
+### 最终回归
+
+- 新增 **6 条**自动化测试，涵盖四种常规状态变动和两种即时死亡；每条重复相同输入并核对事件轨迹与不可变输入。
+- [GitHub Actions #44934486918](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44934486918) **COMPLETED SUCCESS**：Release 编译 0 warning / 0 error，基础 24 + Domain 282 = **306/306 测试全部通过**，无失败、无跳过；离线回放、发布可执行文件和 historical-tools 均通过。
+- 此次仅调整属性光环的刷新时点，不改变攻击伤害的归因、死亡波次排序、外部权威 CHOICE 协议或卡牌脚本基线。
+
+下一步：对跨多个结算子阶段的特殊效果补更多固定录像差分测试，再在回归保护下抽取 DamageResolver / TriggerDispatcher。
+
+## 第七批：战斗双方同时伤害与吸血治疗时序
+
+- **原因**：此前 `Attack()` 先调用 `Damage(attacker, defender)`，其中的吸血立即为攻击英雄治疗；之后才调用 `Damage(defender, attacker)` 产生反击伤害。攻击英雄满血或只受少量伤害时，吸血提前被截断并浪费。
+- **测试先行**：`6ff7e28` 中两种吸血武器战斗，旧版 CI [#44939846011](https://github.com/xiaohei7972/SilverfishStandalone/actions/runs/44939846011) 出现两个真实失败：预期 30 实际 28，预期 27 实际 26；其余基础和 Domain 用例不受影响。
+- **最小修复**：`c58e635` 只为战斗内部的两个 `Damage` 调用创建延迟的吸血结算队列。先记录攻击与反击两次伤害，再按结算顺序执行生命恢复，然后按原顺序派发伤害触发队列。法术、战吼、技能等不参与双向战斗的 `Damage` 仍即时吸血。
+- **额外边界**：固定回放包括满血英雄、已有伤害的英雄，以及反击伤害先将英雄打到零血以下、随后吸血救回到 1 血的情况。验证最终 HP、`Healed` 来源与数量、事件序列顺序、同状态重复应用与原始输入不变。
+- 机制参考：[Hearthstone Wiki · Lifesteal](https://hearthstone.wiki.gg/wiki/Lifesteal) 与 [Attack](https://hearthstone.wiki.gg/wiki/Attack) 描述的同时战斗伤害和吸血致命反击救援。
+- 本批不更动死亡波次、客户端 CHOICE 或实机输入；以后拆分 `DamageResolver` 时应继续通过这些测试。
+
+## 第八批：混合防护范围伤害轨迹与伤害结算抽离
+
+- **固定轨迹锁定**：新增 `GameSimulationTests.DamageBatchGoldenTrace.cs`（`7f38235`、`7114652`、`f6d0b7f`），覆盖对同时含护甲英雄（2 点护甲吸收、1 点生命伤害）、圣盾随从（`ShieldBroken` 且生命无损）与致命超杀随从（`IsOverkill == true` 并进入死亡波次）的 `DamageTarget.AllEnemies` 范围伤害，结构化比对完整事件序列、护甲/生命分摊及原始不可变局面。
+- **分部文件抽离**：在阶段二全部回归保护下，将 `Resolution.Damage` 与 `Resolution.PushOccurrence`（含批量伤害入栈时的观察者及致命奖励快照注册）从 `GameSimulator.Resolution.cs` 抽离至 `src/Silverfish.Simulation/GameSimulator.Damage.cs`（`27fc854`、`326419e`），保持原有效果工作栈与 LIFO 触发派发顺序不变。
+- **阶段二收尾验证**：Release 编译 0 警告 / 0 错误，基础测试 24 项 + Domain 测试 286 项 = **310/310 全部通过**，1737 个单卡 Sim 注释及工具链检查全部通过。

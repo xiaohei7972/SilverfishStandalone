@@ -1,0 +1,462 @@
+name: Build and offline tests
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+
+jobs:
+  dotnet:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check required Sim card comments
+        run: python -X utf8 tools/sim_comments.py --check
+      - name: Verify PlayReq migration writes Sim card comments
+        run: python -X utf8 tools/test_sim_comments.py
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build standalone solution
+        run: dotnet build SilverfishStandalone.sln -c Release --nologo
+      - name: Test standalone solution
+        run: dotnet test SilverfishStandalone.sln -c Release --no-build --nologo
+      - name: Convert StandaloneGameMod state snapshot
+        shell: pwsh
+        run: |
+          $project = 'src/Silverfish.Cli/Silverfish.Cli.csproj'
+          $json = dotnet run --no-build --project $project -c Release -- import-state-snapshot samples/standalone-state-snapshot.json fixture-match
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $snapshot = ($json -join "`n") | ConvertFrom-Json
+          if ($snapshot.matchId -ne 'fixture-match' -or $snapshot.sequence -ne 42 -or
+              $snapshot.phase -ne 'main' -or !$snapshot.isOurTurn -or $snapshot.availableMana -ne 4 -or
+              $snapshot.ourHero.health -ne 26 -or $snapshot.ourHero.armor -ne 3 -or
+              ($snapshot.ourBoard.entityId -join ',') -ne '22,21' -or !$snapshot.ourBoard[1].hasTaunt -or
+              $snapshot.ourHand[0].cost -ne 3 -or $snapshot.enemyHandCount -ne 4 -or
+              $snapshot.enemyDeckCount -ne 21 -or $snapshot.enemySecretCount -ne 1 -or
+              @($snapshot.legalActions).Count -ne 0) {
+              throw 'State snapshot projection changed.'
+          }
+          $file = New-TemporaryFile
+          try {
+              $json | Set-Content -LiteralPath $file.FullName -Encoding utf8
+              $decisionJson = dotnet run --no-build --project $project -c Release -- $file.FullName
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $decision = ($decisionJson -join "`n") | ConvertFrom-Json
+              if ($decision.matchId -ne 'fixture-match' -or $decision.snapshotSequence -ne 42 -or $decision.chosenAction) {
+                  throw 'The snapshot decision changed its identity or inferred a legal action.'
+              }
+          } finally {
+              Remove-Item -LiteralPath $file.FullName
+          }
+      - name: Validate ordered multi-target CHOICE session
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- choice samples/entity-choice-targets.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $selection = ($json -join "`n") | ConvertFrom-Json
+          if (($selection.selectedEntityIds -join ',') -ne '11,33,22' -or
+              ($selection.submission.entityIds -join ',') -ne '11,33,22' -or
+              $selection.isSingleChoice -or !$selection.canConfirm) {
+              throw 'EntityChoices selection order or confirmation was incorrect.'
+          }
+      - name: Replay pending CHOICE submission and checkpoint restore
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-pending-choice.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = ($json -join "`n") | ConvertFrom-Json
+          if (($result.pendingChoice.submitted.orderedEntityIds.value -join ',') -ne '11,33' -or
+              $result.pendingChoice.packet.choiceId -ne 123 -or
+              $result.steps[0].events[0].kind -ne 'choiceSubmitted' -or
+              @($result.legalActions).Count -ne 0) {
+              throw 'Pending CHOICE submission was not blocked or ordered correctly.'
+          }
+          $temp = [System.IO.Path]::GetTempFileName()
+          try {
+              dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- checkpoint samples/simulation-pending-choice.json |
+                  Set-Content -Encoding utf8 $temp
+              if ($LASTEXITCODE -ne 0) { throw 'Checkpoint creation failed.' }
+              $reloadedJson = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate $temp
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $reloaded = ($reloadedJson -join "`n") | ConvertFrom-Json
+              if (($reloaded.pendingChoice.submitted.orderedEntityIds.value -join ',') -ne '11,33' -or
+                  @($reloaded.legalActions).Count -ne 0) {
+                  throw 'CHOICE checkpoint failed to round-trip.'
+              }
+          } finally {
+              Remove-Item $temp -ErrorAction SilentlyContinue
+          }
+      - name: Offline sample
+        run: dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- samples/lethal.json
+      - name: Replay a combat in the new simulator
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-combat.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+          if ($hero.character.health -ne 28 -or $replay.steps[2].events[-2].kind -ne 'deathrattle') {
+              throw '战斗回放结果与预期不符。'
+          }
+      - name: Replay spell timing and death position
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-triggers.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $timing = $replay.steps[0].events | Where-Object { $_.kind -eq 'triggered' } | ForEach-Object { $_.timing }
+          $board = $replay.players[0].zones.play.value -join ','
+          if (($timing -join ',') -ne 'beforeSpellResolved,minionDied,afterSpellResolved' -or $board -ne '10,11,21,13') {
+              throw '触发结算顺序或战场站位与预期不符。'
+          }
+      - name: Replay starter cards with damage and draw triggers
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-damage-draw.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+          $attack = $replay.steps[2].events.kind -join ','
+          $draws = ($replay.steps.events | Where-Object { $_.kind -eq 'cardDrawn' }).source.value -join ','
+          if ($hero.character.armor -ne 1 -or $draws -ne '14,15,22,16' -or
+              $attack -ne 'attack,damage,damage,triggered,cardDrawn,triggered,armorGained') {
+              throw '伤害和抽牌回放结果与预期不符。'
+          }
+      - name: Replay stat enchantments and auras
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-stats.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $wisp = $replay.entities | Where-Object { $_.id.value -eq 11 }
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 20 }
+          $endTurn = $replay.steps[3].events.kind -join ','
+          if ($hero.character.health -ne 25 -or $wisp.character.attack -ne 2 -or
+              $wisp.character.baseAttack -ne 1 -or $wisp.auraGrants.source.value -ne 12 -or
+              $wisp.enchantments.Count -ne 0 -or
+              $endTurn -ne 'turnEnded,enchantmentExpired,enchantmentExpired,turnStarted,cardDrawn') {
+              throw '属性附魔或光环回放结果与预期不符。'
+          }
+      - name: Replay equipment and hero powers
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-equipment.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+          $weaponId = $replay.players[0].equippedWeapon.value
+          $weapon = $replay.entities | Where-Object { $_.id.value -eq $weaponId }
+          $attack = $replay.steps[0].events.kind -join ','
+          $ready = $replay.legalActions | Where-Object { $_.kind -eq 'attack' -and $_.source.value -eq 10 -and $_.target.value -eq 20 }
+          if ($hero.character.health -ne 26 -or $weapon.cardId -ne 'CS2_082' -or $weapon.weapon.durability -ne 2 -or
+              $replay.players[0].heroPowerUsesThisTurn -ne 0 -or !$ready -or
+              $attack -ne 'attack,damage,damage,weaponDurabilityLost,weaponDestroyed,died,deathrattle,damage,died') {
+              throw '武器或英雄技能回放结果与预期不符。'
+          }
+      - name: Replay return, transform, and resurrection
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-lifecycle.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $replayed = $replay.entities | Where-Object { $_.id.value -eq 11 }
+          $sheep = $replay.entities | Where-Object { $_.id.value -eq 21 }
+          $resurrection = $replay.steps[4].events | Where-Object { $_.kind -eq 'resurrected' }
+          if ($replay.players[0].mana -ne 0 -or $replayed.character.health -ne 2 -or $replayed.costModifiers.Count -ne 0 -or
+              $sheep.cardId -ne 'CS2_tk1' -or $sheep.playOrder -ne 5 -or $replay.minionDeaths.Count -ne 1 -or
+              $replay.minionDeaths[0].entity.value -ne 15 -or $resurrection.source.value -ne 15 -or $resurrection.target.value -ne 22) {
+              throw '回手、变形或复活的回放结果与预期不符。'
+          }
+      - name: Replay combat keywords and overload
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-combat-keywords.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+          $enemyHero = $replay.entities | Where-Object { $_.id.value -eq 20 }
+          $weapon = $replay.entities | Where-Object { $_.id.value -eq 11 }
+          $player = $replay.players[0]
+          $heroAttack = $replay.legalActions | Where-Object { $_.kind -eq 'attack' -and $_.source.value -eq 10 }
+          if ($heroAttack -or !$hero.character.frozen -or $hero.character.health -ne 27 -or $enemyHero.character.health -ne 26 -or
+              $weapon.weapon.durability -ne 6 -or $player.mana -ne 8 -or $player.overloadLocked -ne 2 -or
+              $player.overloadOwed -ne 0 -or $replay.minionDeaths[0].entity.value -ne 21) {
+              throw '战斗关键词或过载的回放结果与预期不符。'
+          }
+      - name: Replay secrets, counters, and attack cancellation
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-secrets.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+          $wisp = $replay.entities | Where-Object { $_.id.value -eq 11 }
+          $armed = ($replay.steps.events | Where-Object { $_.kind -eq 'secretArmed' }).source.value -join ','
+          $counter = $replay.steps[4].events.kind -join ','
+          $attack = $replay.steps[5].events.kind -join ','
+          if ($armed -ne '21,22,23' -or $replay.players[1].zones.secret.Count -ne 0 -or
+              $hero.character.health -ne 28 -or $wisp.costModifiers.delta -ne 2 -or $replay.players[0].overloadOwed -ne 0 -or
+              $counter -ne 'cardPlayed,secretRevealed,spellCountered' -or
+              $attack -ne 'attack,secretRevealed,returnedToHand,secretRevealed,damage,attackCancelled') {
+              throw '法术反制或陷阱的结算顺序与预期不符。'
+          }
+      - name: Replay and plan random effects
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- plan samples/simulation-random.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $companion = $replay.entities | Where-Object { $_.id.value -eq 23 }
+          if ($companion.cardId -ne 'NEW1_033' -or $replay.plan.outcome -ne 'inProgress' -or
+              $replay.plan.winProbability -ne 0.875 -or $replay.plan.usesSamples -or
+              !$replay.plan.replanAfterLastAction -or $replay.plan.actions.Count -ne 1 -or
+              $replay.plan.actions[0].source.value -ne 12 -or $replay.plan.transitions -gt 512) {
+                  throw '固定种子的召唤结果或随机分支搜索结果与预期不符。'
+          }
+      - name: Replay mana and player choices
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-mana.json --card-data src/Silverfish.Simulation/Data/StarterCardData.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $player = $replay.players[0]
+          $nourish = $replay.steps[1].events | Where-Object { $_.kind -eq 'manaRefreshed' }
+          $excess = $replay.steps[2].events | Where-Object { $_.kind -eq 'cardGenerated' }
+          $bloom = $replay.steps[4].events.kind -join ','
+          if ($replay.cardDataBuild -ne 256589 -or $player.mana -ne 8 -or $player.manaCrystals -ne 10 -or $player.manaSpent -ne 0 -or
+              $player.temporaryMana -ne 0 -or $player.overloadLocked -ne 2 -or $player.overloadOwed -ne 0 -or
+              $nourish.amount -ne 2 -or $excess.target.value -ne 22 -or
+              $replay.steps[3].events[-1].source.value -ne 15 -or $bloom -ne 'cardPlayed,overloadScheduled,manaRefreshed') {
+              throw '法力、抉择或卡牌生成的回放结果与预期不符。'
+          }
+      - name: Replay and plan targeted card choices
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- plan samples/simulation-choices.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $replay = ($json -join "`n") | ConvertFrom-Json
+          $summon = $replay.steps[0].events | Where-Object { $_.kind -eq 'summoned' }
+          $strike = $replay.plan.actions[0]
+          $strikeTargets = @($replay.legalActions | Where-Object { $_.choice -eq 'strike' })
+          if ($replay.steps[0].action.choice -ne 'deploy' -or $summon.source.value -ne 21 -or
+              $strikeTargets.Count -ne 1 -or $strikeTargets[0].target.value -ne 20 -or
+              $replay.plan.winProbability -ne 1 -or $replay.plan.actions.Count -ne 1 -or
+              $strike.choice -ne 'strike' -or $strike.source.value -ne 12 -or $strike.target.value -ne 20) {
+              throw '抉择的合法目标或搜索结果与预期不符。'
+          }
+      - name: Replay and plan with catalog-backed custom rules
+        shell: pwsh
+        run: |
+          $catalog = [System.IO.Path]::GetTempFileName()
+          $compiledScenario = [System.IO.Path]::GetTempFileName()
+          try {
+              $import = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- import-card-data samples/card-data-demo.xml $catalog
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              if (($import -join "`n") -notmatch '已将构建 1 的 1 条卡牌资料导出') {
+                  throw '导入命令未显示预期的中文提示。'
+              }
+              $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- plan samples/simulation-card-data.json --card-data $catalog
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $replay = ($json -join "`n") | ConvertFrom-Json
+              $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+              $weapon = $replay.entities | Where-Object { $_.id.value -eq 11 }
+              $attack = $replay.plan.actions[0]
+              if ($replay.cardDataBuild -ne 1 -or $replay.players[0].mana -ne 0 -or $hero.character.armor -ne 2 -or
+                  $weapon.weapon.durability -ne 2 -or $replay.plan.winProbability -ne 1 -or
+                  $attack.kind -ne 'attack' -or $attack.source.value -ne 10 -or $attack.target.value -ne 20) {
+                  throw '挂载外置卡牌资料后，回放或搜索结果与预期不符。'
+              }
+              $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- decide samples/simulation-decision.json --card-data $catalog
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $decision = ($json -join "`n") | ConvertFrom-Json
+              if ($decision.engine -ne 'simulation-v1' -or $decision.matchId -ne 'training-decision' -or
+                  $decision.snapshotSequence -ne 4 -or $decision.chosenAction.id -ne 'host-equip-11') {
+                  throw '模拟决策未返回预期的快照序号和调用方动作 ID。'
+              }
+              $scenario = (Get-Content -Raw samples/simulation-card-data.json).Replace('training-blade', 'CS2_029') | ConvertFrom-Json
+              $scenario.players[0].mana = 4
+              $scenario.players[0].manaCrystals = 4
+              $scenario | ConvertTo-Json -Depth 12 | Set-Content -Encoding utf8 $compiledScenario
+              $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate $compiledScenario
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $replay = ($json -join "`n") | ConvertFrom-Json
+              $hero = $replay.entities | Where-Object { $_.id.value -eq 10 }
+              if ($replay.cardDataBuild -ne 256589 -or $replay.players[0].manaSpent -ne 4 -or $hero.character.armor -ne 2) {
+                  throw '从内置卡牌数据绑定自定义规则后，费用或效果结算与预期不符。'
+              }
+          } finally {
+              Remove-Item -LiteralPath $catalog
+              Remove-Item -LiteralPath $compiledScenario
+          }
+      - name: Replay with a restored checkpoint
+        shell: pwsh
+        run: |
+          $directInput = [System.IO.Path]::GetTempFileName()
+          $resumedInput = [System.IO.Path]::GetTempFileName()
+          try {
+              $sample = 'samples/simulation-random.json'
+              $action = '{"kind":"playCard","actor":{"value":1},"source":{"value":12}}'
+              $full = [System.Text.Json.Nodes.JsonNode]::Parse((Get-Content -Raw $sample))
+              $full['actions'].AsArray().Add([System.Text.Json.Nodes.JsonNode]::Parse($action))
+              [System.IO.File]::WriteAllText($directInput, $full.ToJsonString())
+              $savedJson = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- checkpoint $sample
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $saved = [System.Text.Json.Nodes.JsonNode]::Parse(($savedJson -join "`n"))
+              $saved['actions'] = [System.Text.Json.Nodes.JsonNode]::Parse("[$action]")
+              [System.IO.File]::WriteAllText($resumedInput, $saved.ToJsonString())
+              $directJson = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate $directInput
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $resumedJson = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate $resumedInput
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $direct = [System.Text.Json.Nodes.JsonNode]::Parse(($directJson -join "`n"))
+              $resumed = [System.Text.Json.Nodes.JsonNode]::Parse(($resumedJson -join "`n"))
+              foreach ($key in @('players', 'entities', 'randomState', 'outcome', 'legalActions')) {
+                  if ($direct[$key].ToJsonString() -ne $resumed[$key].ToJsonString()) {
+                      throw "续跑后的 $key 与连续回放不一致。"
+                  }
+              }
+              if ($direct['steps'].AsArray()[1].ToJsonString() -ne $resumed['steps'].AsArray()[0].ToJsonString()) {
+                  throw '续跑后的结算事件与连续回放不一致。'
+              }
+          } finally {
+              Remove-Item -LiteralPath $directInput, $resumedInput
+          }
+      - name: Replay conditional effects and trigger activation
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-conditions.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = ($json -join "`n") | ConvertFrom-Json
+          $hero = $result.entities | Where-Object { $_.id.value -eq 10 }
+          $unit = $result.entities | Where-Object { $_.id.value -eq 21 }
+          if ($hero.character.armor -ne 2 -or $unit.character.health -ne 2 -or
+              ($result.steps[0].events.kind -join ',') -ne 'cardPlayed,damage,armorGained,damage,triggered,damage') {
+              throw '条件分支或触发顺序与预期结果不符。'
+          }
+      - name: Replay costs with active auras
+        shell: pwsh
+        run: |
+          $json = dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- simulate samples/simulation-cost-auras.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = ($json -join "`n") | ConvertFrom-Json
+          $hero = $result.entities | Where-Object { $_.id.value -eq 10 }
+          $opponent = $result.entities | Where-Object { $_.id.value -eq 20 }
+          if ($result.players[0].manaSpent -ne 1 -or $result.players[0].heroPowerUsesThisTurn -ne 1 -or
+              $hero.character.armor -ne 1 -or $opponent.character.health -ne 28) {
+              throw '费用光环下的扣费或结算结果与预期不符。'
+          }
+      - name: Generate card and enchantment Sim scaffolds
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP "silverfish-sim-$([Guid]::NewGuid())"
+          New-Item -ItemType Directory -Path $output | Out-Null
+          $xml = Join-Path $output 'CardDefs.xml'
+          $data = Join-Path $output 'data.json'
+          $cards = Join-Path $output 'Cards'
+          @'
+          <CardDefs build="1">
+            <Entity CardID="TestCard" ID="1">
+              <Tag enumID="183" value="1635" />
+              <Tag enumID="202" value="5" />
+              <Tag enumID="185"><enUS>Practice Spell</enUS><zhCN>练习法术</zhCN></Tag>
+              <Tag enumID="184"><enUS>&lt;b&gt;Draw&lt;/b&gt;\na&#x2028;card.</enUS><zhCN>抽一张牌。</zhCN></Tag>
+            </Entity>
+            <Entity CardID="TestBuff" ID="2">
+              <Tag enumID="183" value="1635" />
+              <Tag enumID="202" value="6" />
+              <Tag enumID="185"><enUS>Practice Buff</enUS><zhCN>练习附魔</zhCN></Tag>
+              <Tag enumID="184"><zhCN>获得一点攻击力。</zhCN></Tag>
+            </Entity>
+          </CardDefs>
+          '@ | Set-Content -Encoding utf8 $xml
+          dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- generate-sim $xml $cards TestCard TestBuff
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $normal = Join-Path $cards '1635-怀旧/Sim_TestCard.cs'
+          $enchantment = Join-Path $cards '1635-怀旧/ENCHANTMENT/Sim_TestBuff.cs'
+          $normalSource = Get-Content -Raw $normal
+          $enchantmentSource = Get-Content -Raw $enchantment
+          if ($normalSource -notmatch 'CardRules Rules' -or $enchantmentSource -notmatch 'StatEnchantmentRule Rule') {
+              throw '同系列中的普通卡或附魔 Sim 骨架使用了错误的规则类型。'
+          }
+          if ($normalSource -cnotmatch '(?m)^// \[CardSim\("TestCard"\)\]\r?$' -or
+              $normalSource -match '\bconst\s+string\s+CardId\b' -or $enchantmentSource -match '\[CardSim\(') {
+              throw '普通卡骨架应预填注释形式的 CardSim 卡牌 ID，附魔骨架由单卡直接引用。'
+          }
+          if ($normalSource -notmatch '// 练习法术' -or $normalSource -notmatch '// Practice Spell' -or
+              $normalSource -notmatch '// 抽一张牌。' -or $normalSource -notmatch '// Draw a card\.' -or
+              $enchantmentSource -notmatch '// 获得一点攻击力。' -or $enchantmentSource -notmatch '// English card text unavailable\.') {
+              throw 'Sim 骨架的双语卡牌注释与原始资料不符。'
+          }
+          python -X utf8 tools/sim_comments.py --check --cards $cards
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Add-Content $enchantment '// 保留手写规则。'
+          $before = (Get-FileHash $enchantment).Hash
+          dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- import-card-data $xml $data
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $fromJson = Join-Path $output 'FromJson'
+          dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- generate-sim $data $fromJson TestCard TestBuff
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-Content -Raw (Join-Path $fromJson '1635-怀旧/Sim_TestCard.cs')) -cne $normalSource -or
+              (Get-Content -Raw (Join-Path $fromJson '1635-怀旧/ENCHANTMENT/Sim_TestBuff.cs')) -cne $enchantmentSource) {
+              throw '从 XML 和 JSON 生成的 Sim 骨架不一致。'
+          }
+          dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- generate-sim $data $cards TestCard TestBuff
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-FileHash $enchantment).Hash -ne $before) { throw '重新生成覆盖了手写 Sim。' }
+          $oldDirectory = Join-Path $cards 'Enchantments'
+          New-Item -ItemType Directory -Path $oldDirectory | Out-Null
+          $oldPath = Join-Path $oldDirectory 'Sim_TestBuff.cs'
+          Move-Item -LiteralPath $enchantment -Destination $oldPath
+          dotnet run --project src/Silverfish.Cli/Silverfish.Cli.csproj -c Release --no-build -- generate-sim $data $cards TestBuff
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Test-Path -LiteralPath $enchantment) -or (Get-FileHash $oldPath).Hash -ne $before) {
+              throw '重新生成时应识别旧目录中的手写 Sim。'
+          }
+      - name: Run published standalone executable outside the workspace
+        shell: pwsh
+        run: |
+          $published = Join-Path $env:RUNNER_TEMP 'silverfish-standalone-publish'
+          dotnet publish src/Silverfish.Cli/Silverfish.Cli.csproj -c Release -p:PublishProfile=WindowsX64 -o $published
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $standaloneRun = Join-Path $env:RUNNER_TEMP 'silverfish-standalone-run'
+          New-Item -ItemType Directory -Path $standaloneRun -Force | Out-Null
+          Copy-Item -LiteralPath "$published/Silverfish.Cli.exe" -Destination $standaloneRun
+          $sample = (Resolve-Path samples/simulation-random.json).Path
+          Push-Location $standaloneRun
+          try {
+              $json = & ./Silverfish.Cli.exe plan $sample
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $result = ($json -join "`n") | ConvertFrom-Json
+              if ($result.plan.winProbability -ne 0.875 -or !$result.plan.replanAfterLastAction) {
+                  throw '独立发布程序的随机分支搜索结果与预期不符。'
+              }
+          } finally {
+              Pop-Location
+          }
+
+  historical-tools:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Validate classic import tool
+        run: python tools/test_import_classic.py
+      - name: Validate headless classic source patching
+        run: python tools/test_normalize_classic.py
+      - name: Libmem.NET process discovery (Windows x64)
+        shell: pwsh
+        run: |
+          $project = 'src/Silverfish.Integrations.Libmem/Silverfish.Integrations.Libmem.csproj'
+          dotnet build $project -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $json = dotnet run --no-build --project $project -c Release -- list
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $clients = ($json -join "`n") | ConvertFrom-Json -NoEnumerate
+          if ($clients -isnot [array]) { throw 'Expected a JSON array of Hearthstone clients.' }

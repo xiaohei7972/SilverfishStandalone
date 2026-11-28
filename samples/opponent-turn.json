@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "matchId": "offline-example-002",
+  "sequence": 20,
+  "phase": "main",
+  "isOurTurn": false,
+  "availableMana": 0,
+  "ourHero": { "entityId": 1, "health": 26 },
+  "enemyHero": { "entityId": 2, "health": 22 },
+  "ourBoard": [],
+  "enemyBoard": [],
+  "ourHand": [],
+  "legalActions": []
+}
