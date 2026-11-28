@@ -1,10 +1,14 @@
+using Silverfish.Domain;
 using Silverfish.Domain.Client;
+using Silverfish.Simulation.Cards.Enchantments;
+
 namespace Silverfish.Simulation.Cards;
 
 // 血怒药水
 // Bloodfury Potion
 // 使一个随从获得+3攻击力。如果该随从是恶魔，还会获得+3生命值。
 // Give a minion +3 Attack. If it's a Demon, also give it +3 Health.
+[CardSim("CFM_611")]
 internal static class Sim_CFM_611
 {
     // <legacy-play-requirements>
@@ -13,4 +17,23 @@ internal static class Sim_CFM_611
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay =
+        [
+            new ConditionalEffect(
+                new CharacterMatchCondition(ConditionCharacter.Selected, CardFilter: new CardFilter { MinionType = MinionType.Demon }),
+                [
+                    new EnchantStatsEffect(StatTarget.Selected, new(StatModifierMode.Add, 3, 3))
+                        { EnchantmentCardId = Sim_CFM_611e2.CardId },
+                ])
+            {
+                Otherwise =
+                [
+                    new EnchantStatsEffect(StatTarget.Selected, new(StatModifierMode.Add, Attack: 3))
+                        { EnchantmentCardId = Sim_CFM_611e.CardId },
+                ],
+            },
+        ],
+    };
 }

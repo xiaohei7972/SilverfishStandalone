@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 强效治疗药水
 // Greater Healing Potion
 // 为一个友方角色恢复#12点生命值。抽一张牌。
 // Restore #12 Health to a friendly character. Draw a card.
+[CardSim("CFM_604")]
 internal static class Sim_CFM_604
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_CFM_604
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new HealEffect(HealTarget.Selected, 12), new DrawEffect(1)],
+    };
 }

@@ -1,10 +1,12 @@
 using Silverfish.Domain.Client;
+
 namespace Silverfish.Simulation.Cards;
 
 // 冰冻药水
 // Freezing Potion
 // 冻结一个敌人。
 // Freeze an enemy.
+[CardSim("CFM_021")]
 internal static class Sim_CFM_021
 {
     // <legacy-play-requirements>
@@ -13,4 +15,8 @@ internal static class Sim_CFM_021
         []);
     // </legacy-play-requirements>
 
+    internal static CardRules Rules { get; } = new()
+    {
+        OnPlay = [new FreezeEffect(FreezeTarget.Selected)],
+    };
 }
