@@ -119,6 +119,9 @@ public sealed partial class GameSimulator
         _ => throw new InvalidOperationException("无法识别待决选择规则。")
     };
 
+    private ImmutableArray<string> DiscoverCardCandidates(GameState state, PlayerId player, CardFilter? filter) =>
+        DiscoverCardCandidates(state, player, new DiscoverCardChoice(filter));
+
     private ImmutableArray<string> DiscoverCardCandidates(GameState state, PlayerId player, DiscoverCardChoice discover)
     {
         if (discover.SourceDeck is ConditionPlayer sourceDeck)

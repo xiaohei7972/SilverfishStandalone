@@ -1,3 +1,5 @@
+using Silverfish.Domain;
+
 namespace Silverfish.Simulation.Cards;
 
 // 龙人侦测者

@@ -1,3 +1,5 @@
+using Silverfish.Domain;
+
 namespace Silverfish.Simulation.Cards;
 
 // 发条强盗机器人

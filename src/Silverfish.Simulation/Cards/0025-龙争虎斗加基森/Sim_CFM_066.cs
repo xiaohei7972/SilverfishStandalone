@@ -1,3 +1,5 @@
+using Silverfish.Domain;
+
 namespace Silverfish.Simulation.Cards;
 
 // 暗金教侍从
